@@ -1,6 +1,4 @@
-// Asume que ya tienes tu pool mssql exportado, ej: const pool = require("../db/pool");
-const pool = require("../db/pool");
-const sql = require("mssql");
+const { sql, getPool } = require("../config/database");
 
 async function findByDni(dni) {
   const query = `
@@ -19,7 +17,8 @@ async function findByDni(dni) {
     WHERE u.dni = @dni;
   `;
 
-  const request = (await pool()).request();
+  const pool = await getPool();
+  const request = pool.request();
   request.input("dni", sql.NVarChar(15), dni);
 
   const result = await request.query(query);

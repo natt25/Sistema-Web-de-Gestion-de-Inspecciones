@@ -1,25 +1,32 @@
-const jwt = require("jsonwebtoken");
-const env = require("../config/env");
+const { verifyToken } = require("../utils/jwt");
 
 function authMiddleware(req, res, next) {
-  const authHeader = req.headers.authorization;
+  const authHeader = req.headers["authorization"];
 
+  // Debe venir como: Authorization: Bearer <token>
   if (!authHeader) {
-    return res.status(401).json({ ok: false, message: "Token requerido" });
+    return res.status(401).json({ message: "Token no proporcionado" });
   }
 
-  const [type, token] = authHeader.split(" ");
-
-  if (type !== "Bearer" || !token) {
-    return res.status(401).json({ ok: false, message: "Formato de token inválido" });
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
+    return res.status(401).json({ message: "Formato de token inválido" });
   }
+
+  const token = parts[1];
 
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET);
-    req.user = decoded; // { id_usuario, dni, id_rol }
+    const decoded = verifyToken(token);
+
+    // Inyectamos el usuario en la request
+    req.user = {
+      id_usuario: decoded.id_usuario,
+      rol: decoded.rol,
+    };
+
     next();
-  } catch (err) {
-    return res.status(401).json({ ok: false, message: "Token inválido o expirado" });
+  } catch (error) {
+    return res.status(401).json({ message: "Token inválido o expirado" });
   }
 }
 
