@@ -1,9 +1,9 @@
 const express = require("express");
 const auth = require("../middlewares/auth.middleware");
 const { getPool } = require("../config/database");
-
 const router = express.Router();
-
+const controller = require("../controllers/catalogos.controller");
+const authMiddleware = require("../middlewares/auth.middleware");
 /**
  * GET /api/catalogos/clientes
  * (protegido con JWT)
@@ -27,5 +27,7 @@ router.get("/clientes", auth, async (req, res, next) => {
     return next(err);
   }
 });
+
+router.get("/clientes", authMiddleware, controller.listarClientes);
 
 module.exports = router;

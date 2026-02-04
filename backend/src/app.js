@@ -41,5 +41,6 @@ app.use((req, res) => {
 
 app.use("/api/auth", require("./routes/auth.routes"));
 
+app.use("/api/catalogos", require("./routes/catalogos.routes"));
 
 module.exports = app;
