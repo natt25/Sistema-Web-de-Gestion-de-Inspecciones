@@ -1,8 +1,15 @@
 const jwt = require("jsonwebtoken");
-const env = require("../config/env");
 
-function signToken(payload) {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
-}
+const signToken = (payload) => {
+  if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET no configurado");
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || "8h",
+  });
+};
 
-module.exports = { signToken };
+const verifyToken = (token) => {
+  if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET no configurado");
+  return jwt.verify(token, process.env.JWT_SECRET);
+};
+
+module.exports = { signToken, verifyToken };

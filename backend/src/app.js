@@ -39,4 +39,7 @@ app.use((req, res) => {
   });
 });
 
+app.use("/api/auth", require("./routes/auth.routes"));
+
+
 module.exports = app;

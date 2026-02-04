@@ -1,22 +1,17 @@
 const authService = require("../services/auth.service");
 
-async function login(req, res, next) {
+async function login(req, res) {
   try {
-    const { dni, password } = req.body;
-
-    if (!dni || !password) {
-      return res.status(400).json({ ok: false, message: "dni y password son requeridos" });
-    }
-
-    const result = await authService.login({ dni, password });
+    const result = await authService.login(req.body);
 
     if (!result.ok) {
-      return res.status(result.status).json({ ok: false, message: result.message });
+      return res.status(result.status).json({ message: result.message });
     }
 
-    return res.json(result);
+    return res.status(200).json(result.data);
   } catch (err) {
-    return next(err);
+    console.error("auth.login error:", err);
+    return res.status(500).json({ message: "Error interno" });
   }
 }
 
