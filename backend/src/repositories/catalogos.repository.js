@@ -7,4 +7,11 @@ async function listarClientes() {
   return result.recordset;
 }
 
-module.exports = { listarClientes };
+async function listarAreas() {
+  const query = `SELECT * FROM SSOMA.INS_AREA;`;
+  const pool = await getPool();
+  const result = await pool.request().query(query);
+  return result.recordset;
+}
+
+module.exports = { listarClientes, listarAreas };

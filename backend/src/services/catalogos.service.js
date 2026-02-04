@@ -4,4 +4,13 @@ async function listarClientes() {
   return repo.listarClientes();
 }
 
-module.exports = { listarClientes };
+async function listarAreas() {
+  return repo.listarAreas();
+}
+
+async function listarServicios() {
+  return repo.listarServicios();
+}
+
+module.exports = { listarClientes, listarAreas, listarServicios };
+

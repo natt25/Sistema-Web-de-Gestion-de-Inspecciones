@@ -29,5 +29,7 @@ router.get("/clientes", auth, async (req, res, next) => {
 });
 
 router.get("/clientes", authMiddleware, controller.listarClientes);
+router.get("/servicios", authMiddleware, controller.listarServicios);
+router.get("/areas", authMiddleware, controller.listarAreas);
 
 module.exports = router;
