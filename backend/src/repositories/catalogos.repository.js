@@ -14,4 +14,12 @@ async function listarAreas() {
   return result.recordset;
 }
 
-module.exports = { listarClientes, listarAreas };
+async function listarServicios() {
+  const query = `SELECT * FROM SSOMA.V_SERVICIO;`;
+  const pool = await getPool();
+  const result = await pool.request().query(query);
+  return result.recordset;
+}
+
+
+module.exports = { listarClientes, listarAreas, listarServicios };
