@@ -8,6 +8,7 @@ require("./config/env");
 const healthRoutes = require("./routes/health.routes");
 const authRoutes = require("./routes/auth.routes");
 const catalogosRoutes = require("./routes/catalogos.routes");
+const inspeccionesRoutes = require("./routes/inspecciones.routes");
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use(express.json());
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/catalogos", catalogosRoutes);
+app.use("/api/inspecciones", inspeccionesRoutes);
 
 // =======================
 // Ruta raíz (solo informativa)
@@ -30,17 +32,13 @@ app.get("/", (req, res) => {
 });
 
 // =======================
-// Handler de rutas no encontradas
+// Handler de rutas no encontradas (SIEMPRE AL FINAL)
 // =======================
 app.use((req, res) => {
   res.status(404).json({
     ok: false,
-    message: "Ruta no encontrada"
+    message: "Ruta no encontrada",
   });
 });
-
-app.use("/api/auth", require("./routes/auth.routes"));
-
-app.use("/api/catalogos", require("./routes/catalogos.routes"));
 
 module.exports = app;
