@@ -12,5 +12,19 @@ async function listarServicios() {
   return repo.listarServicios();
 }
 
-module.exports = { listarClientes, listarAreas, listarServicios };
+async function listarLugaresPorArea(idArea) {
+  return repo.listarLugaresPorArea(idArea);
+}
+
+async function listarNivelesRiesgo() {
+  return repo.listarNivelesRiesgo();
+}
+
+module.exports = {
+  listarClientes,
+  listarAreas,
+  listarServicios,
+  listarLugaresPorArea,
+  listarNivelesRiesgo
+};
 

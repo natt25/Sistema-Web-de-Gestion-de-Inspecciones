@@ -30,6 +30,31 @@ async function listarServicios(req, res) {
   }
 }
 
+async function listarLugaresPorArea(req, res) {
+  try {
+    const { id } = req.params;
+    const data = await service.listarLugaresPorArea(id);
+    return res.json(data);
+  } catch (err) {
+    console.error("catalogos.listarLugaresPorArea:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
 
+async function listarNivelesRiesgo(req, res) {
+  try {
+    const data = await service.listarNivelesRiesgo();
+    return res.json(data);
+  } catch (err) {
+    console.error("catalogos.listarNivelesRiesgo:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
 
-module.exports = { listarClientes, listarAreas, listarServicios };
+module.exports = {
+  listarClientes,
+  listarAreas,
+  listarServicios,
+  listarLugaresPorArea,
+  listarNivelesRiesgo
+};

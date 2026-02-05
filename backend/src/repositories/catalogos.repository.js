@@ -21,5 +21,35 @@ async function listarServicios() {
   return result.recordset;
 }
 
+async function listarLugaresPorArea(idArea) {
+  const query = `
+    SELECT
+      id_lugar,
+      id_area,
+      desc_lugar
+    FROM SSOMA.INS_LUGAR
+    WHERE id_area = @idArea;
+  `;
 
-module.exports = { listarClientes, listarAreas, listarServicios };
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("idArea", idArea);
+
+  const result = await request.query(query);
+  return result.recordset;
+}
+
+async function listarNivelesRiesgo() {
+  const query = `SELECT * FROM SSOMA.INS_CAT_NIVEL_RIESGO;`;
+  const pool = await getPool();
+  const result = await pool.request().query(query);
+  return result.recordset;
+}
+
+module.exports = { 
+  listarClientes, 
+  listarAreas, 
+  listarServicios, 
+  listarLugaresPorArea,
+  listarNivelesRiesgo
+};

@@ -31,5 +31,7 @@ router.get("/clientes", auth, async (req, res, next) => {
 router.get("/clientes", authMiddleware, controller.listarClientes);
 router.get("/servicios", authMiddleware, controller.listarServicios);
 router.get("/areas", authMiddleware, controller.listarAreas);
+router.get("/areas/:id/lugares", authMiddleware, controller.listarLugaresPorArea);
+router.get("/niveles-riesgo", authMiddleware, controller.listarNivelesRiesgo);
 
 module.exports = router;
