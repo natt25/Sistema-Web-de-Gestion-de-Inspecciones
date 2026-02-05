@@ -51,10 +51,21 @@ async function listarNivelesRiesgo(req, res) {
   }
 }
 
+async function listarPlantillas(req, res) {
+  try {
+    const data = await service.listarPlantillas();
+    return res.json(data);
+  } catch (err) {
+    console.error("catalogos.listarPlantillas:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
 module.exports = {
   listarClientes,
   listarAreas,
   listarServicios,
   listarLugaresPorArea,
-  listarNivelesRiesgo
+  listarNivelesRiesgo,
+  listarPlantillas
 };

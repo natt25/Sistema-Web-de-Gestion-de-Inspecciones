@@ -20,11 +20,16 @@ async function listarNivelesRiesgo() {
   return repo.listarNivelesRiesgo();
 }
 
+async function listarPlantillas() {
+  return repo.listarPlantillas();
+}
+
 module.exports = {
   listarClientes,
   listarAreas,
   listarServicios,
   listarLugaresPorArea,
-  listarNivelesRiesgo
+  listarNivelesRiesgo,
+  listarPlantillas
 };
 

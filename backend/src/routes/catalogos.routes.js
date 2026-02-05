@@ -33,5 +33,6 @@ router.get("/servicios", authMiddleware, controller.listarServicios);
 router.get("/areas", authMiddleware, controller.listarAreas);
 router.get("/areas/:id/lugares", authMiddleware, controller.listarLugaresPorArea);
 router.get("/niveles-riesgo", authMiddleware, controller.listarNivelesRiesgo);
+router.get("/plantillas", authMiddleware, controller.listarPlantillas);
 
 module.exports = router;

@@ -46,10 +46,28 @@ async function listarNivelesRiesgo() {
   return result.recordset;
 }
 
+async function listarPlantillas() {
+  const query = `
+    SELECT
+      id_plantilla_inspec,
+      codigo_formato,
+      nombre_formato,
+      estado,
+      version_actual
+    FROM SSOMA.INS_PLANTILLA_INSPECCION
+    WHERE estado = 1
+    ORDER BY nombre_formato;
+  `;
+  const pool = await getPool();
+  const result = await pool.request().query(query);
+  return result.recordset;
+}
+
 module.exports = { 
   listarClientes, 
   listarAreas, 
   listarServicios, 
   listarLugaresPorArea,
-  listarNivelesRiesgo
+  listarNivelesRiesgo,
+  listarPlantillas
 };
