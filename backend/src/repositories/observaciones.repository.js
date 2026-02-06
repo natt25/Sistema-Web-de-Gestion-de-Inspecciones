@@ -337,6 +337,38 @@ async function actualizarEstadoObservacion({ id_observacion, id_estado_observaci
   return result.recordset[0] || null;
 }
 
+async function obtenerEstadoAccion(id_accion) {
+  const query = `
+    SELECT id_accion, id_estado_accion
+    FROM SSOMA.INS_ACCION
+    WHERE id_accion = @id_accion;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_accion", sql.Int, id_accion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+async function actualizarEstadoAccion({ id_accion, id_estado_accion }) {
+  const query = `
+    UPDATE SSOMA.INS_ACCION
+    SET id_estado_accion = @id_estado_accion
+    OUTPUT INSERTED.*
+    WHERE id_accion = @id_accion;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_accion", sql.Int, id_accion);
+  request.input("id_estado_accion", sql.Int, id_estado_accion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
 
 module.exports = {
   crearObservacion,
@@ -348,6 +380,8 @@ module.exports = {
   crearEvidenciaAccion,
   listarEvidenciasPorAccion,
   obtenerEstadoObservacion,
-  actualizarEstadoObservacion
+  actualizarEstadoObservacion,
+  obtenerEstadoAccion,
+  actualizarEstadoAccion
 };
 

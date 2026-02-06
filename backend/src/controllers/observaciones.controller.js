@@ -105,6 +105,7 @@ async function listarAcciones(req, res) {
     return res.status(500).json({ message: "Error interno" });
   }
 }
+
 async function crearEvidenciaAccion(req, res) {
   try {
     const { id } = req.params; // id_accion
@@ -159,6 +160,26 @@ async function actualizarEstadoObservacion(req, res) {
   }
 }
 
+async function actualizarEstadoAccion(req, res) {
+  try {
+    const { id } = req.params; // id_accion
+    const result = await service.actualizarEstadoAccion({
+      id_accion: id,
+      body: req.body
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("observaciones.actualizarEstadoAccion:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+
 module.exports = {
   crear,
   listar,
@@ -168,5 +189,6 @@ module.exports = {
   listarAcciones,
   crearEvidenciaAccion,
   listarEvidenciasAccion,
-  actualizarEstadoObservacion
+  actualizarEstadoObservacion,
+  actualizarEstadoAccion
 };

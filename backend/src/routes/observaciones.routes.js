@@ -67,4 +67,11 @@ router.patch(
   controller.actualizarEstadoObservacion
 );
 
+// PATCH /api/inspecciones/acciones/:id/estado
+router.patch(
+  "/acciones/:id/estado",
+  authMiddleware,
+  controller.actualizarEstadoAccion
+);
+
 module.exports = router;

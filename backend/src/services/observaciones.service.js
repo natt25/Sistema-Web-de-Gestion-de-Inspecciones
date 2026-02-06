@@ -265,6 +265,47 @@ async function actualizarEstadoObservacion({ id_observacion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
+async function actualizarEstadoAccion({ id_accion, body }) {
+  const id = Number(id_accion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_accion inválido" };
+  }
+
+  const nuevo = Number(body?.id_estado_accion);
+  if (!nuevo || Number.isNaN(nuevo)) {
+    return { ok: false, status: 400, message: "id_estado_accion es obligatorio" };
+  }
+
+  const actual = await repo.obtenerEstadoAccion(id);
+  if (!actual) {
+    return { ok: false, status: 404, message: "Acción no encontrada" };
+  }
+
+  const estadoActual = actual.id_estado_accion;
+
+  const permitidas = {
+    1: [2, 4], // PENDIENTE
+    2: [3, 4], // EN_PROCESO
+    3: [],     // CUMPLIDA
+    4: []      // NO_APLICA
+  };
+
+  if (!permitidas[estadoActual]?.includes(nuevo)) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Transición no permitida: ${estadoActual} -> ${nuevo}`
+    };
+  }
+
+  const updated = await repo.actualizarEstadoAccion({
+    id_accion: id,
+    id_estado_accion: nuevo
+  });
+
+  return { ok: true, status: 200, data: updated };
+}
+
 module.exports = {
   crearObservacion,
   listarPorInspeccion,
@@ -274,6 +315,7 @@ module.exports = {
   listarAccionesPorObservacion,
   crearEvidenciaAccion,
   listarEvidenciasPorAccion,
-  actualizarEstadoObservacion
+  actualizarEstadoObservacion,
+  actualizarEstadoAccion
 };
 
