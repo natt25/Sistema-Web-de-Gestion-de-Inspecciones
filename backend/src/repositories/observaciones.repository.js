@@ -36,4 +36,28 @@ async function crearObservacion(payload) {
   return result.recordset[0];
 }
 
-module.exports = { crearObservacion };
+async function listarPorInspeccion(id_inspeccion) {
+  const query = `
+    SELECT
+      id_observacion,
+      id_inspeccion,
+      id_nivel_riesgo,
+      id_estado_observacion,
+      item_ref,
+      desc_observacion,
+      created_at
+    FROM SSOMA.INS_OBSERVACION
+    WHERE id_inspeccion = @id_inspeccion
+    ORDER BY created_at DESC;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_inspeccion", sql.Int, id_inspeccion);
+
+  const result = await request.query(query);
+  return result.recordset;
+}
+
+
+module.exports = { crearObservacion, listarPorInspeccion };

@@ -20,4 +20,21 @@ async function crear(req, res) {
   }
 }
 
-module.exports = { crear };
+async function listar(req, res) {
+  try {
+    const { id } = req.params;
+    const result = await service.listarPorInspeccion(id);
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("observaciones.listar:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+
+module.exports = { crear, listar };

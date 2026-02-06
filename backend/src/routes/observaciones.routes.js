@@ -11,4 +11,12 @@ router.post(
   controller.crear
 );
 
+// GET /api/inspecciones/:id/observaciones
+router.get(
+  "/:id/observaciones",
+  authMiddleware,
+  controller.listar
+);
+
+
 module.exports = router;

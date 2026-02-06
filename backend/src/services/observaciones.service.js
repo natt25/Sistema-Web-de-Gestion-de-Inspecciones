@@ -28,4 +28,14 @@ async function crearObservacion({ id_inspeccion, body }) {
   return { ok: true, status: 201, data: creado };
 }
 
-module.exports = { crearObservacion };
+async function listarPorInspeccion(id_inspeccion) {
+  const id = Number(id_inspeccion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_inspeccion inválido" };
+  }
+
+  const data = await repo.listarPorInspeccion(id);
+  return { ok: true, status: 200, data };
+}
+
+module.exports = { crearObservacion, listarPorInspeccion };
