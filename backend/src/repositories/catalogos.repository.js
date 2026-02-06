@@ -33,7 +33,8 @@ async function listarLugaresPorArea(idArea) {
 
   const pool = await getPool();
   const request = pool.request();
-  request.input("idArea", idArea);
+  const { sql } = require("../config/database");
+  request.input("idArea", sql.Int, Number(idArea));
 
   const result = await request.query(query);
   return result.recordset;
@@ -55,13 +56,14 @@ async function listarPlantillas() {
       estado,
       version_actual
     FROM SSOMA.INS_PLANTILLA_INSPECCION
-    WHERE estado = 1
     ORDER BY nombre_formato;
   `;
   const pool = await getPool();
   const result = await pool.request().query(query);
   return result.recordset;
 }
+
+
 
 module.exports = { 
   listarClientes, 

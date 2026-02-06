@@ -1,38 +1,25 @@
 const express = require("express");
-const auth = require("../middlewares/auth.middleware");
-const { getPool } = require("../config/database");
 const router = express.Router();
-const controller = require("../controllers/catalogos.controller");
+
 const authMiddleware = require("../middlewares/auth.middleware");
-/**
- * GET /api/catalogos/clientes
- * (protegido con JWT)
- */
-router.get("/clientes", auth, async (req, res, next) => {
-  try {
-    const pool = await getPool();
-    const result = await pool.request().query(`
-      SELECT
-        id_cliente,
-        raz_social
-      FROM SSOMA.V_CLIENTE
-    `);
+const controller = require("../controllers/catalogos.controller");
 
-    return res.json({
-      ok: true,
-      data: result.recordset,
-      usuario: req.user
-    });
-  } catch (err) {
-    return next(err);
-  }
-});
-
+// GET /api/catalogos/clientes
 router.get("/clientes", authMiddleware, controller.listarClientes);
+
+// GET /api/catalogos/servicios
 router.get("/servicios", authMiddleware, controller.listarServicios);
+
+// GET /api/catalogos/areas
 router.get("/areas", authMiddleware, controller.listarAreas);
+
+// GET /api/catalogos/areas/:id/lugares
 router.get("/areas/:id/lugares", authMiddleware, controller.listarLugaresPorArea);
+
+// GET /api/catalogos/niveles-riesgo
 router.get("/niveles-riesgo", authMiddleware, controller.listarNivelesRiesgo);
+
+// GET /api/catalogos/plantillas
 router.get("/plantillas", authMiddleware, controller.listarPlantillas);
 
 module.exports = router;
