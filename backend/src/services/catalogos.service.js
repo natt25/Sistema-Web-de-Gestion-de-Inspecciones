@@ -24,12 +24,17 @@ async function listarPlantillas() {
   return repo.listarPlantillas();
 }
 
+async function listarEstadosObservacion() {
+  return repo.listarEstadosObservacion();
+}
+
 module.exports = {
   listarClientes,
   listarAreas,
   listarServicios,
   listarLugaresPorArea,
   listarNivelesRiesgo,
-  listarPlantillas
+  listarPlantillas,
+  listarEstadosObservacion
 };
 

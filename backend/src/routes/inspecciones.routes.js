@@ -7,4 +7,11 @@ const controller = require("../controllers/inspecciones.controller");
 // POST /api/inspecciones
 router.post("/", authMiddleware, controller.crear);
 
+// GET /api/inspecciones
+router.get("/", authMiddleware, controller.listar);
+
+// GET /api/inspecciones/:id
+router.get("/:id", authMiddleware, controller.obtenerDetalle);
+
+
 module.exports = router;

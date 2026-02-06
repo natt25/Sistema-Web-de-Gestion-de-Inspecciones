@@ -22,4 +22,6 @@ router.get("/niveles-riesgo", authMiddleware, controller.listarNivelesRiesgo);
 // GET /api/catalogos/plantillas
 router.get("/plantillas", authMiddleware, controller.listarPlantillas);
 
+router.get("/estados-observacion", authMiddleware, controller.listarEstadosObservacion);
+
 module.exports = router;

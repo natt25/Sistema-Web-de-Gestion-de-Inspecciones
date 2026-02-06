@@ -61,4 +61,45 @@ async function crearInspeccionCabecera({ user, body }) {
   return { ok: true, status: 201, data: creado };
 }
 
-module.exports = { crearInspeccionCabecera };
+async function listarInspecciones({ user, query }) {
+  // filtros opcionales (todos son opcionales)
+  const filtros = {
+    id_area: query.id_area ? Number(query.id_area) : null,
+    id_estado_inspeccion: query.id_estado_inspeccion ? Number(query.id_estado_inspeccion) : null,
+    desde: query.desde ? new Date(query.desde) : null,
+    hasta: query.hasta ? new Date(query.hasta) : null,
+    // por defecto: si luego quieres "mis inspecciones", lo activamos acá
+    id_usuario: query.id_usuario ? Number(query.id_usuario) : null
+  };
+
+  if (filtros.desde && isNaN(filtros.desde.getTime())) {
+    return { ok: false, status: 400, message: "desde inválido (usa ISO: 2026-02-06)" };
+  }
+  if (filtros.hasta && isNaN(filtros.hasta.getTime())) {
+    return { ok: false, status: 400, message: "hasta inválido (usa ISO: 2026-02-06)" };
+  }
+
+  const data = await repo.listarInspecciones(filtros);
+  return { ok: true, status: 200, data };
+}
+
+async function obtenerDetalleInspeccion(id_inspeccion) {
+  const id = Number(id_inspeccion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_inspeccion inválido" };
+  }
+
+  const cabecera = await repo.obtenerInspeccionPorId(id);
+  if (!cabecera) {
+    return { ok: false, status: 404, message: "Inspección no encontrada" };
+  }
+
+  // Reutiliza tu repo de observaciones (mejor) o hazlo en el mismo repo
+  const observacionesRepo = require("../repositories/observaciones.repository");
+  const observaciones = await observacionesRepo.listarPorInspeccion(id);
+
+  return { ok: true, status: 200, data: { cabecera, observaciones } };
+}
+
+
+module.exports = { crearInspeccionCabecera, listarInspecciones, obtenerDetalleInspeccion };

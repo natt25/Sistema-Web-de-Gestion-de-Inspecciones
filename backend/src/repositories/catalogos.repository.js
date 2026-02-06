@@ -63,7 +63,12 @@ async function listarPlantillas() {
   return result.recordset;
 }
 
-
+async function listarEstadosObservacion() {
+  const query = `SELECT * FROM SSOMA.INS_CAT_ESTADO_OBSERVACION ORDER BY id_estado_observacion;`;
+  const pool = await getPool();
+  const result = await pool.request().query(query);
+  return result.recordset;
+}
 
 module.exports = { 
   listarClientes, 
@@ -71,5 +76,6 @@ module.exports = {
   listarServicios, 
   listarLugaresPorArea,
   listarNivelesRiesgo,
-  listarPlantillas
+  listarPlantillas,
+  listarEstadosObservacion
 };

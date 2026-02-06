@@ -61,11 +61,22 @@ async function listarPlantillas(req, res) {
   }
 }
 
+async function listarEstadosObservacion(req, res) {
+  try {
+    const data = await service.listarEstadosObservacion();
+    return res.json(data);
+  } catch (err) {
+    console.error("catalogos.listarEstadosObservacion:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
 module.exports = {
   listarClientes,
   listarAreas,
   listarServicios,
   listarLugaresPorArea,
   listarNivelesRiesgo,
-  listarPlantillas
+  listarPlantillas,
+  listarEstadosObservacion
 };
