@@ -32,5 +32,19 @@ router.get(
   controller.listarEvidencias
 );
 
+// POST /api/inspecciones/observaciones/:id/acciones
+router.post(
+  "/observaciones/:id/acciones",
+  authMiddleware,
+  controller.crearAccion
+);
+
+// GET /api/inspecciones/observaciones/:id/acciones
+router.get(
+  "/observaciones/:id/acciones",
+  authMiddleware,
+  controller.listarAcciones
+);
+
 
 module.exports = router;

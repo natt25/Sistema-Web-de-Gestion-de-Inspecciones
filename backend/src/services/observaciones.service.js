@@ -97,4 +97,81 @@ async function listarEvidenciasPorObservacion(id_observacion) {
   return { ok: true, status: 200, data };
 }
 
-module.exports = { crearObservacion, listarPorInspeccion, crearEvidenciaObservacion, listarEvidenciasPorObservacion };
+async function crearAccionObservacion({ id_observacion, body }) {
+  const idObs = Number(id_observacion);
+  if (!idObs || Number.isNaN(idObs)) {
+    return { ok: false, status: 400, message: "id_observacion inválido" };
+  }
+
+  const {
+    desc_accion,
+    fecha_compromiso,
+    item_ref,
+    id_estado_accion,
+    responsable_interno_dni,
+    responsable_externo_nombre,
+    responsable_externo_cargo
+  } = body;
+
+  if (!desc_accion) {
+    return { ok: false, status: 400, message: "desc_accion es obligatorio" };
+  }
+
+  const estadoAcc = id_estado_accion ? Number(id_estado_accion) : 1; // default PENDIENTE = 1
+  if (!estadoAcc || Number.isNaN(estadoAcc)) {
+    return { ok: false, status: 400, message: "id_estado_accion inválido" };
+  }
+
+  // Validar responsable interno vs externo
+  const esInterno = !!responsable_interno_dni && !responsable_externo_nombre && !responsable_externo_cargo;
+  const esExterno = !responsable_interno_dni && !!responsable_externo_nombre && !!responsable_externo_cargo;
+
+  if (!esInterno && !esExterno) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Responsable inválido: usa responsable_interno_dni O (responsable_externo_nombre + responsable_externo_cargo)."
+    };
+  }
+
+  const fecha = fecha_compromiso ? new Date(fecha_compromiso) : null;
+  if (fecha_compromiso && isNaN(fecha.getTime())) {
+    return { ok: false, status: 400, message: "fecha_compromiso inválida (usa 2026-02-06)" };
+  }
+
+  const payload = {
+    id_observacion: idObs,
+    id_estado_accion: estadoAcc,
+    desc_accion,
+    fecha_compromiso: fecha ? new Date(fecha.toISOString().slice(0, 10)) : null, // guarda DATE
+    item_ref: item_ref ?? null,
+    responsable: {
+      dni: responsable_interno_dni ?? null,
+      externo_nombre: responsable_externo_nombre ?? null,
+      externo_cargo: responsable_externo_cargo ?? null
+    }
+  };
+
+  const creado = await repo.crearAccionObservacion(payload);
+  return { ok: true, status: 201, data: creado };
+}
+
+async function listarAccionesPorObservacion(id_observacion) {
+  const id = Number(id_observacion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_observacion inválido" };
+  }
+
+  const data = await repo.listarAccionesPorObservacion(id);
+  return { ok: true, status: 200, data };
+}
+
+
+module.exports = {
+  crearObservacion,
+  listarPorInspeccion,
+  crearEvidenciaObservacion,
+  listarEvidenciasPorObservacion,
+  crearAccionObservacion,
+  listarAccionesPorObservacion
+};

@@ -137,4 +137,108 @@ async function listarEvidenciasPorObservacion(id_observacion) {
   return result.recordset;
 }
 
-module.exports = { crearObservacion, listarPorInspeccion, crearEvidenciaObservacion, listarEvidenciasPorObservacion };
+async function crearAccionObservacion(payload) {
+  const pool = await getPool();
+
+  // 1) Crear responsable
+  const qResp = `
+    INSERT INTO SSOMA.INS_ACCION_RESPONSABLE
+    (
+      dni,
+      externo_responsable_nombre,
+      externo_responsable_cargo
+    )
+    OUTPUT INSERTED.*
+    VALUES
+    (
+      @dni,
+      @externo_nombre,
+      @externo_cargo
+    );
+  `;
+
+  const r1 = pool.request();
+  r1.input("dni", sql.NVarChar(15), payload.responsable.dni ?? null);
+  r1.input("externo_nombre", sql.NVarChar(150), payload.responsable.externo_nombre ?? null);
+  r1.input("externo_cargo", sql.NVarChar(150), payload.responsable.externo_cargo ?? null);
+  const respResult = await r1.query(qResp);
+  const id_acc_responsable = respResult.recordset[0].id_acc_responsable;
+
+  // 2) Crear acción
+  const qAcc = `
+    INSERT INTO SSOMA.INS_ACCION
+    (
+      id_observacion,
+      id_acc_responsable,
+      id_estado_accion,
+      desc_accion,
+      fecha_compromiso,
+      item_ref
+    )
+    OUTPUT INSERTED.*
+    VALUES
+    (
+      @id_observacion,
+      @id_acc_responsable,
+      @id_estado_accion,
+      @desc_accion,
+      @fecha_compromiso,
+      @item_ref
+    );
+  `;
+
+  const r2 = pool.request();
+  r2.input("id_observacion", sql.Int, payload.id_observacion);
+  r2.input("id_acc_responsable", sql.Int, id_acc_responsable);
+  r2.input("id_estado_accion", sql.Int, payload.id_estado_accion);
+  r2.input("desc_accion", sql.NVarChar(600), payload.desc_accion);
+  r2.input("fecha_compromiso", sql.Date, payload.fecha_compromiso ?? null);
+  r2.input("item_ref", sql.NVarChar(60), payload.item_ref ?? null);
+
+  const accResult = await r2.query(qAcc);
+  return {
+    ...accResult.recordset[0],
+    responsable: respResult.recordset[0]
+  };
+}
+
+async function listarAccionesPorObservacion(id_observacion) {
+  const query = `
+    SELECT
+      a.id_accion,
+      a.id_observacion,
+      a.id_estado_accion,
+      ea.nombre_estado AS estado_accion,
+      a.desc_accion,
+      a.fecha_compromiso,
+      a.item_ref,
+
+      r.id_acc_responsable,
+      r.dni,
+      r.externo_responsable_nombre,
+      r.externo_responsable_cargo
+    FROM SSOMA.INS_ACCION a
+    JOIN SSOMA.INS_CAT_ESTADO_ACCION ea
+      ON ea.id_estado_accion = a.id_estado_accion
+    JOIN SSOMA.INS_ACCION_RESPONSABLE r
+      ON r.id_acc_responsable = a.id_acc_responsable
+    WHERE a.id_observacion = @id_observacion
+    ORDER BY a.id_accion DESC;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_observacion", sql.Int, id_observacion);
+
+  const result = await request.query(query);
+  return result.recordset;
+}
+
+module.exports = {
+  crearObservacion,
+  listarPorInspeccion,
+  crearEvidenciaObservacion,
+  listarEvidenciasPorObservacion,
+  crearAccionObservacion,
+  listarAccionesPorObservacion
+};
