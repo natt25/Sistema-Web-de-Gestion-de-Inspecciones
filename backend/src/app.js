@@ -9,6 +9,7 @@ const healthRoutes = require("./routes/health.routes");
 const authRoutes = require("./routes/auth.routes");
 const catalogosRoutes = require("./routes/catalogos.routes");
 const inspeccionesRoutes = require("./routes/inspecciones.routes");
+const observacionesRoutes = require("./routes/observaciones.routes");
 
 const app = express();
 
@@ -23,7 +24,7 @@ app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/catalogos", catalogosRoutes);
 app.use("/api/inspecciones", inspeccionesRoutes);
-app.use("/api/inspecciones", require("./routes/observaciones.routes"));
+app.use("/api/inspecciones", observacionesRoutes);
 
 // =======================
 // Ruta raíz (solo informativa)
