@@ -36,5 +36,40 @@ async function listar(req, res) {
   }
 }
 
+async function crearEvidencia(req, res) {
+  try {
+    const { id } = req.params; // id_observacion
+    const result = await service.crearEvidenciaObservacion({
+      id_observacion: id,
+      body: req.body
+    });
 
-module.exports = { crear, listar };
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.status(201).json(result.data);
+  } catch (err) {
+    console.error("observaciones.crearEvidencia:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+async function listarEvidencias(req, res) {
+  try {
+    const { id } = req.params; // id_observacion
+    const result = await service.listarEvidenciasPorObservacion(id);
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("observaciones.listarEvidencias:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+
+module.exports = { crear, listar, crearEvidencia, listarEvidencias };

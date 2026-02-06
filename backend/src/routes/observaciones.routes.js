@@ -18,5 +18,19 @@ router.get(
   controller.listar
 );
 
+// POST /api/inspecciones/observaciones/:id/evidencias
+router.post(
+  "/observaciones/:id/evidencias",
+  authMiddleware,
+  controller.crearEvidencia
+);
+
+// GET /api/inspecciones/observaciones/:id/evidencias
+router.get(
+  "/observaciones/:id/evidencias",
+  authMiddleware,
+  controller.listarEvidencias
+);
+
 
 module.exports = router;
