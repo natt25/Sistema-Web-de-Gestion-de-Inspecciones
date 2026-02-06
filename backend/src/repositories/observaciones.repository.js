@@ -369,6 +369,51 @@ async function actualizarEstadoAccion({ id_accion, id_estado_accion }) {
   return result.recordset[0] || null;
 }
 
+async function obtenerInspeccionIdPorObservacion(id_observacion) {
+  const query = `
+    SELECT id_inspeccion
+    FROM SSOMA.INS_OBSERVACION
+    WHERE id_observacion = @id_observacion;
+  `;
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_observacion", sql.Int, id_observacion);
+
+  const result = await request.query(query);
+  return result.recordset[0]?.id_inspeccion ?? null;
+}
+
+// Acciones NO finalizadas = no están en (3 CUMPLIDA, 4 NO_APLICA)
+async function contarAccionesNoFinalizadas(id_observacion) {
+  const query = `
+    SELECT COUNT(1) AS pendientes
+    FROM SSOMA.INS_ACCION
+    WHERE id_observacion = @id_observacion
+      AND id_estado_accion NOT IN (3, 4);
+  `;
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_observacion", sql.Int, id_observacion);
+
+  const result = await request.query(query);
+  return Number(result.recordset[0]?.pendientes ?? 0);
+}
+
+// Observaciones NO cerradas = no están en (3 CERRADA)
+async function contarObservacionesNoCerradas(id_inspeccion) {
+  const query = `
+    SELECT COUNT(1) AS abiertas
+    FROM SSOMA.INS_OBSERVACION
+    WHERE id_inspeccion = @id_inspeccion
+      AND id_estado_observacion <> 3;
+  `;
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_inspeccion", sql.Int, id_inspeccion);
+
+  const result = await request.query(query);
+  return Number(result.recordset[0]?.abiertas ?? 0);
+}
 
 module.exports = {
   crearObservacion,
@@ -382,6 +427,8 @@ module.exports = {
   obtenerEstadoObservacion,
   actualizarEstadoObservacion,
   obtenerEstadoAccion,
-  actualizarEstadoAccion
+  actualizarEstadoAccion,
+  obtenerInspeccionIdPorObservacion,
+  contarAccionesNoFinalizadas,
+  contarObservacionesNoCerradas
 };
-

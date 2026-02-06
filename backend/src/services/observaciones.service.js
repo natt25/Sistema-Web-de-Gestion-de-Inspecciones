@@ -1,4 +1,5 @@
 const repo = require("../repositories/observaciones.repository");
+const inspeccionesRepo = require("../repositories/inspecciones.repository");
 
 async function crearObservacion({ id_inspeccion, body }) {
   const {
@@ -262,6 +263,7 @@ async function actualizarEstadoObservacion({ id_observacion, body }) {
   }
 
   const updated = await repo.actualizarEstadoObservacion({ id_observacion: id, id_estado_observacion: nuevo });
+  await aplicarCierreAutomaticoDesdeObservacion(updated.id_observacion);
   return { ok: true, status: 200, data: updated };
 }
 
@@ -303,7 +305,51 @@ async function actualizarEstadoAccion({ id_accion, body }) {
     id_estado_accion: nuevo
   });
 
+  await aplicarCierreAutomaticoDesdeObservacion(updated.id_observacion);
+
   return { ok: true, status: 200, data: updated };
+}
+
+async function aplicarCierreAutomaticoDesdeObservacion(id_observacion) {
+  const idObs = Number(id_observacion);
+  if (!idObs || Number.isNaN(idObs)) return;
+
+  // 1) Inspección dueña de esta observación
+  const idInspeccion = await repo.obtenerInspeccionIdPorObservacion(idObs);
+  if (!idInspeccion) return;
+
+  // 2) Solo cerramos obs automático si tiene acciones y TODAS están (3/4)
+  const acciones = await repo.listarAccionesPorObservacion(idObs);
+  const accionesTotal = acciones.length;
+
+  if (accionesTotal > 0) {
+    const accionesNoFinalizadas = await repo.contarAccionesNoFinalizadas(idObs);
+
+    if (accionesNoFinalizadas === 0) {
+      const estadoObs = await repo.obtenerEstadoObservacion(idObs);
+      if (estadoObs && estadoObs.id_estado_observacion !== 3) {
+        await repo.actualizarEstadoObservacion({
+          id_observacion: idObs,
+          id_estado_observacion: 3 // CERRADA
+        });
+      }
+    }
+  }
+
+  // 3) Si todas las observaciones de la inspección están cerradas => cerrar inspección
+  const obsNoCerradas = await repo.contarObservacionesNoCerradas(idInspeccion);
+
+  if (obsNoCerradas === 0) {
+    const estadoIns = await inspeccionesRepo.obtenerEstadoInspeccion(idInspeccion);
+
+    // no tocar ANULADA(5)
+    if (estadoIns && estadoIns.id_estado_inspeccion !== 4 && estadoIns.id_estado_inspeccion !== 5) {
+      await inspeccionesRepo.actualizarEstadoInspeccion({
+        id_inspeccion: idInspeccion,
+        id_estado_inspeccion: 4 // CERRADA
+      });
+    }
+  }
 }
 
 module.exports = {
