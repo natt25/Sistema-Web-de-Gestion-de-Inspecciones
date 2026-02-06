@@ -101,5 +101,44 @@ async function obtenerDetalleInspeccion(id_inspeccion) {
   return { ok: true, status: 200, data: { cabecera, observaciones } };
 }
 
+async function obtenerDetalleInspeccionFull(id_inspeccion) {
+  const id = Number(id_inspeccion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_inspeccion inválido" };
+  }
 
-module.exports = { crearInspeccionCabecera, listarInspecciones, obtenerDetalleInspeccion };
+  const cabecera = await repo.obtenerInspeccionPorId(id);
+  if (!cabecera) {
+    return { ok: false, status: 404, message: "Inspección no encontrada" };
+  }
+
+  const obsRepo = require("../repositories/observaciones.repository");
+
+  // 1) Observaciones base
+  const observaciones = await obsRepo.listarPorInspeccion(id);
+
+  // 2) Evidencias por observación + acciones + evidencias por acción
+  const out = [];
+  for (const o of observaciones) {
+    const evidObs = await obsRepo.listarEvidenciasPorObservacion(o.id_observacion);
+    const acciones = await obsRepo.listarAccionesPorObservacion(o.id_observacion);
+
+    // Para cada acción, adjuntar evidencias de acción
+    const accionesOut = [];
+    for (const a of acciones) {
+      const evidAcc = await obsRepo.listarEvidenciasPorAccion(a.id_accion);
+      accionesOut.push({ ...a, evidencias: evidAcc });
+    }
+
+    out.push({
+      ...o,
+      evidencias: evidObs,
+      acciones: accionesOut
+    });
+  }
+
+  return { ok: true, status: 200, data: { cabecera, observaciones: out } };
+}
+
+
+module.exports = { crearInspeccionCabecera, listarInspecciones, obtenerDetalleInspeccion, obtenerDetalleInspeccionFull };

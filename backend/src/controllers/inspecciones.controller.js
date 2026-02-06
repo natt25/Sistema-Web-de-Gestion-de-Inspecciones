@@ -51,5 +51,20 @@ async function obtenerDetalle(req, res) {
   }
 }
 
+async function obtenerDetalleFull(req, res) {
+  try {
+    const { id } = req.params;
+    const result = await service.obtenerDetalleInspeccionFull(id);
 
-module.exports = { crear, listar, obtenerDetalle };
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("inspecciones.obtenerDetalleFull:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+module.exports = { crear, listar, obtenerDetalle, obtenerDetalleFull };

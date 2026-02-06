@@ -13,5 +13,8 @@ router.get("/", authMiddleware, controller.listar);
 // GET /api/inspecciones/:id
 router.get("/:id", authMiddleware, controller.obtenerDetalle);
 
+// GET /api/inspecciones/:id/full
+router.get("/:id/full", authMiddleware, controller.obtenerDetalleFull);
+
 
 module.exports = router;
