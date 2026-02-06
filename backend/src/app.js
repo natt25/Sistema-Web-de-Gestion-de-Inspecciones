@@ -25,6 +25,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/catalogos", catalogosRoutes);
 app.use("/api/inspecciones", inspeccionesRoutes);
 app.use("/api/inspecciones", observacionesRoutes);
+app.use("/api/uploads", require("./routes/uploads.routes"));
+
 
 // =======================
 // Ruta raíz (solo informativa)
