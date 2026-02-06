@@ -10,13 +10,6 @@ const ACC_DIR = path.join(__dirname, "../storage/acciones");
 fs.mkdirSync(OBS_DIR, { recursive: true });
 fs.mkdirSync(ACC_DIR, { recursive: true });
 
-const yaExiste = await obsRepo.existeHashEvidenciaObservacion({ id_observacion: id, hash_archivo: hash });
-if (yaExiste) {
-  // borrar el archivo nuevo (porque sería duplicado)
-  try { fs.unlinkSync(file.path); } catch (_) {}
-  return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
-}
-
 function safeFileName(originalname) {
   return originalname
     .replace(/\s+/g, "_")
@@ -43,14 +36,23 @@ const uploadAccMiddleware = multer({ storage: crearStorage(ACC_DIR) }).single("f
 
 async function subirEvidenciaObservacion({ id_observacion, file }) {
   const id = Number(id_observacion);
-  if (!id || Number.isNaN(id)) return { ok: false, status: 400, message: "id_observacion inválido" };
-  if (!file) return { ok: false, status: 400, message: "Archivo no enviado" };
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_observacion inválido" };
+  }
+
+  if (!file) {
+    return { ok: false, status: 400, message: "Archivo no enviado" };
+  }
 
   const hash = sha256File(file.path);
 
-  const yaExiste = await obsRepo.existeHashEvidenciaObservacion({ id_observacion: id, hash_archivo: hash });
+  // ✅ anti-duplicado (DENTRO del async)
+  const yaExiste = await obsRepo.existeHashEvidenciaObservacion({
+    id_observacion: id,
+    hash_archivo: hash
+  });
+
   if (yaExiste) {
-    // borrar el archivo nuevo (porque sería duplicado)
     try { fs.unlinkSync(file.path); } catch (_) {}
     return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
   }
@@ -66,18 +68,48 @@ async function subirEvidenciaObservacion({ id_observacion, file }) {
     capturada_en: new Date()
   };
 
-  try {
-    const creado = await obsRepo.crearEvidenciaObservacion(payload);
-    return { ok: true, status: 201, data: creado };
-  } catch (err) {
-    // si falla la DB, borramos el archivo físico
-    try {
-      fs.unlinkSync(file.path);
-    } catch (_) {}
-    throw err;
+  const creado = await obsRepo.crearEvidenciaObservacion(payload);
+  return { ok: true, status: 201, data: creado };
+}
+
+async function subirEvidenciaAccion({ id_accion, file }) {
+  const id = Number(id_accion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_accion inválido" };
   }
 
+  if (!file) {
+    return { ok: false, status: 400, message: "Archivo no enviado" };
+  }
+
+  const hash = sha256File(file.path);
+
+  // ✅ anti-duplicado (DENTRO del async)
+  const yaExiste = await obsRepo.existeHashEvidenciaAccion({
+    id_accion: id,
+    hash_archivo: hash
+  });
+
+  if (yaExiste) {
+    try { fs.unlinkSync(file.path); } catch (_) {}
+    return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
+  }
+
+  const payload = {
+    id_accion: id,
+    id_estado_sync: 2, // SUBIDO
+    archivo_nombre: file.originalname,
+    archivo_ruta: `storage/acciones/${file.filename}`,
+    mime_type: file.mimetype,
+    tamano_bytes: file.size,
+    hash_archivo: hash,
+    capturada_en: new Date()
+  };
+
+  const creado = await obsRepo.crearEvidenciaAccion(payload);
+  return { ok: true, status: 201, data: creado };
 }
+
 
 async function subirEvidenciaAccion({ id_accion, file }) {
   const id = Number(id_accion);

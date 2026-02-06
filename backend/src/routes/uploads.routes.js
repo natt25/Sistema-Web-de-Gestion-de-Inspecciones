@@ -3,26 +3,22 @@ const router = express.Router();
 
 const authMiddleware = require("../middlewares/auth.middleware");
 const controller = require("../controllers/uploads.controller");
-
-const {
-  uploadObsMiddleware,
-  uploadAccMiddleware
-} = require("../services/uploads.service");
+const service = require("../services/uploads.service");
 
 // POST /api/uploads/observaciones/:id
 router.post(
   "/observaciones/:id",
   authMiddleware,
-  uploadObsMiddleware,
-  controller.uploadObservacion
+  service.uploadObsMiddleware,
+  controller.subirObs
 );
 
 // POST /api/uploads/acciones/:id
 router.post(
   "/acciones/:id",
   authMiddleware,
-  uploadAccMiddleware,
-  controller.uploadAccion
+  service.uploadAccMiddleware,
+  controller.subirAcc
 );
 
 module.exports = router;

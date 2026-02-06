@@ -11,6 +11,7 @@ const catalogosRoutes = require("./routes/catalogos.routes");
 const inspeccionesRoutes = require("./routes/inspecciones.routes");
 const observacionesRoutes = require("./routes/observaciones.routes");
 const path = require("path");
+const uploadsRoutes = require("./routes/uploads.routes");
 const app = express();
 
 // Middlewares globales
@@ -25,8 +26,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/catalogos", catalogosRoutes);
 app.use("/api/inspecciones", inspeccionesRoutes);
 app.use("/api/inspecciones", observacionesRoutes);
-app.use("/api/uploads", require("./routes/uploads.routes"));
 app.use("/storage", express.static(path.join(__dirname, "storage")));
+app.use("/api/uploads", uploadsRoutes);
 
 
 // =======================
