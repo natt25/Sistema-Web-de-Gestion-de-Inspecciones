@@ -225,6 +225,45 @@ async function listarEvidenciasPorAccion(id_accion) {
   return { ok: true, status: 200, data };
 }
 
+async function actualizarEstadoObservacion({ id_observacion, body }) {
+  const id = Number(id_observacion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_observacion inválido" };
+  }
+
+  const nuevo = Number(body?.id_estado_observacion);
+  if (!nuevo || Number.isNaN(nuevo)) {
+    return { ok: false, status: 400, message: "id_estado_observacion es obligatorio" };
+  }
+
+  const actual = await repo.obtenerEstadoObservacion(id);
+  if (!actual) {
+    return { ok: false, status: 404, message: "Observación no encontrada" };
+  }
+
+  const estadoActual = actual.id_estado_observacion;
+
+  // Transiciones mínimas:
+  // ABIERTA(1) -> EN_PROCESO(2) o CERRADA(3)
+  // EN_PROCESO(2) -> CERRADA(3)
+  // CERRADA(3) -> (no cambia)
+  const permitidas = {
+    1: [2, 3],
+    2: [3],
+    3: []
+  };
+
+  if (!permitidas[estadoActual]?.includes(nuevo)) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Transición no permitida: ${estadoActual} -> ${nuevo}`
+    };
+  }
+
+  const updated = await repo.actualizarEstadoObservacion({ id_observacion: id, id_estado_observacion: nuevo });
+  return { ok: true, status: 200, data: updated };
+}
 
 module.exports = {
   crearObservacion,
@@ -234,6 +273,7 @@ module.exports = {
   crearAccionObservacion,
   listarAccionesPorObservacion,
   crearEvidenciaAccion,
-  listarEvidenciasPorAccion
+  listarEvidenciasPorAccion,
+  actualizarEstadoObservacion
 };
 

@@ -305,6 +305,39 @@ async function listarEvidenciasPorAccion(id_accion) {
   return result.recordset;
 }
 
+async function obtenerEstadoObservacion(id_observacion) {
+  const query = `
+    SELECT id_observacion, id_estado_observacion
+    FROM SSOMA.INS_OBSERVACION
+    WHERE id_observacion = @id_observacion;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_observacion", sql.Int, id_observacion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+async function actualizarEstadoObservacion({ id_observacion, id_estado_observacion }) {
+  const query = `
+    UPDATE SSOMA.INS_OBSERVACION
+    SET id_estado_observacion = @id_estado_observacion
+    OUTPUT INSERTED.*
+    WHERE id_observacion = @id_observacion;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_observacion", sql.Int, id_observacion);
+  request.input("id_estado_observacion", sql.Int, id_estado_observacion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+
 module.exports = {
   crearObservacion,
   listarPorInspeccion,
@@ -313,6 +346,8 @@ module.exports = {
   crearAccionObservacion,
   listarAccionesPorObservacion,
   crearEvidenciaAccion,
-  listarEvidenciasPorAccion
+  listarEvidenciasPorAccion,
+  obtenerEstadoObservacion,
+  actualizarEstadoObservacion
 };
 
