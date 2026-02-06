@@ -234,11 +234,85 @@ async function listarAccionesPorObservacion(id_observacion) {
   return result.recordset;
 }
 
+async function crearEvidenciaAccion(payload) {
+  const query = `
+    INSERT INTO SSOMA.INS_ACCION_EVIDENCIA
+    (
+      id_accion,
+      id_estado_sync,
+      archivo_nombre,
+      archivo_ruta,
+      mime_type,
+      tamano_bytes,
+      hash_archivo,
+      capturada_en
+    )
+    OUTPUT INSERTED.*
+    VALUES
+    (
+      @id_accion,
+      @id_estado_sync,
+      @archivo_nombre,
+      @archivo_ruta,
+      @mime_type,
+      @tamano_bytes,
+      @hash_archivo,
+      @capturada_en
+    );
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+
+  request.input("id_accion", sql.Int, payload.id_accion);
+  request.input("id_estado_sync", sql.Int, payload.id_estado_sync);
+  request.input("archivo_nombre", sql.NVarChar(200), payload.archivo_nombre);
+  request.input("archivo_ruta", sql.NVarChar(500), payload.archivo_ruta);
+  request.input("mime_type", sql.NVarChar(80), payload.mime_type);
+  request.input("tamano_bytes", sql.BigInt, payload.tamano_bytes);
+  request.input("hash_archivo", sql.NVarChar(128), payload.hash_archivo);
+  request.input("capturada_en", sql.DateTime2, payload.capturada_en ?? null);
+
+  const result = await request.query(query);
+  return result.recordset[0];
+}
+
+async function listarEvidenciasPorAccion(id_accion) {
+  const query = `
+    SELECT
+      e.id_acc_evidencia,
+      e.id_accion,
+      e.id_estado_sync,
+      es.nombre_estado AS estado_sync,
+      e.archivo_nombre,
+      e.archivo_ruta,
+      e.mime_type,
+      e.tamano_bytes,
+      e.hash_archivo,
+      e.capturada_en
+    FROM SSOMA.INS_ACCION_EVIDENCIA e
+    JOIN SSOMA.INS_CAT_ESTADO_SYNC es
+      ON es.id_estado_sync = e.id_estado_sync
+    WHERE e.id_accion = @id_accion
+    ORDER BY e.id_acc_evidencia DESC;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_accion", sql.Int, id_accion);
+
+  const result = await request.query(query);
+  return result.recordset;
+}
+
 module.exports = {
   crearObservacion,
   listarPorInspeccion,
   crearEvidenciaObservacion,
   listarEvidenciasPorObservacion,
   crearAccionObservacion,
-  listarAccionesPorObservacion
+  listarAccionesPorObservacion,
+  crearEvidenciaAccion,
+  listarEvidenciasPorAccion
 };
+
