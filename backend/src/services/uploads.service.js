@@ -10,6 +10,13 @@ const ACC_DIR = path.join(__dirname, "../storage/acciones");
 fs.mkdirSync(OBS_DIR, { recursive: true });
 fs.mkdirSync(ACC_DIR, { recursive: true });
 
+const yaExiste = await obsRepo.existeHashEvidenciaObservacion({ id_observacion: id, hash_archivo: hash });
+if (yaExiste) {
+  // borrar el archivo nuevo (porque sería duplicado)
+  try { fs.unlinkSync(file.path); } catch (_) {}
+  return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
+}
+
 function safeFileName(originalname) {
   return originalname
     .replace(/\s+/g, "_")
@@ -40,6 +47,13 @@ async function subirEvidenciaObservacion({ id_observacion, file }) {
   if (!file) return { ok: false, status: 400, message: "Archivo no enviado" };
 
   const hash = sha256File(file.path);
+
+  const yaExiste = await obsRepo.existeHashEvidenciaObservacion({ id_observacion: id, hash_archivo: hash });
+  if (yaExiste) {
+    // borrar el archivo nuevo (porque sería duplicado)
+    try { fs.unlinkSync(file.path); } catch (_) {}
+    return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
+  }
 
   const payload = {
     id_observacion: id,
@@ -78,6 +92,12 @@ async function subirEvidenciaAccion({ id_accion, file }) {
   // IMPORTANTE: primero validar file, luego hash
   const hash = sha256File(file.path);
 
+  const yaExiste = await obsRepo.existeHashEvidenciaAccion({ id_accion: id, hash_archivo: hash });
+  if (yaExiste) {
+    try { fs.unlinkSync(file.path); } catch (_) {}
+    return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
+  }
+
   const payload = {
     id_accion: id,
     id_estado_sync: 2, // SUBIDO
@@ -97,6 +117,7 @@ async function subirEvidenciaAccion({ id_accion, file }) {
     throw err;
   }
 }
+
 
 module.exports = {
   uploadObsMiddleware,

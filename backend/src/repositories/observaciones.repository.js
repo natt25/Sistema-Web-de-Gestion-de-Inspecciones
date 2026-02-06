@@ -415,6 +415,39 @@ async function contarObservacionesNoCerradas(id_inspeccion) {
   return Number(result.recordset[0]?.abiertas ?? 0);
 }
 
+async function existeHashEvidenciaObservacion({ id_observacion, hash_archivo }) {
+  const query = `
+    SELECT TOP 1 id_obs_evidencia
+    FROM SSOMA.INS_OBSERVACION_EVIDENCIA
+    WHERE id_observacion = @id_observacion
+      AND hash_archivo = @hash_archivo;
+  `;
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_observacion", sql.Int, id_observacion);
+  request.input("hash_archivo", sql.NVarChar(128), hash_archivo);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+async function existeHashEvidenciaAccion({ id_accion, hash_archivo }) {
+  const query = `
+    SELECT TOP 1 id_acc_evidencia
+    FROM SSOMA.INS_ACCION_EVIDENCIA
+    WHERE id_accion = @id_accion
+      AND hash_archivo = @hash_archivo;
+  `;
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_accion", sql.Int, id_accion);
+  request.input("hash_archivo", sql.NVarChar(128), hash_archivo);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+
 module.exports = {
   crearObservacion,
   listarPorInspeccion,
@@ -430,5 +463,7 @@ module.exports = {
   actualizarEstadoAccion,
   obtenerInspeccionIdPorObservacion,
   contarAccionesNoFinalizadas,
-  contarObservacionesNoCerradas
+  contarObservacionesNoCerradas,
+  existeHashEvidenciaObservacion,
+  existeHashEvidenciaAccion
 };
