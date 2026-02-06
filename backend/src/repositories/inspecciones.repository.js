@@ -174,5 +174,43 @@ async function obtenerInspeccionPorId(id_inspeccion) {
   return result.recordset[0] || null;
 }
 
+async function obtenerEstadoInspeccion(id_inspeccion) {
+  const query = `
+    SELECT id_inspeccion, id_estado_inspeccion
+    FROM SSOMA.INS_INSPECCION
+    WHERE id_inspeccion = @id_inspeccion;
+  `;
 
-module.exports = { crearInspeccionCabecera, listarInspecciones, obtenerInspeccionPorId };
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_inspeccion", sql.Int, id_inspeccion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+async function actualizarEstadoInspeccion({ id_inspeccion, id_estado_inspeccion }) {
+  const query = `
+    UPDATE SSOMA.INS_INSPECCION
+    SET id_estado_inspeccion = @id_estado_inspeccion
+    OUTPUT INSERTED.*
+    WHERE id_inspeccion = @id_inspeccion;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+
+  request.input("id_inspeccion", sql.Int, id_inspeccion);
+  request.input("id_estado_inspeccion", sql.Int, id_estado_inspeccion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+module.exports = {
+  crearInspeccionCabecera,
+  listarInspecciones,
+  obtenerInspeccionPorId,
+  obtenerEstadoInspeccion,
+  actualizarEstadoInspeccion
+};

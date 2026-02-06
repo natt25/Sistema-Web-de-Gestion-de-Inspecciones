@@ -16,5 +16,7 @@ router.get("/:id", authMiddleware, controller.obtenerDetalle);
 // GET /api/inspecciones/:id/full
 router.get("/:id/full", authMiddleware, controller.obtenerDetalleFull);
 
+// PATCH /api/inspecciones/:id/estado
+router.patch("/:id/estado", authMiddleware, controller.actualizarEstado);
 
 module.exports = router;

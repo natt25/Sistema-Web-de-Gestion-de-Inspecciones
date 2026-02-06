@@ -67,4 +67,26 @@ async function obtenerDetalleFull(req, res) {
   }
 }
 
-module.exports = { crear, listar, obtenerDetalle, obtenerDetalleFull };
+async function actualizarEstado(req, res) {
+  try {
+    const { id } = req.params;
+
+    const result = await service.actualizarEstadoInspeccion({
+      id_inspeccion: id,
+      body: req.body,
+      user: req.user
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("inspecciones.actualizarEstado:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+
+module.exports = { crear, listar, obtenerDetalle, obtenerDetalleFull, actualizarEstado };

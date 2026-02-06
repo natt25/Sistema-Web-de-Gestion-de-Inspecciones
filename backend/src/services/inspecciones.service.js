@@ -140,5 +140,56 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
   return { ok: true, status: 200, data: { cabecera, observaciones: out } };
 }
 
+async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
+  const id = Number(id_inspeccion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_inspeccion inválido" };
+  }
 
-module.exports = { crearInspeccionCabecera, listarInspecciones, obtenerDetalleInspeccion, obtenerDetalleInspeccionFull };
+  const nuevo = Number(body?.id_estado_inspeccion);
+  if (!nuevo || Number.isNaN(nuevo)) {
+    return { ok: false, status: 400, message: "id_estado_inspeccion es obligatorio" };
+  }
+
+  // Validar que exista inspección y leer su estado actual
+  const actual = await repo.obtenerEstadoInspeccion(id);
+  if (!actual) {
+    return { ok: false, status: 404, message: "Inspección no encontrada" };
+  }
+
+  const estadoActual = actual.id_estado_inspeccion;
+
+  // Reglas mínimas de transición (puedes afinar después)
+  // BORRADOR(1) -> REGISTRADA(2) o ANULADA(5)
+  // REGISTRADA(2) -> ENVIADA(3) o ANULADA(5)
+  // ENVIADA(3) -> CERRADA(4) o ANULADA(5)
+  // CERRADA(4) -> (no cambia)
+  // ANULADA(5) -> (no cambia)
+  const permitidas = {
+    1: [2, 5],
+    2: [3, 5],
+    3: [4, 5],
+    4: [],
+    5: []
+  };
+
+  if (!permitidas[estadoActual]?.includes(nuevo)) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Transición no permitida: ${estadoActual} -> ${nuevo}`
+    };
+  }
+
+  const updated = await repo.actualizarEstadoInspeccion({ id_inspeccion: id, id_estado_inspeccion: nuevo });
+  return { ok: true, status: 200, data: updated };
+}
+
+
+module.exports = {
+  crearInspeccionCabecera,
+  listarInspecciones,
+  obtenerDetalleInspeccion,
+  obtenerDetalleInspeccionFull,
+  actualizarEstadoInspeccion
+};
