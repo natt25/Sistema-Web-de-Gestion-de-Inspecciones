@@ -1,13 +1,21 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { login } from "../auth/auth.service";
-import { setToken } from "../auth/auth.storage";
+import { getToken, setToken } from "../auth/auth.storage";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [dni, setDni] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const redirectTo = location.state?.from?.pathname || "/inspecciones";
+  
+  useEffect(() => {
+    if (getToken()) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [navigate, redirectTo]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -16,7 +24,7 @@ export default function Login() {
     try {
       const data = await login({ dni, password });
       setToken(data.token);
-      navigate("/");
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError("Credenciales incorrectas");
     }

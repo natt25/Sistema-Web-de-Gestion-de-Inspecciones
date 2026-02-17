@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion } from "../api/observaciones.api";
+import { crearAccion } from "../api/acciones.api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -110,6 +111,173 @@ function EvidenceGrid({ evidencias }) {
   );
 }
 
+/** ✅ FORM: Crear Acción (se muestra debajo de cada observación) */
+function CrearAccionForm({ idObservacion, onCreated }) {
+  const [form, setForm] = useState({
+    desc_accion: "",
+    fecha_compromiso: "",
+    id_estado_accion: "1",
+    responsable_interno_dni: "",
+    responsable_externo_nombre: "",
+    responsable_externo_cargo: "",
+  });
+
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+
+  function onChange(e) {
+    const { name, value } = e.target;
+    setForm((p) => ({ ...p, [name]: value }));
+  }
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setOk("");
+
+    if (!form.desc_accion.trim()) return setError("Falta desc_accion.");
+    if (!form.fecha_compromiso) return setError("Falta fecha_compromiso.");
+
+    const dni = form.responsable_interno_dni.trim();
+    const externoNombre = form.responsable_externo_nombre.trim();
+    const externoCargo = form.responsable_externo_cargo.trim();
+
+    if (dni && (externoNombre || externoCargo)) {
+      return setError("Usa responsable interno por DNI o responsable externo (nombre y cargo), no ambos.");
+    }
+
+    if (!dni && (!externoNombre || !externoCargo)) {
+      return setError("Si no indicas DNI, debes completar responsable_externo_nombre y responsable_externo_cargo.");
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        desc_accion: form.desc_accion.trim(),
+        fecha_compromiso: form.fecha_compromiso,
+        id_estado_accion: Number(form.id_estado_accion),
+      };
+
+      if (dni) {
+        payload.responsable_interno_dni = dni;
+      } else {
+        payload.responsable_externo_nombre = externoNombre;
+        payload.responsable_externo_cargo = externoCargo;
+      }
+
+      await crearAccion(idObservacion, payload);
+
+
+      setOk("Acción creada ✅");
+      setForm((p) => ({
+        ...p,
+        desc_accion: "",
+        responsable_interno_dni: "",
+        responsable_externo_nombre: "",
+        responsable_externo_cargo: "",
+      }));
+
+      // recargar todo el detalle
+      await onCreated?.();
+
+      setTimeout(() => setOk(""), 2000);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      style={{
+        marginTop: 12,
+        padding: 12,
+        border: "1px solid #eee",
+        borderRadius: 12,
+        display: "grid",
+        gap: 8,
+        maxWidth: 520,
+        background: "#fafafa",
+      }}
+    >
+      <b>Crear acción (Obs #{idObservacion})</b>
+
+      <label style={{ display: "grid", gap: 6 }}>
+        Descripción (desc_accion)
+        <textarea name="desc_accion" value={form.desc_accion} onChange={onChange} rows={2} />
+      </label>
+
+      <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+        <label style={{ display: "grid", gap: 6 }}>
+          Fecha compromiso
+          <input type="date" name="fecha_compromiso" value={form.fecha_compromiso} onChange={onChange} />
+        </label>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          Estado (id_estado_accion)
+          <select name="id_estado_accion" value={form.id_estado_accion} onChange={onChange}>
+            <option value="1">1 - ABIERTA</option>
+            <option value="2">2 - EN PROCESO</option>
+            <option value="3">3 - CUMPLIDA</option>
+          </select>
+        </label>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          DNI responsable interno
+          <input
+            name="responsable_interno_dni"
+            value={form.responsable_interno_dni}
+            onChange={onChange}
+            placeholder="Ej: 12345678"
+          />
+        </label>
+      </div>
+
+      <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        <label style={{ display: "grid", gap: 6 }}>
+          Responsable externo nombre
+          <input
+            name="responsable_externo_nombre"
+            value={form.responsable_externo_nombre}
+            onChange={onChange}
+            placeholder="Si no hay DNI interno"
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          Responsable externo cargo
+          <input
+            name="responsable_externo_cargo"
+            value={form.responsable_externo_cargo}
+            onChange={onChange}
+            placeholder="Si no hay DNI interno"
+          />
+        </label>
+      </div>
+
+      {error && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+          {error}
+        </div>
+      )}
+
+      {ok && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #b3ffb3", background: "#ecffec" }}>
+          {ok}
+        </div>
+      )}
+
+      <button disabled={saving} type="submit">
+        {saving ? "Guardando..." : "Crear acción"}
+      </button>
+    </form>
+  );
+}
+
 export default function InspeccionDetail() {
   const { id } = useParams();
   const [loading, setLoading] = useState(false);
@@ -121,7 +289,7 @@ export default function InspeccionDetail() {
     item_ref: "",
     desc_observacion: "",
     id_nivel_riesgo: "1",
-    id_estado_observacion: "1", // 1 = ABIERTA (según tu JSON)
+    id_estado_observacion: "1",
   });
 
   const [savingObs, setSavingObs] = useState(false);
@@ -159,7 +327,6 @@ export default function InspeccionDetail() {
     setObsError("");
     setObsOk("");
 
-    // Validación mínima (sin inventar reglas)
     if (!form.item_ref.trim()) return setObsError("Falta item_ref.");
     if (!form.desc_observacion.trim()) return setObsError("Falta descripción.");
     if (!form.id_nivel_riesgo) return setObsError("Falta nivel de riesgo.");
@@ -176,7 +343,6 @@ export default function InspeccionDetail() {
       setObsOk("Observación creada ✅");
       setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
 
-      // recarga FULL para ver la nueva observación
       await load();
     } catch (err) {
       setObsError(getErrorMessage(err));
@@ -215,13 +381,22 @@ export default function InspeccionDetail() {
               <Badge>Estado: {cab.estado_inspeccion}</Badge>
               <Badge>Modo: {cab.modo_registro}</Badge>
               <Badge>Área: {cab.desc_area}</Badge>
-              <Badge>Formato: {cab.codigo_formato} v{cab.version_actual}</Badge>
+              <Badge>
+                Formato: {cab.codigo_formato} v{cab.version_actual}
+              </Badge>
             </div>
 
             <div style={{ display: "grid", gap: 4 }}>
-              <div><b>Fecha inspección:</b> {fmtDate(cab.fecha_inspeccion)}</div>
-              <div><b>Servicio:</b> {cab.nombre_servicio} {cab.servicio_detalle ? `- ${cab.servicio_detalle}` : ""}</div>
-              <div><b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}</div>
+              <div>
+                <b>Fecha inspección:</b> {fmtDate(cab.fecha_inspeccion)}
+              </div>
+              <div>
+                <b>Servicio:</b> {cab.nombre_servicio}{" "}
+                {cab.servicio_detalle ? `- ${cab.servicio_detalle}` : ""}
+              </div>
+              <div>
+                <b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}
+              </div>
             </div>
           </div>
         )}
@@ -248,11 +423,7 @@ export default function InspeccionDetail() {
 
           <label style={{ display: "grid", gap: 6 }}>
             Estado observación (id_estado_observacion)
-            <select
-              name="id_estado_observacion"
-              value={form.id_estado_observacion}
-              onChange={onChangeForm}
-            >
+            <select name="id_estado_observacion" value={form.id_estado_observacion} onChange={onChangeForm}>
               <option value="1">1 - ABIERTA</option>
               <option value="2">2 - EN PROCESO</option>
               <option value="3">3 - CERRADA</option>
@@ -315,6 +486,9 @@ export default function InspeccionDetail() {
                 <EvidenceGrid evidencias={o.evidencias} />
               </div>
 
+              {/* ✅ FORM CREAR ACCIÓN para esta observación */}
+              <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} />
+
               <div style={{ marginTop: 12 }}>
                 <b>Acciones ({o.acciones?.length || 0})</b>
 
@@ -322,12 +496,15 @@ export default function InspeccionDetail() {
                   <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin acciones.</p>
                 ) : (
                   o.acciones.map((a) => (
-                    <div key={a.id_accion} style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}>
+                    <div
+                      key={a.id_accion}
+                      style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}
+                    >
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                         <b>Acc #{a.id_accion}</b>
                         <Badge>Estado: {a.estado_accion}</Badge>
                         <Badge>Compromiso: {fmtDate(a.fecha_compromiso)}</Badge>
-                        <Badge>Resp DNI: {a.dni || "-"}</Badge>
+                        <Badge>Resp: {a.dni || a.responsable_interno_dni || "-"}</Badge>
                       </div>
 
                       <div style={{ marginTop: 6 }}>

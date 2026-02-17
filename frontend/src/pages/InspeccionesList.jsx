@@ -20,10 +20,10 @@ export default function InspeccionesList() {
 
   const [filters, setFilters] = useState({
     id_area: "",
-    id_estado: "",
+    id_estado_inspeccion: "",
     id_usuario: "",
-    fecha_inicio: "",
-    fecha_fin: "",
+    desde: "",
+    hasta: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -34,10 +34,10 @@ export default function InspeccionesList() {
     // solo enviar los que tengan valor
     const p = {};
     if (filters.id_area) p.id_area = Number(filters.id_area);
-    if (filters.id_estado) p.id_estado = Number(filters.id_estado);
+    if (filters.id_estado_inspeccion) p.id_estado_inspeccion = Number(filters.id_estado_inspeccion);
     if (filters.id_usuario) p.id_usuario = Number(filters.id_usuario);
-    if (filters.fecha_inicio) p.fecha_inicio = filters.fecha_inicio; // YYYY-MM-DD
-    if (filters.fecha_fin) p.fecha_fin = filters.fecha_fin; // YYYY-MM-DD
+    if (filters.desde) p.desde = filters.desde; // YYYY-MM-DD
+    if (filters.hasta) p.hasta = filters.hasta; // YYYY-MM-DD
     return p;
   }, [filters]);
 
@@ -99,8 +99,13 @@ export default function InspeccionesList() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            id_estado
-            <input name="id_estado" value={filters.id_estado} onChange={onChange} placeholder="Ej: 1" />
+            id_estado_inspeccion
+            <input
+              name="id_estado_inspeccion"
+              value={filters.id_estado_inspeccion}
+              onChange={onChange}
+              placeholder="Ej: 1"
+            />
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
@@ -109,21 +114,21 @@ export default function InspeccionesList() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            fecha_inicio
+            desde
             <input
               type="date"
-              name="fecha_inicio"
-              value={toInputDate(filters.fecha_inicio)}
+              name="desde"
+              value={toInputDate(filters.desde)}
               onChange={onChange}
             />
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            fecha_fin
+            hasta
             <input
               type="date"
-              name="fecha_fin"
-              value={toInputDate(filters.fecha_fin)}
+              name="hasta"
+              value={toInputDate(filters.hasta)}
               onChange={onChange}
             />
           </label>
@@ -137,7 +142,13 @@ export default function InspeccionesList() {
           <button
             type="button"
             onClick={() => {
-              setFilters({ id_area: "", id_estado: "", id_usuario: "", fecha_inicio: "", fecha_fin: "" });
+              setFilters({
+                id_area: "",
+                id_estado_inspeccion: "",
+                id_usuario: "",
+                desde: "",
+                hasta: "",
+              });
               // recarga sin filtros
               setTimeout(load, 0);
             }}
