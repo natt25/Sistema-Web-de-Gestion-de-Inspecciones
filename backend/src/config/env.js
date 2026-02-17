@@ -1,11 +1,13 @@
-require("dotenv").config();
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const required = (key, value) => {
   if (!value) throw new Error(`Missing env var: ${key}`);
   return value;
 };
 
-module.exports = {
+const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: process.env.PORT || 3000,
 
@@ -20,3 +22,5 @@ module.exports = {
   LOCAL_STORAGE_PATH: process.env.LOCAL_STORAGE_PATH || "./uploads",
   NAS_BASE_PATH: process.env.NAS_BASE_PATH || ""
 };
+
+export default env;

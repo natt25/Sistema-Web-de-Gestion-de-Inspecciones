@@ -1,5 +1,4 @@
-const { sql, getPool } = require("../config/database");
-
+import { sql, getPool } from "../config/database.js";
 async function crearInspeccionCabecera(payload) {
   const query = `
     INSERT INTO SSOMA.INS_INSPECCION
@@ -207,7 +206,7 @@ async function actualizarEstadoInspeccion({ id_inspeccion, id_estado_inspeccion 
   return result.recordset[0] || null;
 }
 
-module.exports = {
+export default {
   crearInspeccionCabecera,
   listarInspecciones,
   obtenerInspeccionPorId,

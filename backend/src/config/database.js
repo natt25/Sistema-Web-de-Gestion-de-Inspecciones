@@ -1,7 +1,5 @@
-const sql = require("mssql/msnodesqlv8");
-
-const env = require("./env");
-
+import sql from "mssql/msnodesqlv8.js";
+import env from "./env.js";
 let pool;
 const CONNECT_TIMEOUT_MS = 8000;
 const REQUEST_TIMEOUT_MS = 8000;
@@ -50,4 +48,4 @@ async function getPool() {
   return pool;
 }
 
-module.exports = { sql, getPool };
+export { sql, getPool };

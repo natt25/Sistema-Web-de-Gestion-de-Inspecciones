@@ -1,5 +1,4 @@
-const service = require("../services/catalogos.service");
-
+import service from "../services/catalogos.service.js";
 async function listarClientes(req, res) {
   try {
     const data = await service.listarClientes();
@@ -71,7 +70,7 @@ async function listarEstadosObservacion(req, res) {
   }
 }
 
-module.exports = {
+export default {
   listarClientes,
   listarAreas,
   listarServicios,

@@ -1,7 +1,6 @@
-const usuarioRepo = require("../repositories/usuario.repository");
-const { verifyPassword } = require("../utils/password");
-const { signToken } = require("../utils/jwt");
-
+import usuarioRepo from "../repositories/usuario.repository.js";
+import { verifyPassword } from "../utils/password.js";
+import { signToken } from "../utils/jwt.js";
 async function login({ dni, password }) {
   if (!dni || !password) {
     return { ok: false, status: 400, message: "dni y password son requeridos" };
@@ -32,4 +31,4 @@ async function login({ dni, password }) {
   return { ok: true, status: 200, data: { token, usuario } };
 }
 
-module.exports = { login };
+export default { login };

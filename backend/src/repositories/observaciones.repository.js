@@ -1,5 +1,4 @@
-const { sql, getPool } = require("../config/database");
-
+import { sql, getPool } from "../config/database.js";
 async function crearObservacion(payload) {
   const query = `
     INSERT INTO SSOMA.INS_OBSERVACION
@@ -448,7 +447,7 @@ async function existeHashEvidenciaAccion({ id_accion, hash_archivo }) {
 }
 
 
-module.exports = {
+export default {
   crearObservacion,
   listarPorInspeccion,
   crearEvidenciaObservacion,

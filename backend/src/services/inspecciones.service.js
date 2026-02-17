@@ -1,5 +1,5 @@
-const repo = require("../repositories/inspecciones.repository");
-
+import repo from "../repositories/inspecciones.repository.js";
+import observacionesRepo from "../repositories/observaciones.repository.js";
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
   const esCatalogo = (id_otro == null) && (id_cliente != null) && (id_servicio != null);
   const esOtro = (id_otro != null) && (id_cliente == null) && (id_servicio == null);
@@ -95,7 +95,6 @@ async function obtenerDetalleInspeccion(id_inspeccion) {
   }
 
   // Reutiliza tu repo de observaciones (mejor) o hazlo en el mismo repo
-  const observacionesRepo = require("../repositories/observaciones.repository");
   const observaciones = await observacionesRepo.listarPorInspeccion(id);
 
   return { ok: true, status: 200, data: { cabecera, observaciones } };
@@ -111,22 +110,19 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
   if (!cabecera) {
     return { ok: false, status: 404, message: "Inspección no encontrada" };
   }
-
-  const obsRepo = require("../repositories/observaciones.repository");
-
   // 1) Observaciones base
-  const observaciones = await obsRepo.listarPorInspeccion(id);
+  const observaciones = await observacionesRepo.listarPorInspeccion(id);
 
   // 2) Evidencias por observación + acciones + evidencias por acción
   const out = [];
   for (const o of observaciones) {
-    const evidObs = await obsRepo.listarEvidenciasPorObservacion(o.id_observacion);
-    const acciones = await obsRepo.listarAccionesPorObservacion(o.id_observacion);
+    const evidObs = await observacionesRepo.listarEvidenciasPorObservacion(o.id_observacion);
+    const acciones = await observacionesRepo.listarAccionesPorObservacion(o.id_observacion);
 
     // Para cada acción, adjuntar evidencias de acción
     const accionesOut = [];
     for (const a of acciones) {
-      const evidAcc = await obsRepo.listarEvidenciasPorAccion(a.id_accion);
+      const evidAcc = await observacionesRepo.listarEvidenciasPorAccion(a.id_accion);
       accionesOut.push({ ...a, evidencias: evidAcc });
     }
 
@@ -186,7 +182,7 @@ async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
 }
 
 
-module.exports = {
+export default {
   crearInspeccionCabecera,
   listarInspecciones,
   obtenerDetalleInspeccion,

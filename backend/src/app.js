@@ -1,21 +1,26 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Carga y valida variables de entorno al inicio
-require("./config/env");
+import "./config/env.js";
 
 // Rutas
-const healthRoutes = require("./routes/health.routes");
-const authRoutes = require("./routes/auth.routes");
-const catalogosRoutes = require("./routes/catalogos.routes");
-const inspeccionesRoutes = require("./routes/inspecciones.routes");
-const observacionesRoutes = require("./routes/observaciones.routes");
-const path = require("path");
-const uploadsRoutes = require("./routes/uploads.routes");
+import healthRoutes from "./routes/health.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import catalogosRoutes from "./routes/catalogos.routes.js";
+import inspeccionesRoutes from "./routes/inspecciones.routes.js";
+import observacionesRoutes from "./routes/observaciones.routes.js";
+import uploadsRoutes from "./routes/uploads.routes.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 
 // Middlewares globales
-app.use(cors());
+app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
 // =======================
@@ -29,9 +34,8 @@ app.use("/api/inspecciones", observacionesRoutes);
 app.use("/storage", express.static(path.join(__dirname, "./storage")));
 app.use("/api/uploads", uploadsRoutes);
 
-
 // =======================
-// Ruta raíz (solo informativa)
+// Ruta ra?z (solo informativa)
 // =======================
 app.get("/", (req, res) => {
   res.send("SSOMA Inspecciones API OK. Usa /api/health");
@@ -47,4 +51,4 @@ app.use((req, res) => {
   });
 });
 
-module.exports = app;
+export default app;

@@ -1,5 +1,4 @@
-const service = require("../services/observaciones.service");
-
+import service from "../services/observaciones.service.js";
 async function crear(req, res) {
   try {
     const { id } = req.params;
@@ -180,7 +179,7 @@ async function actualizarEstadoAccion(req, res) {
 }
 
 
-module.exports = {
+export default {
   crear,
   listar,
   crearEvidencia,

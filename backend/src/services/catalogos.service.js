@@ -1,5 +1,4 @@
-const repo = require("../repositories/catalogos.repository");
-
+import repo from "../repositories/catalogos.repository.js";
 async function listarClientes() {
   return repo.listarClientes();
 }
@@ -28,7 +27,7 @@ async function listarEstadosObservacion() {
   return repo.listarEstadosObservacion();
 }
 
-module.exports = {
+export default {
   listarClientes,
   listarAreas,
   listarServicios,
@@ -37,4 +36,3 @@ module.exports = {
   listarPlantillas,
   listarEstadosObservacion
 };
-

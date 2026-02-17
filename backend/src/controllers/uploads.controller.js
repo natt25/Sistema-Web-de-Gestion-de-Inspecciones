@@ -1,5 +1,4 @@
-const service = require("../services/uploads.service");
-
+import service from "../services/uploads.service.js";
 async function subirObs(req, res) {
   try {
     const { id } = req.params; // id_observacion
@@ -38,4 +37,4 @@ async function subirAcc(req, res) {
   }
 }
 
-module.exports = { subirObs, subirAcc };
+export default { subirObs, subirAcc };

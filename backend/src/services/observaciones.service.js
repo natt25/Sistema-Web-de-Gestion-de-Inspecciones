@@ -1,6 +1,5 @@
-const repo = require("../repositories/observaciones.repository");
-const inspeccionesRepo = require("../repositories/inspecciones.repository");
-
+import repo from "../repositories/observaciones.repository.js";
+import inspeccionesRepo from "../repositories/inspecciones.repository.js";
 async function crearObservacion({ id_inspeccion, body }) {
   const {
     id_nivel_riesgo,
@@ -352,7 +351,7 @@ async function aplicarCierreAutomaticoDesdeObservacion(id_observacion) {
   }
 }
 
-module.exports = {
+export default {
   crearObservacion,
   listarPorInspeccion,
   crearEvidenciaObservacion,
@@ -364,4 +363,3 @@ module.exports = {
   actualizarEstadoObservacion,
   actualizarEstadoAccion
 };
-

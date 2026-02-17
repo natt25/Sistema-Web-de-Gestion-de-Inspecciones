@@ -1,9 +1,8 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
 
-const authMiddleware = require("../middlewares/auth.middleware");
-const controller = require("../controllers/catalogos.controller");
-
+import authMiddleware from "../middlewares/auth.middleware.js";
+import controller from "../controllers/catalogos.controller.js";
 // GET /api/catalogos/clientes
 router.get("/clientes", authMiddleware, controller.listarClientes);
 
@@ -24,4 +23,4 @@ router.get("/plantillas", authMiddleware, controller.listarPlantillas);
 
 router.get("/estados-observacion", authMiddleware, controller.listarEstadosObservacion);
 
-module.exports = router;
+export default router;

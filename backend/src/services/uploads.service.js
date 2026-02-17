@@ -1,9 +1,12 @@
-const path = require("path");
-const fs = require("fs");
-const multer = require("multer");
-const crypto = require("crypto");
-const obsRepo = require("../repositories/observaciones.repository");
+import path from "path";
+import fs from "fs";
+import multer from "multer";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+import obsRepo from "../repositories/observaciones.repository.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 // Asegurar carpetas (evita ENOENT)
 const OBS_DIR = path.join(__dirname, "../storage/observaciones");
 const ACC_DIR = path.join(__dirname, "../storage/acciones");
@@ -111,10 +114,9 @@ async function subirEvidenciaAccion({ id_accion, file }) {
 }
 
 
-module.exports = {
+export default {
   uploadObsMiddleware,
   uploadAccMiddleware,
   subirEvidenciaObservacion,
   subirEvidenciaAccion
 };
-

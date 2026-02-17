@@ -1,5 +1,4 @@
-const jwt = require("jsonwebtoken");
-
+import jwt from "jsonwebtoken";
 const signToken = (payload) => {
   if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET no configurado");
   return jwt.sign(payload, process.env.JWT_SECRET, {
@@ -12,4 +11,4 @@ const verifyToken = (token) => {
   return jwt.verify(token, process.env.JWT_SECRET);
 };
 
-module.exports = { signToken, verifyToken };
+export { signToken, verifyToken };

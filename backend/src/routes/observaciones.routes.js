@@ -1,9 +1,8 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
 
-const authMiddleware = require("../middlewares/auth.middleware");
-const controller = require("../controllers/observaciones.controller");
-
+import authMiddleware from "../middlewares/auth.middleware.js";
+import controller from "../controllers/observaciones.controller.js";
 // POST /api/inspecciones/:id/observaciones
 router.post(
   "/:id/observaciones",
@@ -74,4 +73,4 @@ router.patch(
   controller.actualizarEstadoAccion
 );
 
-module.exports = router;
+export default router;

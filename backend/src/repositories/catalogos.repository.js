@@ -1,5 +1,4 @@
-const { getPool } = require("../config/database");
-
+import { sql, getPool } from "../config/database.js";
 async function listarClientes() {
   const query = `SELECT * FROM SSOMA.V_CLIENTE;`;
   const pool = await getPool();
@@ -33,7 +32,6 @@ async function listarLugaresPorArea(idArea) {
 
   const pool = await getPool();
   const request = pool.request();
-  const { sql } = require("../config/database");
   request.input("idArea", sql.Int, Number(idArea));
 
   const result = await request.query(query);
@@ -70,7 +68,7 @@ async function listarEstadosObservacion() {
   return result.recordset;
 }
 
-module.exports = { 
+export default { 
   listarClientes, 
   listarAreas, 
   listarServicios, 

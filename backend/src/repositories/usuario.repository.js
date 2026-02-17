@@ -1,5 +1,4 @@
-const { sql, getPool } = require("../config/database");
-
+import { sql, getPool } from "../config/database.js";
 async function findByDni(dni) {
   const query = `
     SELECT
@@ -25,4 +24,4 @@ async function findByDni(dni) {
   return result.recordset[0] || null;
 }
 
-module.exports = { findByDni };
+export default { findByDni };

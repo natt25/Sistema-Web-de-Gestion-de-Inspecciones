@@ -1,10 +1,9 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
 
-const authMiddleware = require("../middlewares/auth.middleware");
-const controller = require("../controllers/uploads.controller");
-const service = require("../services/uploads.service");
-
+import authMiddleware from "../middlewares/auth.middleware.js";
+import controller from "../controllers/uploads.controller.js";
+import service from "../services/uploads.service.js";
 // POST /api/uploads/observaciones/:id
 router.post(
   "/observaciones/:id",
@@ -21,4 +20,4 @@ router.post(
   controller.subirAcc
 );
 
-module.exports = router;
+export default router;

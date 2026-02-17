@@ -12,4 +12,4 @@ function requireRole(roles = []) {
   };
 }
 
-module.exports = requireRole;
+export default requireRole;

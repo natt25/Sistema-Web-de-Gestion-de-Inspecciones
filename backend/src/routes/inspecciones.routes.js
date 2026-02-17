@@ -1,9 +1,8 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
 
-const authMiddleware = require("../middlewares/auth.middleware");
-const controller = require("../controllers/inspecciones.controller");
-
+import authMiddleware from "../middlewares/auth.middleware.js";
+import controller from "../controllers/inspecciones.controller.js";
 // POST /api/inspecciones
 router.post("/", authMiddleware, controller.crear);
 
@@ -19,4 +18,4 @@ router.get("/:id/full", authMiddleware, controller.obtenerDetalleFull);
 // PATCH /api/inspecciones/:id/estado
 router.patch("/:id/estado", authMiddleware, controller.actualizarEstado);
 
-module.exports = router;
+export default router;

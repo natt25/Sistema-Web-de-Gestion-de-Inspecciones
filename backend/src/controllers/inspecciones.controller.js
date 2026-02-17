@@ -1,5 +1,4 @@
-const service = require("../services/inspecciones.service");
-
+import service from "../services/inspecciones.service.js";
 async function crear(req, res) {
   try {
     const result = await service.crearInspeccionCabecera({ user: req.user, body: req.body });
@@ -89,4 +88,4 @@ async function actualizarEstado(req, res) {
 }
 
 
-module.exports = { crear, listar, obtenerDetalle, obtenerDetalleFull, actualizarEstado };
+export default { crear, listar, obtenerDetalle, obtenerDetalleFull, actualizarEstado };
