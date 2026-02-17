@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion, actualizarEstadoObservacion } from "../api/observaciones.api";
 import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
+import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -263,6 +264,68 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
 
       <button disabled={saving} type="submit">
         {saving ? "Guardando..." : "Crear accion"}
+      </button>
+    </form>
+  );
+}
+
+function UploadEvidence({ kind, idTarget, onUploaded }) {
+  // kind: "OBS" | "ACC"
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setOk("");
+
+    if (!file) return setError("Selecciona un archivo.");
+
+    setSaving(true);
+    try {
+      if (kind === "OBS") {
+        await uploadEvidenciaObs(idTarget, file);
+      } else {
+        await uploadEvidenciaAcc(idTarget, file);
+      }
+
+      setOk("Evidencia subida ✅");
+      setFile(null);
+      await onUploaded?.();
+      setTimeout(() => setOk(""), 2000);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 8, maxWidth: 520 }}>
+      <b>Subir evidencia ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
+
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+      />
+
+      {error && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+          {error}
+        </div>
+      )}
+
+      {ok && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #b3ffb3", background: "#ecffec" }}>
+          {ok}
+        </div>
+      )}
+
+      <button disabled={saving} type="submit">
+        {saving ? "Subiendo..." : "Subir evidencia"}
       </button>
     </form>
   );
@@ -531,6 +594,12 @@ export default function InspeccionDetail() {
                 <EvidenceGrid evidencias={o.evidencias} />
               </div>
 
+              <UploadEvidence
+                kind="OBS"
+                idTarget={o.id_observacion}
+                onUploaded={load}
+              />
+
               <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} onMsg={showAccionMsg} />
 
               {accionMsgByObs[o.id_observacion]?.msg && (
@@ -596,6 +665,12 @@ export default function InspeccionDetail() {
                         <b>Evidencias (Acc)</b>
                         <EvidenceGrid evidencias={a.evidencias} />
                       </div>
+
+                      <UploadEvidence
+                        kind="ACC"
+                        idTarget={a.id_accion}
+                        onUploaded={load}
+                      />
                     </div>
                   ))
                 )}
