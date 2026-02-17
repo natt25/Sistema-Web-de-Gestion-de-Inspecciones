@@ -2,6 +2,106 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+function fileUrl(archivo_ruta) {
+  // si viene PENDING_UPLOAD/... no existe en /storage
+  if (!archivo_ruta || archivo_ruta.startsWith("PENDING_UPLOAD/")) return null;
+  return `${API_BASE}/${archivo_ruta}`;
+}
+
+function fmtDate(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString();
+}
+
+function Badge({ children }) {
+  return (
+    <span
+      style={{
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: "1px solid #ddd",
+        background: "#f7f7f7",
+        fontSize: 12,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function EvidenceGrid({ evidencias }) {
+  if (!evidencias || evidencias.length === 0) {
+    return <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin evidencias.</p>;
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+      {evidencias.map((e) => {
+        const key = e.id_obs_evidencia ?? e.id_acc_evidencia ?? e.id ?? e.archivo_ruta;
+        const url = fileUrl(e.archivo_ruta);
+
+        // Si es PENDING_UPLOAD => solo mostrar texto
+        if (!url) {
+          return (
+            <div
+              key={key}
+              style={{
+                width: 200,
+                border: "1px dashed #bbb",
+                borderRadius: 12,
+                padding: 10,
+                background: "#fffdf5",
+              }}
+            >
+              <b style={{ fontSize: 12 }}>PENDIENTE</b>
+              <div style={{ fontSize: 12, wordBreak: "break-all" }}>{e.archivo_ruta}</div>
+            </div>
+          );
+        }
+
+        return (
+          <a
+            key={key}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              width: 200,
+              textDecoration: "none",
+              color: "inherit",
+              border: "1px solid #ddd",
+              borderRadius: 12,
+              overflow: "hidden",
+              background: "#fff",
+            }}
+          >
+            <img
+              src={url}
+              alt={e.archivo_nombre || "evidencia"}
+              style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
+              onError={(ev) => {
+                // si no es imagen, ocultamos thumbnail
+                ev.currentTarget.style.display = "none";
+              }}
+            />
+            <div style={{ padding: 10, display: "grid", gap: 4 }}>
+              <div style={{ fontSize: 12, wordBreak: "break-all" }}>
+                {e.archivo_nombre || e.archivo_ruta}
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.7 }}>{e.mime_type || "-"}</div>
+              <div style={{ fontSize: 11, opacity: 0.7 }}>Capturada: {fmtDate(e.capturada_en)}</div>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function InspeccionDetail() {
   const { id } = useParams();
   const [loading, setLoading] = useState(false);
@@ -28,16 +128,19 @@ export default function InspeccionDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const cab = data?.cabecera;
+  const observaciones = data?.observaciones || [];
+
   return (
     <div style={{ padding: 16, display: "grid", gap: 12 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <Link to="/inspecciones">← Volver</Link>
         <button onClick={load} disabled={loading}>
-          {loading ? "Cargando..." : "Recargar"}
+          {loading ? "Recargando..." : "Recargar"}
         </button>
       </div>
 
-      <h2 style={{ margin: 0 }}>FULL - Inspección #{id}</h2>
+      <h2 style={{ margin: 0 }}>Inspección #{id}</h2>
 
       {error && (
         <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
@@ -45,13 +148,91 @@ export default function InspeccionDetail() {
         </div>
       )}
 
+      {/* CABECERA */}
       <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
-        {loading && <p>Cargando...</p>}
-        {!loading && data && (
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-            {JSON.stringify(data, null, 2)}
-          </pre>
+        <h3 style={{ marginTop: 0 }}>Cabecera</h3>
+
+        {!cab ? (
+          <p style={{ opacity: 0.7 }}>Sin cabecera.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Badge>Estado: {cab.estado_inspeccion}</Badge>
+              <Badge>Modo: {cab.modo_registro}</Badge>
+              <Badge>Área: {cab.desc_area}</Badge>
+              <Badge>Formato: {cab.codigo_formato} v{cab.version_actual}</Badge>
+            </div>
+
+            <div style={{ display: "grid", gap: 4 }}>
+              <div><b>Fecha inspección:</b> {fmtDate(cab.fecha_inspeccion)}</div>
+              <div><b>Servicio:</b> {cab.nombre_servicio} {cab.servicio_detalle ? `- ${cab.servicio_detalle}` : ""}</div>
+              <div><b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}</div>
+            </div>
+          </div>
         )}
+      </section>
+
+      {/* OBSERVACIONES */}
+      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Observaciones ({observaciones.length})</h3>
+
+        {loading && <p>Cargando...</p>}
+
+        {!loading && observaciones.length === 0 && (
+          <p style={{ opacity: 0.7 }}>Sin observaciones.</p>
+        )}
+
+        {!loading &&
+          observaciones.map((o) => (
+            <div key={o.id_observacion} style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <b>Obs #{o.id_observacion}</b>
+                <Badge>Riesgo: {o.nivel_riesgo}</Badge>
+                <Badge>Estado: {o.estado_observacion}</Badge>
+                <Badge>Ítem: {o.item_ref}</Badge>
+              </div>
+
+              <div style={{ marginTop: 6 }}>
+                <b>Descripción:</b> {o.desc_observacion}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>
+                Creada: {fmtDate(o.created_at)}
+              </div>
+
+              <div style={{ marginTop: 10 }}>
+                <b>Evidencias (Obs)</b>
+                <EvidenceGrid evidencias={o.evidencias} />
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <b>Acciones ({o.acciones?.length || 0})</b>
+
+                {!o.acciones || o.acciones.length === 0 ? (
+                  <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin acciones.</p>
+                ) : (
+                  o.acciones.map((a) => (
+                    <div key={a.id_accion} style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <b>Acc #{a.id_accion}</b>
+                        <Badge>Estado: {a.estado_accion}</Badge>
+                        <Badge>Compromiso: {fmtDate(a.fecha_compromiso)}</Badge>
+                        <Badge>Resp DNI: {a.dni || "-"}</Badge>
+                      </div>
+
+                      <div style={{ marginTop: 6 }}>
+                        <b>Descripción:</b> {a.desc_accion}
+                      </div>
+
+                      <div style={{ marginTop: 10 }}>
+                        <b>Evidencias (Acc)</b>
+                        <EvidenceGrid evidencias={a.evidencias} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
       </section>
     </div>
   );
