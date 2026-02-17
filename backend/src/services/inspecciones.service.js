@@ -181,11 +181,60 @@ async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
+async function actualizarEstadoObservacion({ id_observacion, body }) {
+  const id_estado_observacion = Number(body?.id_estado_observacion);
+
+  if (!id_estado_observacion) {
+    return { ok: false, status: 400, message: "Falta id_estado_observacion." };
+  }
+
+  const actual = await observacionesRepo.obtenerEstadoObservacion(id_observacion);
+  if (!actual) return { ok: false, status: 404, message: "Observación no existe." };
+
+  // Si quieren CERRAR (3): validar acciones pendientes
+  if (id_estado_observacion === 3) {
+    const pendientes = await observacionesRepo.contarAccionesNoFinalizadas(id_observacion);
+    if (pendientes > 0) {
+      return {
+        ok: false,
+        status: 409,
+        message: `No se puede cerrar: hay ${pendientes} acción(es) pendiente(s).`,
+      };
+    }
+  }
+
+  const updated = await observacionesRepo.actualizarEstadoObservacion({
+    id_observacion,
+    id_estado_observacion,
+  });
+
+  return { ok: true, status: 200, data: updated };
+}
+
+async function actualizarEstadoAccion({ id_accion, body }) {
+  const id_estado_accion = Number(body?.id_estado_accion);
+
+  if (!id_estado_accion) {
+    return { ok: false, status: 400, message: "Falta id_estado_accion." };
+  }
+
+  const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
+  if (!actual) return { ok: false, status: 404, message: "Acción no existe." };
+
+  const updated = await observacionesRepo.actualizarEstadoAccion({
+    id_accion,
+    id_estado_accion,
+  });
+
+  return { ok: true, status: 200, data: updated };
+}
 
 export default {
   crearInspeccionCabecera,
   listarInspecciones,
   obtenerDetalleInspeccion,
   obtenerDetalleInspeccionFull,
-  actualizarEstadoInspeccion
+  actualizarEstadoInspeccion,
+  actualizarEstadoObservacion,
+  actualizarEstadoAccion
 };

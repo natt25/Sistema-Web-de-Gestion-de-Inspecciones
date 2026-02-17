@@ -18,4 +18,18 @@ router.get("/:id/full", authMiddleware, controller.obtenerDetalleFull);
 // PATCH /api/inspecciones/:id/estado
 router.patch("/:id/estado", authMiddleware, controller.actualizarEstado);
 
+// --- OBSERVACIONES: cambiar estado (ej: cerrar) ---
+router.patch(
+  "/observaciones/:idObservacion/estado",
+  authMiddleware,
+  controller.actualizarEstadoObservacion
+);
+
+// --- ACCIONES: cambiar estado (ej: cumplir) ---
+router.patch(
+  "/acciones/:idAccion/estado",
+  authMiddleware,
+  controller.actualizarEstadoAccion
+);
+
 export default router;

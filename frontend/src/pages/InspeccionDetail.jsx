@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
-import { crearObservacion } from "../api/observaciones.api";
-import { crearAccion } from "../api/acciones.api";
+import { crearObservacion, actualizarEstadoObservacion } from "../api/observaciones.api";
+import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -38,7 +38,7 @@ function getErrorMessage(err) {
   const status = err?.response?.status;
   const msg = err?.response?.data?.message;
 
-  if (status === 401) return "Sesión expirada (401). Vuelve a iniciar sesión.";
+  if (status === 401) return "Sesion expirada (401). Vuelve a iniciar sesion.";
   if (status === 403) return "No tienes permisos (403).";
   if (status === 404) return "Endpoint no encontrado (404).";
   if (status === 409) return msg || "Conflicto (409).";
@@ -95,7 +95,9 @@ function EvidenceGrid({ evidencias }) {
               src={url}
               alt={e.archivo_nombre || "evidencia"}
               style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
-              onError={(ev) => (ev.currentTarget.style.display = "none")}
+              onError={(ev) => {
+                ev.currentTarget.style.display = "none";
+              }}
             />
             <div style={{ padding: 10, display: "grid", gap: 4 }}>
               <div style={{ fontSize: 12, wordBreak: "break-all" }}>
@@ -111,7 +113,6 @@ function EvidenceGrid({ evidencias }) {
   );
 }
 
-/** ✅ FORM: Crear Acción (se muestra debajo de cada observación) */
 function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
   const [form, setForm] = useState({
     desc_accion: "",
@@ -121,27 +122,17 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
     responsable_externo_nombre: "",
     responsable_externo_cargo: "",
   });
-
-  const okTimerRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [ok, setOk] = useState("");
-
-  useEffect(() => {
-    return () => {
-      if (okTimerRef.current) clearTimeout(okTimerRef.current);
-    };
-  }, []);
 
   function onChange(e) {
     const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-    setOk("");
 
     if (!form.desc_accion.trim()) return setError("Falta desc_accion.");
     if (!form.fecha_compromiso) return setError("Falta fecha_compromiso.");
@@ -175,24 +166,21 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
 
       await crearAccion(idObservacion, payload);
 
-
-      
-      setForm((p) => ({
-        ...p,
+      setForm((prev) => ({
+        ...prev,
         desc_accion: "",
         responsable_interno_dni: "",
         responsable_externo_nombre: "",
         responsable_externo_cargo: "",
       }));
 
-      onMsg?.(idObservacion, "Acción creada ✅", "ok");
-
-      // recarga, pero no importa si remonta, el msg vive en el padre
-      setTimeout(() => onCreated?.(), 0);
-
-
+      onMsg?.(idObservacion, "Accion creada OK", "ok");
+      await onCreated?.();
     } catch (err) {
-      return onMsg?.(idObservacion, "Falta desc_accion.", "error");
+      console.error("inspeccion.detail.crearAccion:", err);
+      const msg = getErrorMessage(err);
+      setError(msg);
+      onMsg?.(idObservacion, msg, "error");
     } finally {
       setSaving(false);
     }
@@ -212,10 +200,10 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
         background: "#fafafa",
       }}
     >
-      <b>Crear acción (Obs #{idObservacion})</b>
+      <b>Crear accion (Obs #{idObservacion})</b>
 
       <label style={{ display: "grid", gap: 6 }}>
-        Descripción (desc_accion)
+        Descripcion (desc_accion)
         <textarea name="desc_accion" value={form.desc_accion} onChange={onChange} rows={2} />
       </label>
 
@@ -273,14 +261,8 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
         </div>
       )}
 
-      {ok && (
-        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #b3ffb3", background: "#ecffec" }}>
-          {ok}
-        </div>
-      )}
-
       <button disabled={saving} type="submit">
-        {saving ? "Guardando..." : "Crear acción"}
+        {saving ? "Guardando..." : "Crear accion"}
       </button>
     </form>
   );
@@ -288,21 +270,34 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
 
 export default function InspeccionDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState("");
   const [data, setData] = useState(null);
   const [accionMsgByObs, setAccionMsgByObs] = useState({});
   const accionTimersRef = useRef({});
 
-  function showAccionMsg(idObs, msg, type = "ok") {
-    // type: "ok" | "error"
-    setAccionMsgByObs((p) => ({ ...p, [idObs]: { msg, type } }));
+  const [form, setForm] = useState({
+    item_ref: "",
+    desc_observacion: "",
+    id_nivel_riesgo: "1",
+    id_estado_observacion: "1",
+  });
 
-    if (accionTimersRef.current[idObs]) clearTimeout(accionTimersRef.current[idObs]);
+  const [savingObs, setSavingObs] = useState(false);
+  const [obsError, setObsError] = useState("");
+  const [obsOk, setObsOk] = useState("");
+
+  function showAccionMsg(idObs, msg, type = "ok") {
+    setAccionMsgByObs((prev) => ({ ...prev, [idObs]: { msg, type } }));
+
+    if (accionTimersRef.current[idObs]) {
+      clearTimeout(accionTimersRef.current[idObs]);
+    }
 
     accionTimersRef.current[idObs] = setTimeout(() => {
-      setAccionMsgByObs((p) => {
-        const copy = { ...p };
+      setAccionMsgByObs((prev) => {
+        const copy = { ...prev };
         delete copy[idObs];
         return copy;
       });
@@ -315,18 +310,6 @@ export default function InspeccionDetail() {
     };
   }, []);
 
-  // Form crear observación
-  const [form, setForm] = useState({
-    item_ref: "",
-    desc_observacion: "",
-    id_nivel_riesgo: "1",
-    id_estado_observacion: "1",
-  });
-
-  const [savingObs, setSavingObs] = useState(false);
-  const [obsError, setObsError] = useState("");
-  const [obsOk, setObsOk] = useState("");
-
   async function load() {
     setLoading(true);
     setPageError("");
@@ -334,6 +317,15 @@ export default function InspeccionDetail() {
       const res = await getInspeccionFull(id);
       setData(res);
     } catch (err) {
+      console.error("inspeccion.detail.load:", err);
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        navigate("/login", {
+          replace: true,
+          state: { from: { pathname: `/inspecciones/${id}` } },
+        });
+        return;
+      }
       setPageError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -342,15 +334,11 @@ export default function InspeccionDetail() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  const cab = data?.cabecera;
-  const observaciones = data?.observaciones || [];
 
   function onChangeForm(e) {
     const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   async function onCrearObservacion(e) {
@@ -359,7 +347,7 @@ export default function InspeccionDetail() {
     setObsOk("");
 
     if (!form.item_ref.trim()) return setObsError("Falta item_ref.");
-    if (!form.desc_observacion.trim()) return setObsError("Falta descripción.");
+    if (!form.desc_observacion.trim()) return setObsError("Falta descripcion.");
     if (!form.id_nivel_riesgo) return setObsError("Falta nivel de riesgo.");
 
     setSavingObs(true);
@@ -371,11 +359,11 @@ export default function InspeccionDetail() {
         id_estado_observacion: Number(form.id_estado_observacion),
       });
 
-      setObsOk("Observación creada ✅");
+      setObsOk("Observacion creada OK");
       setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
-
       await load();
     } catch (err) {
+      console.error("inspeccion.detail.crearObservacion:", err);
       setObsError(getErrorMessage(err));
     } finally {
       setSavingObs(false);
@@ -383,16 +371,29 @@ export default function InspeccionDetail() {
     }
   }
 
+  if (!id) {
+    return (
+      <div style={{ padding: 16 }}>
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+          No se encontro ID de inspeccion en la ruta.
+        </div>
+      </div>
+    );
+  }
+
+  const cab = data?.cabecera;
+  const observaciones = data?.observaciones || [];
+
   return (
     <div style={{ padding: 16, display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <Link to="/inspecciones">← Volver</Link>
+        <Link to="/inspecciones">Volver</Link>
         <button onClick={load} disabled={loading}>
           {loading ? "Recargando..." : "Recargar"}
         </button>
       </div>
 
-      <h2 style={{ margin: 0 }}>Inspección #{id}</h2>
+      <h2 style={{ margin: 0 }}>Inspeccion #{id}</h2>
 
       {pageError && (
         <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
@@ -400,10 +401,8 @@ export default function InspeccionDetail() {
         </div>
       )}
 
-      {/* CABECERA */}
       <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
         <h3 style={{ marginTop: 0 }}>Cabecera</h3>
-
         {!cab ? (
           <p style={{ opacity: 0.7 }}>Sin cabecera.</p>
         ) : (
@@ -411,7 +410,7 @@ export default function InspeccionDetail() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Badge>Estado: {cab.estado_inspeccion}</Badge>
               <Badge>Modo: {cab.modo_registro}</Badge>
-              <Badge>Área: {cab.desc_area}</Badge>
+              <Badge>Area: {cab.desc_area}</Badge>
               <Badge>
                 Formato: {cab.codigo_formato} v{cab.version_actual}
               </Badge>
@@ -419,11 +418,10 @@ export default function InspeccionDetail() {
 
             <div style={{ display: "grid", gap: 4 }}>
               <div>
-                <b>Fecha inspección:</b> {fmtDate(cab.fecha_inspeccion)}
+                <b>Fecha inspeccion:</b> {fmtDate(cab.fecha_inspeccion)}
               </div>
               <div>
-                <b>Servicio:</b> {cab.nombre_servicio}{" "}
-                {cab.servicio_detalle ? `- ${cab.servicio_detalle}` : ""}
+                <b>Servicio:</b> {cab.nombre_servicio} {cab.servicio_detalle ? `- ${cab.servicio_detalle}` : ""}
               </div>
               <div>
                 <b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}
@@ -433,9 +431,8 @@ export default function InspeccionDetail() {
         )}
       </section>
 
-      {/* CREAR OBSERVACIÓN */}
       <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Crear observación</h3>
+        <h3 style={{ marginTop: 0 }}>Crear observacion</h3>
 
         <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
           <label style={{ display: "grid", gap: 6 }}>
@@ -453,7 +450,7 @@ export default function InspeccionDetail() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            Estado observación (id_estado_observacion)
+            Estado observacion (id_estado_observacion)
             <select name="id_estado_observacion" value={form.id_estado_observacion} onChange={onChangeForm}>
               <option value="1">1 - ABIERTA</option>
               <option value="2">2 - EN PROCESO</option>
@@ -462,13 +459,13 @@ export default function InspeccionDetail() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            Descripción
+            Descripcion
             <textarea
               name="desc_observacion"
               value={form.desc_observacion}
               onChange={onChangeForm}
               rows={3}
-              placeholder="Describe la observación..."
+              placeholder="Describe la observacion..."
             />
           </label>
 
@@ -485,17 +482,15 @@ export default function InspeccionDetail() {
           )}
 
           <button disabled={savingObs} type="submit">
-            {savingObs ? "Guardando..." : "Crear observación"}
+            {savingObs ? "Guardando..." : "Crear observacion"}
           </button>
         </form>
       </section>
 
-      {/* OBSERVACIONES */}
       <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
         <h3 style={{ marginTop: 0 }}>Observaciones ({observaciones.length})</h3>
 
         {loading && <p>Cargando...</p>}
-
         {!loading && observaciones.length === 0 && <p style={{ opacity: 0.7 }}>Sin observaciones.</p>}
 
         {!loading &&
@@ -505,11 +500,30 @@ export default function InspeccionDetail() {
                 <b>Obs #{o.id_observacion}</b>
                 <Badge>Riesgo: {o.nivel_riesgo}</Badge>
                 <Badge>Estado: {o.estado_observacion}</Badge>
-                <Badge>Ítem: {o.item_ref}</Badge>
+                <Badge>Item: {o.item_ref}</Badge>
+              </div>
+
+              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {o.id_estado_observacion !== 3 && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await actualizarEstadoObservacion(o.id_observacion, 3);
+                        await load();
+                        alert("Observacion cerrada OK");
+                      } catch (err) {
+                        console.error("inspeccion.detail.cerrarObservacion:", err);
+                        alert(getErrorMessage(err));
+                      }
+                    }}
+                  >
+                    Cerrar observacion
+                  </button>
+                )}
               </div>
 
               <div style={{ marginTop: 6 }}>
-                <b>Descripción:</b> {o.desc_observacion}
+                <b>Descripcion:</b> {o.desc_observacion}
               </div>
 
               <div style={{ marginTop: 10 }}>
@@ -517,11 +531,7 @@ export default function InspeccionDetail() {
                 <EvidenceGrid evidencias={o.evidencias} />
               </div>
 
-              <CrearAccionForm
-                idObservacion={o.id_observacion}
-                onCreated={load}
-                onMsg={showAccionMsg}
-              />
+              <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} onMsg={showAccionMsg} />
 
               {accionMsgByObs[o.id_observacion]?.msg && (
                 <div
@@ -534,15 +544,12 @@ export default function InspeccionDetail() {
                         ? "1px solid #b3ffb3"
                         : "1px solid #ffb3b3",
                     background:
-                      accionMsgByObs[o.id_observacion].type === "ok"
-                        ? "#ecffec"
-                        : "#ffecec",
+                      accionMsgByObs[o.id_observacion].type === "ok" ? "#ecffec" : "#ffecec",
                   }}
                 >
                   {accionMsgByObs[o.id_observacion].msg}
                 </div>
               )}
-
 
               <div style={{ marginTop: 12 }}>
                 <b>Acciones ({o.acciones?.length || 0})</b>
@@ -563,7 +570,26 @@ export default function InspeccionDetail() {
                       </div>
 
                       <div style={{ marginTop: 6 }}>
-                        <b>Descripción:</b> {a.desc_accion}
+                        <b>Descripcion:</b> {a.desc_accion}
+                      </div>
+
+                      <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {a.id_estado_accion !== 3 && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await actualizarEstadoAccion(a.id_accion, 3);
+                                await load();
+                                alert("Accion cumplida OK");
+                              } catch (err) {
+                                console.error("inspeccion.detail.cumplirAccion:", err);
+                                alert(getErrorMessage(err));
+                              }
+                            }}
+                          >
+                            Marcar como cumplida
+                          </button>
+                        )}
                       </div>
 
                       <div style={{ marginTop: 10 }}>

@@ -87,5 +87,53 @@ async function actualizarEstado(req, res) {
   }
 }
 
+async function actualizarEstadoObservacion(req, res) {
+  try {
+    const { idObservacion } = req.params;
 
-export default { crear, listar, obtenerDetalle, obtenerDetalleFull, actualizarEstado };
+    const result = await service.actualizarEstadoObservacion({
+      id_observacion: Number(idObservacion),
+      body: req.body,
+      user: req.user,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("inspecciones.actualizarEstadoObservacion:", err);
+    return res.status(500).json({ message: "Error interno", error: err.message });
+  }
+}
+
+async function actualizarEstadoAccion(req, res) {
+  try {
+    const { idAccion } = req.params;
+
+    const result = await service.actualizarEstadoAccion({
+      id_accion: Number(idAccion),
+      body: req.body,
+      user: req.user,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("inspecciones.actualizarEstadoAccion:", err);
+    return res.status(500).json({ message: "Error interno", error: err.message });
+  }
+}
+export default {
+  crear,
+  listar,
+  obtenerDetalle,
+  obtenerDetalleFull,
+  actualizarEstado,
+  actualizarEstadoObservacion,
+  actualizarEstadoAccion,
+};
