@@ -111,46 +111,6 @@ async function subirEvidenciaAccion({ id_accion, file }) {
 }
 
 
-async function subirEvidenciaAccion({ id_accion, file }) {
-  const id = Number(id_accion);
-  if (!id || Number.isNaN(id)) {
-    return { ok: false, status: 400, message: "id_accion inválido" };
-  }
-
-  if (!file) {
-    return { ok: false, status: 400, message: "Archivo no enviado" };
-  }
-
-  // IMPORTANTE: primero validar file, luego hash
-  const hash = sha256File(file.path);
-
-  const yaExiste = await obsRepo.existeHashEvidenciaAccion({ id_accion: id, hash_archivo: hash });
-  if (yaExiste) {
-    try { fs.unlinkSync(file.path); } catch (_) {}
-    return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
-  }
-
-  const payload = {
-    id_accion: id,
-    id_estado_sync: 2, // SUBIDO
-    archivo_nombre: file.originalname,
-    archivo_ruta: `storage/acciones/${file.filename}`,
-    mime_type: file.mimetype,
-    tamano_bytes: file.size,
-    hash_archivo: hash,
-    capturada_en: new Date()
-  };
-
-  try {
-    const creado = await obsRepo.crearEvidenciaAccion(payload);
-    return { ok: true, status: 201, data: creado };
-  } catch (err) {
-    try { fs.unlinkSync(file.path); } catch (_) {}
-    throw err;
-  }
-}
-
-
 module.exports = {
   uploadObsMiddleware,
   uploadAccMiddleware,

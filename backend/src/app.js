@@ -26,7 +26,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/catalogos", catalogosRoutes);
 app.use("/api/inspecciones", inspeccionesRoutes);
 app.use("/api/inspecciones", observacionesRoutes);
-app.use("/storage", express.static(path.join(__dirname, "storage")));
+app.use("/storage", express.static(path.join(__dirname, "./storage")));
 app.use("/api/uploads", uploadsRoutes);
 
 
