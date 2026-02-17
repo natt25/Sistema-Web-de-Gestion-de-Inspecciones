@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion } from "../api/observaciones.api";
@@ -112,7 +112,7 @@ function EvidenceGrid({ evidencias }) {
 }
 
 /** ✅ FORM: Crear Acción (se muestra debajo de cada observación) */
-function CrearAccionForm({ idObservacion, onCreated }) {
+function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
   const [form, setForm] = useState({
     desc_accion: "",
     fecha_compromiso: "",
@@ -122,10 +122,16 @@ function CrearAccionForm({ idObservacion, onCreated }) {
     responsable_externo_cargo: "",
   });
 
-
+  const okTimerRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+
+  useEffect(() => {
+    return () => {
+      if (okTimerRef.current) clearTimeout(okTimerRef.current);
+    };
+  }, []);
 
   function onChange(e) {
     const { name, value } = e.target;
@@ -170,7 +176,7 @@ function CrearAccionForm({ idObservacion, onCreated }) {
       await crearAccion(idObservacion, payload);
 
 
-      setOk("Acción creada ✅");
+      
       setForm((p) => ({
         ...p,
         desc_accion: "",
@@ -179,12 +185,14 @@ function CrearAccionForm({ idObservacion, onCreated }) {
         responsable_externo_cargo: "",
       }));
 
-      // recargar todo el detalle
-      await onCreated?.();
+      onMsg?.(idObservacion, "Acción creada ✅", "ok");
 
-      setTimeout(() => setOk(""), 2000);
+      // recarga, pero no importa si remonta, el msg vive en el padre
+      setTimeout(() => onCreated?.(), 0);
+
+
     } catch (err) {
-      setError(getErrorMessage(err));
+      return onMsg?.(idObservacion, "Falta desc_accion.", "error");
     } finally {
       setSaving(false);
     }
@@ -283,6 +291,29 @@ export default function InspeccionDetail() {
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState("");
   const [data, setData] = useState(null);
+  const [accionMsgByObs, setAccionMsgByObs] = useState({});
+  const accionTimersRef = useRef({});
+
+  function showAccionMsg(idObs, msg, type = "ok") {
+    // type: "ok" | "error"
+    setAccionMsgByObs((p) => ({ ...p, [idObs]: { msg, type } }));
+
+    if (accionTimersRef.current[idObs]) clearTimeout(accionTimersRef.current[idObs]);
+
+    accionTimersRef.current[idObs] = setTimeout(() => {
+      setAccionMsgByObs((p) => {
+        const copy = { ...p };
+        delete copy[idObs];
+        return copy;
+      });
+    }, 4000);
+  }
+
+  useEffect(() => {
+    return () => {
+      Object.values(accionTimersRef.current).forEach((t) => clearTimeout(t));
+    };
+  }, []);
 
   // Form crear observación
   const [form, setForm] = useState({
@@ -486,8 +517,32 @@ export default function InspeccionDetail() {
                 <EvidenceGrid evidencias={o.evidencias} />
               </div>
 
-              {/* ✅ FORM CREAR ACCIÓN para esta observación */}
-              <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} />
+              <CrearAccionForm
+                idObservacion={o.id_observacion}
+                onCreated={load}
+                onMsg={showAccionMsg}
+              />
+
+              {accionMsgByObs[o.id_observacion]?.msg && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: 10,
+                    borderRadius: 10,
+                    border:
+                      accionMsgByObs[o.id_observacion].type === "ok"
+                        ? "1px solid #b3ffb3"
+                        : "1px solid #ffb3b3",
+                    background:
+                      accionMsgByObs[o.id_observacion].type === "ok"
+                        ? "#ecffec"
+                        : "#ffecec",
+                  }}
+                >
+                  {accionMsgByObs[o.id_observacion].msg}
+                </div>
+              )}
+
 
               <div style={{ marginTop: 12 }}>
                 <b>Acciones ({o.acciones?.length || 0})</b>
