@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
+import { crearObservacion } from "../api/observaciones.api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 function fileUrl(archivo_ruta) {
-  // si viene PENDING_UPLOAD/... no existe en /storage
   if (!archivo_ruta || archivo_ruta.startsWith("PENDING_UPLOAD/")) return null;
   return `${API_BASE}/${archivo_ruta}`;
 }
@@ -33,6 +33,18 @@ function Badge({ children }) {
   );
 }
 
+function getErrorMessage(err) {
+  const status = err?.response?.status;
+  const msg = err?.response?.data?.message;
+
+  if (status === 401) return "Sesión expirada (401). Vuelve a iniciar sesión.";
+  if (status === 403) return "No tienes permisos (403).";
+  if (status === 404) return "Endpoint no encontrado (404).";
+  if (status === 409) return msg || "Conflicto (409).";
+  if (status === 500) return "Error interno del servidor (500).";
+  return msg || "Error inesperado. Revisa consola/backend.";
+}
+
 function EvidenceGrid({ evidencias }) {
   if (!evidencias || evidencias.length === 0) {
     return <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin evidencias.</p>;
@@ -44,7 +56,6 @@ function EvidenceGrid({ evidencias }) {
         const key = e.id_obs_evidencia ?? e.id_acc_evidencia ?? e.id ?? e.archivo_ruta;
         const url = fileUrl(e.archivo_ruta);
 
-        // Si es PENDING_UPLOAD => solo mostrar texto
         if (!url) {
           return (
             <div
@@ -83,10 +94,7 @@ function EvidenceGrid({ evidencias }) {
               src={url}
               alt={e.archivo_nombre || "evidencia"}
               style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
-              onError={(ev) => {
-                // si no es imagen, ocultamos thumbnail
-                ev.currentTarget.style.display = "none";
-              }}
+              onError={(ev) => (ev.currentTarget.style.display = "none")}
             />
             <div style={{ padding: 10, display: "grid", gap: 4 }}>
               <div style={{ fontSize: 12, wordBreak: "break-all" }}>
@@ -105,19 +113,29 @@ function EvidenceGrid({ evidencias }) {
 export default function InspeccionDetail() {
   const { id } = useParams();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [pageError, setPageError] = useState("");
   const [data, setData] = useState(null);
+
+  // Form crear observación
+  const [form, setForm] = useState({
+    item_ref: "",
+    desc_observacion: "",
+    id_nivel_riesgo: "1",
+    id_estado_observacion: "1", // 1 = ABIERTA (según tu JSON)
+  });
+
+  const [savingObs, setSavingObs] = useState(false);
+  const [obsError, setObsError] = useState("");
+  const [obsOk, setObsOk] = useState("");
 
   async function load() {
     setLoading(true);
-    setError("");
+    setPageError("");
     try {
       const res = await getInspeccionFull(id);
       setData(res);
     } catch (err) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message;
-      setError(msg || `Error cargando FULL (${status || "sin status"})`);
+      setPageError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -131,6 +149,43 @@ export default function InspeccionDetail() {
   const cab = data?.cabecera;
   const observaciones = data?.observaciones || [];
 
+  function onChangeForm(e) {
+    const { name, value } = e.target;
+    setForm((p) => ({ ...p, [name]: value }));
+  }
+
+  async function onCrearObservacion(e) {
+    e.preventDefault();
+    setObsError("");
+    setObsOk("");
+
+    // Validación mínima (sin inventar reglas)
+    if (!form.item_ref.trim()) return setObsError("Falta item_ref.");
+    if (!form.desc_observacion.trim()) return setObsError("Falta descripción.");
+    if (!form.id_nivel_riesgo) return setObsError("Falta nivel de riesgo.");
+
+    setSavingObs(true);
+    try {
+      await crearObservacion(id, {
+        item_ref: form.item_ref.trim(),
+        desc_observacion: form.desc_observacion.trim(),
+        id_nivel_riesgo: Number(form.id_nivel_riesgo),
+        id_estado_observacion: Number(form.id_estado_observacion),
+      });
+
+      setObsOk("Observación creada ✅");
+      setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
+
+      // recarga FULL para ver la nueva observación
+      await load();
+    } catch (err) {
+      setObsError(getErrorMessage(err));
+    } finally {
+      setSavingObs(false);
+      setTimeout(() => setObsOk(""), 2500);
+    }
+  }
+
   return (
     <div style={{ padding: 16, display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -142,9 +197,9 @@ export default function InspeccionDetail() {
 
       <h2 style={{ margin: 0 }}>Inspección #{id}</h2>
 
-      {error && (
+      {pageError && (
         <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
-          {error}
+          {pageError}
         </div>
       )}
 
@@ -172,15 +227,74 @@ export default function InspeccionDetail() {
         )}
       </section>
 
+      {/* CREAR OBSERVACIÓN */}
+      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Crear observación</h3>
+
+        <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            item_ref
+            <input name="item_ref" value={form.item_ref} onChange={onChangeForm} placeholder="Ej: 1.1" />
+          </label>
+
+          <label style={{ display: "grid", gap: 6 }}>
+            Nivel de riesgo (id_nivel_riesgo)
+            <select name="id_nivel_riesgo" value={form.id_nivel_riesgo} onChange={onChangeForm}>
+              <option value="1">1 - BAJO</option>
+              <option value="2">2 - MEDIO</option>
+              <option value="3">3 - ALTO</option>
+            </select>
+          </label>
+
+          <label style={{ display: "grid", gap: 6 }}>
+            Estado observación (id_estado_observacion)
+            <select
+              name="id_estado_observacion"
+              value={form.id_estado_observacion}
+              onChange={onChangeForm}
+            >
+              <option value="1">1 - ABIERTA</option>
+              <option value="2">2 - EN PROCESO</option>
+              <option value="3">3 - CERRADA</option>
+            </select>
+          </label>
+
+          <label style={{ display: "grid", gap: 6 }}>
+            Descripción
+            <textarea
+              name="desc_observacion"
+              value={form.desc_observacion}
+              onChange={onChangeForm}
+              rows={3}
+              placeholder="Describe la observación..."
+            />
+          </label>
+
+          {obsError && (
+            <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+              {obsError}
+            </div>
+          )}
+
+          {obsOk && (
+            <div style={{ padding: 10, borderRadius: 10, border: "1px solid #b3ffb3", background: "#ecffec" }}>
+              {obsOk}
+            </div>
+          )}
+
+          <button disabled={savingObs} type="submit">
+            {savingObs ? "Guardando..." : "Crear observación"}
+          </button>
+        </form>
+      </section>
+
       {/* OBSERVACIONES */}
       <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
         <h3 style={{ marginTop: 0 }}>Observaciones ({observaciones.length})</h3>
 
         {loading && <p>Cargando...</p>}
 
-        {!loading && observaciones.length === 0 && (
-          <p style={{ opacity: 0.7 }}>Sin observaciones.</p>
-        )}
+        {!loading && observaciones.length === 0 && <p style={{ opacity: 0.7 }}>Sin observaciones.</p>}
 
         {!loading &&
           observaciones.map((o) => (
@@ -194,9 +308,6 @@ export default function InspeccionDetail() {
 
               <div style={{ marginTop: 6 }}>
                 <b>Descripción:</b> {o.desc_observacion}
-              </div>
-              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>
-                Creada: {fmtDate(o.created_at)}
               </div>
 
               <div style={{ marginTop: 10 }}>
