@@ -6,6 +6,7 @@ const UPLOADS_STORE = "uploads_queue";
 // Nuevos stores (offline real)
 const MUTATIONS_STORE = "mutations_queue"; // crear OBS/ACC
 const IDMAP_STORE = "id_map"; // tempId -> realId
+const INSPECCION_CACHE = "inspeccion_cache";
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,10 @@ function openDB() {
       if (!db.objectStoreNames.contains(IDMAP_STORE)) {
         // keyPath = tempId (string)
         db.createObjectStore(IDMAP_STORE, { keyPath: "tempId" });
+      }
+      // ✅ cache por inspección
+      if (!db.objectStoreNames.contains(INSPECCION_CACHE)) {
+        db.createObjectStore(INSPECCION_CACHE, { keyPath: "idInspeccion" });
       }
     };
 
@@ -131,4 +136,29 @@ export async function getIdMap(tempId) {
 export async function getPendingCounts() {
   const [u, m] = await Promise.all([getAllQueue(), getAllMutationsQueue()]);
   return { uploads: u.length, mutations: m.length, total: u.length + m.length };
+}
+
+export async function setInspeccionCache(idInspeccion, data) {
+  const db = await openDB();
+  const tx = db.transaction(INSPECCION_CACHE, "readwrite");
+  tx.objectStore(INSPECCION_CACHE).put({
+    idInspeccion: Number(idInspeccion),
+    data,
+    savedAt: new Date().toISOString(),
+  });
+  return new Promise((resolve) => {
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+  });
+}
+
+export async function getInspeccionCache(idInspeccion) {
+  const db = await openDB();
+  const tx = db.transaction(INSPECCION_CACHE, "readonly");
+  const store = tx.objectStore(INSPECCION_CACHE);
+  return new Promise((resolve) => {
+    const req = store.get(Number(idInspeccion));
+    req.onsuccess = () => resolve(req.result?.data || null);
+    req.onerror = () => resolve(null);
+  });
 }

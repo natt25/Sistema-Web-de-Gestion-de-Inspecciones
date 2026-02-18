@@ -6,18 +6,14 @@ import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import {
-  addToQueue,
-  getAllQueue,
-  removeFromQueue,
-  addMutationToQueue,
-  getAllMutationsQueue,
-  removeMutationFromQueue,
-  setIdMap,
-  getIdMap,
-  getPendingCounts,
+  addToQueue, getAllQueue, removeFromQueue,
+  addMutationToQueue, getAllMutationsQueue, removeMutationFromQueue,
+  setIdMap, getIdMap, getPendingCounts,
+  getInspeccionCache, setInspeccionCache,
 } from "../utils/offlineQueue";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const DEBUG_SYNC = import.meta.env.DEV;
 
 function fileUrl(archivo_ruta) {
   if (!archivo_ruta || archivo_ruta.startsWith("PENDING_UPLOAD/")) return null;
@@ -143,34 +139,7 @@ function EvidenceGrid({ evidencias }) {
   );
 }
 
-async function handleAccionCreated(info) {
-  // OFFLINE UI update
-  if (info?.__offlineCreatedAction) {
-    const { obsRef, action } = info;
-
-    setData((prev) => {
-      if (!prev) return prev;
-
-      return {
-        ...prev,
-        observaciones: (prev.observaciones || []).map((o) => {
-          if (String(o.id_observacion) !== String(obsRef)) return o;
-
-          const acciones = Array.isArray(o.acciones) ? o.acciones : [];
-          return { ...o, acciones: [action, ...acciones] };
-        }),
-      };
-    });
-
-    await refreshPending();
-    return;
-  }
-
-  // ONLINE -> recargar desde API
-  await load();
-}
-
-function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada }) {
+function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, online }) {
   const [form, setForm] = useState({
     desc_accion: "",
     fecha_compromiso: "",
@@ -181,7 +150,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const online = useOnlineStatus();
 
   function onChange(e) {
     const { name, value } = e.target;
@@ -358,12 +326,11 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
   );
 }
 
-function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrada }) {
+function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrada, online }) {
   const [files, setFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
-  const online = useOnlineStatus();
 
   function onPickFiles(e) {
     const picked = Array.from(e.target.files || []);
@@ -383,19 +350,34 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
     try {
       // OFFLINE -> guardar en cola
       if (!online) {
+        const placeholders = [];
+
         for (const f of files) {
+          const pendingPath = `PENDING_UPLOAD/${Date.now()}_${f.name}`;
+
           await addToQueue({
             kind,
             idTarget,
             file: f,
-            pendingPath: `PENDING_UPLOAD/${Date.now()}_${f.name}`,
+            pendingPath,
             createdAt: new Date().toISOString(),
+          });
+
+          placeholders.push({
+            id: `${Date.now()}_${f.name}`,
+            archivo_ruta: pendingPath,
+            archivo_nombre: f.name,
+            mime_type: f.type,
+            capturada_en: new Date().toISOString(),
+            __pending: true,
           });
         }
 
+        // ✅ avisar al padre para pintar evidencias pendientes en UI
+        await onUploaded?.({ __offlineEvidence: true, kind, idTarget, placeholders });
+
         setOk(`Guardado offline ✅ (${files.length})`);
         setFiles([]);
-        // no recargar en offline
         setTimeout(() => setOk(""), 2500);
         return;
       }
@@ -496,6 +478,7 @@ export default function InspeccionDetail() {
     }, []);
 
     async function syncNow({ silent = false } = {}) {
+      
       if (!online) {
         if (!silent) setSyncMsg("Sin conexión: no se puede sincronizar.");
         return;
@@ -509,6 +492,16 @@ export default function InspeccionDetail() {
 
         const mutations = await getAllMutationsQueue();
         const uploads = await getAllQueue();
+        let removedMutations = 0;
+        let removedUploads = 0;
+        const uploadedPendingPaths = new Set();
+
+        if (DEBUG_SYNC) {
+          console.debug("[syncNow] queued", {
+            mutations: mutations.length,
+            uploads: uploads.length,
+          });
+        }
 
         let subioAlgo = false;
 
@@ -525,6 +518,7 @@ export default function InspeccionDetail() {
             if (realId != null) {
               await setIdMap(m.tempId, Number(realId));
               await removeMutationFromQueue(m.id);
+              removedMutations += 1;
               subioAlgo = true;
             }
           } catch (err) {
@@ -549,6 +543,7 @@ export default function InspeccionDetail() {
             if (realId != null) {
               await setIdMap(m.tempId, Number(realId));
               await removeMutationFromQueue(m.id);
+              removedMutations += 1;
               subioAlgo = true;
             }
           } catch (err) {
@@ -573,16 +568,28 @@ export default function InspeccionDetail() {
             else await uploadEvidenciaAcc(targetId, u.file);
 
             await removeFromQueue(u.id);
+            removedUploads += 1;
+            if (typeof u.pendingPath === "string" && u.pendingPath.startsWith("PENDING_UPLOAD/")) {
+              uploadedPendingPaths.add(u.pendingPath);
+            }
             subioAlgo = true;
           } catch (err) {
             console.error("SYNC upload error:", err);
           }
         }
 
+        if (DEBUG_SYNC) {
+          console.debug("[syncNow] removed", {
+            mutations: removedMutations,
+            uploads: removedUploads,
+          });
+        }
+
         await refreshPending();
 
         if (subioAlgo) {
-          await load(); // recarga 1 sola vez (sin flicker)
+          await removePendingPlaceholdersFromState(uploadedPendingPaths);
+          await load();
           if (!silent) setSyncMsg("Sincronización completa ✅");
         } else {
           if (!silent) setSyncMsg("Nada pendiente por sincronizar.");
@@ -639,23 +646,39 @@ export default function InspeccionDetail() {
     };
   }, []);
 
-
   async function load() {
     setLoading(true);
     await refreshPending();
-    setPageError("");
-    
+
+    // ✅ OFFLINE: solo cache, sin banner si falla
+    if (!online) {
+      try {
+        const cached = await getInspeccionCache(id);
+        setData(cached ?? { cabecera: null, observaciones: [] });
+      } catch (e) {
+        console.warn("Cache read failed (ignored):", e);
+        setData({ cabecera: null, observaciones: [] });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ONLINE normal
     try {
+      setPageError("");
       const res = await getInspeccionFull(id);
-      setData(res?.data ?? res);
+      const payload = res?.data ?? res;
+      setData(payload);
+
+      // cache NO debe romper la UI
+      try { await setInspeccionCache(id, payload); } 
+      catch (e) { console.warn("Cache write failed (ignored):", e); }
     } catch (err) {
       console.error("inspeccion.detail.load:", err);
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
-        navigate("/login", {
-          replace: true,
-          state: { from: { pathname: `/inspecciones/${id}` } },
-        });
+        navigate("/login", { replace: true, state: { from: { pathname: `/inspecciones/${id}` } } });
         return;
       }
       setPageError(getErrorMessage(err));
@@ -663,6 +686,102 @@ export default function InspeccionDetail() {
       setLoading(false);
     }
   }
+
+
+  async function handleAccionCreated(info) {
+  if (info?.__offlineCreatedAction) {
+    const { obsRef, action } = info;
+    let updatedData = null;
+
+    setData((prev) => {
+      if (!prev) {
+        updatedData = prev;
+        return prev;
+      }
+
+      updatedData = {
+        ...prev,
+        observaciones: (prev.observaciones || []).map((o) => {
+          if (String(o.id_observacion) !== String(obsRef)) return o;
+
+          const acciones = Array.isArray(o.acciones) ? o.acciones : [];
+          return { ...o, acciones: [action, ...acciones] };
+        }),
+      };
+      return updatedData;
+    });
+
+    if (updatedData) {
+      await setInspeccionCache(id, updatedData);
+    }
+
+    await refreshPending();
+    return;
+  }
+
+  await load();
+}
+
+async function handleEvidenceUploaded(info) {
+  if (info?.__offlineEvidence) {
+    const { kind, idTarget, placeholders } = info;
+    let updatedData = null;
+
+    setData((prev) => {
+      if (!prev) {
+        updatedData = prev;
+        return prev;
+      }
+
+      updatedData = {
+        ...prev,
+        observaciones: (prev.observaciones || []).map((o) => {
+          if (kind === "OBS" && String(o.id_observacion) === String(idTarget)) {
+            const evs = Array.isArray(o.evidencias) ? o.evidencias : [];
+            const ya = new Set(evs.map((x) => x.archivo_ruta));
+            const nuevos = [];
+            for (const p of placeholders || []) {
+              if (!p?.archivo_ruta || ya.has(p.archivo_ruta)) continue;
+              ya.add(p.archivo_ruta);
+              nuevos.push(p);
+            }
+            return { ...o, evidencias: [...nuevos, ...evs] };
+          }
+
+          if (kind === "ACC") {
+            const acciones = Array.isArray(o.acciones) ? o.acciones : [];
+            const nuevasAcciones = acciones.map((a) => {
+              if (String(a.id_accion) !== String(idTarget)) return a;
+
+              const evs = Array.isArray(a.evidencias) ? a.evidencias : [];
+              const ya = new Set(evs.map((x) => x.archivo_ruta));
+              const nuevos = [];
+              for (const p of placeholders || []) {
+                if (!p?.archivo_ruta || ya.has(p.archivo_ruta)) continue;
+                ya.add(p.archivo_ruta);
+                nuevos.push(p);
+              }
+              return { ...a, evidencias: [...nuevos, ...evs] };
+            });
+            return { ...o, acciones: nuevasAcciones };
+          }
+
+          return o;
+        }),
+      };
+      return updatedData;
+    });
+
+    if (updatedData) {
+      await setInspeccionCache(id, updatedData);
+    }
+
+    await refreshPending();
+    return;
+  }
+
+  await load();
+}
 
   useEffect(() => {
     load();
@@ -704,6 +823,7 @@ export default function InspeccionDetail() {
           });
 
           // insertar en UI local
+          let updatedData = null;
           setData((prev) => {
             const base = prev ?? { cabecera: null, observaciones: [] };
             const obsPendiente = {
@@ -717,8 +837,12 @@ export default function InspeccionDetail() {
               acciones: [],
               __pending: true,
             };
-            return { ...base, observaciones: [obsPendiente, ...(base.observaciones || [])] };
+            updatedData = { ...base, observaciones: [obsPendiente, ...(base.observaciones || [])] };
+            return updatedData;
           });
+          if (updatedData) {
+            await setInspeccionCache(id, updatedData);
+          }
 
           setObsOk("Observación guardada offline ✅");
           setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
@@ -757,7 +881,42 @@ export default function InspeccionDetail() {
   const cab = data?.cabecera;
   const observaciones = data?.observaciones || [];
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
+  const visiblePageError = online ? pageError : "";
 
+  async function removePendingPlaceholdersFromState(pendingPaths) {
+    const removeAllPending = !pendingPaths || pendingPaths.size === 0;
+    const shouldRemovePendingPath = (value) => {
+      const path = String(value || "");
+      if (!path.startsWith("PENDING_UPLOAD/")) return false;
+      return removeAllPending || pendingPaths.has(path);
+    };
+
+    let updatedData = null;
+    setData((prev) => {
+      if (!prev) {
+        updatedData = prev;
+        return prev;
+      }
+
+      const obs = (prev.observaciones || []).map((o) => {
+        const evid = (o.evidencias || []).filter((e) => !shouldRemovePendingPath(e.archivo_ruta));
+
+        const acciones = (o.acciones || []).map((a) => {
+          const evA = (a.evidencias || []).filter((e) => !shouldRemovePendingPath(e.archivo_ruta));
+          return { ...a, evidencias: evA };
+        });
+
+        return { ...o, evidencias: evid, acciones };
+      });
+
+      updatedData = { ...prev, observaciones: obs };
+      return updatedData;
+    });
+
+    if (updatedData) {
+      await setInspeccionCache(id, updatedData);
+    }
+  }
     return (
     <div style={{ padding: 16, display: "grid", gap: 12 }}>
       {/* Barra superior */}
@@ -795,9 +954,9 @@ export default function InspeccionDetail() {
 
       <h2 style={{ margin: 0 }}>Inspeccion #{id}</h2>
 
-      {pageError && (
+      {visiblePageError && (
         <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
-          {pageError}
+          {visiblePageError}
         </div>
       )}
 
@@ -972,12 +1131,13 @@ export default function InspeccionDetail() {
                   <EvidenceGrid evidencias={o.evidencias} />
                 </div>
 
-                <UploadEvidence
-                  kind="OBS"
-                  idTarget={o.id_observacion}
-                  onUploaded={load}
+                <UploadEvidence 
+                  kind="OBS" 
+                  idTarget={o.id_observacion} 
+                  onUploaded={handleEvidenceUploaded} 
                   disabled={o.id_estado_observacion === 3}
                   inspeccionCerrada={inspeccionCerrada}
+                  online={online} 
                 />
 
                 <CrearAccionForm
@@ -985,6 +1145,7 @@ export default function InspeccionDetail() {
                   onCreated={handleAccionCreated}
                   onMsg={showAccionMsg}
                   inspeccionCerrada={inspeccionCerrada || o.id_estado_observacion === 3}
+                  online={online}
                 />
 
                 {accionMsgByObs[o.id_observacion]?.msg && (
@@ -1047,12 +1208,13 @@ export default function InspeccionDetail() {
                           <EvidenceGrid evidencias={a.evidencias} />
                         </div>
 
-                        <UploadEvidence
-                          kind="ACC"
-                          idTarget={a.id_accion}
-                          onUploaded={load}
+                        <UploadEvidence 
+                          kind="ACC" 
+                          idTarget={a.id_accion} 
+                          onUploaded={handleEvidenceUploaded} 
                           disabled={[3,4].includes(Number(a.id_estado_accion))}
                           inspeccionCerrada={inspeccionCerrada}
+                          online={online}
                         />
 
                       </div>
@@ -1068,3 +1230,5 @@ export default function InspeccionDetail() {
   );
 
 }
+
+
