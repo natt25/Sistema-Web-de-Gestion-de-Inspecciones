@@ -271,28 +271,37 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
 
 function UploadEvidence({ kind, idTarget, onUploaded }) {
   // kind: "OBS" | "ACC"
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]); // <- array
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+
+  function onPickFiles(e) {
+    const picked = Array.from(e.target.files || []);
+    setFiles(picked);
+    setError("");
+    setOk("");
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
     setOk("");
 
-    if (!file) return setError("Selecciona un archivo.");
+    if (!files.length) return setError("Selecciona uno o más archivos.");
 
     setSaving(true);
     try {
-      if (kind === "OBS") {
-        await uploadEvidenciaObs(idTarget, file);
-      } else {
-        await uploadEvidenciaAcc(idTarget, file);
+      for (const file of files) {
+        if (kind === "OBS") {
+          await uploadEvidenciaObs(idTarget, file);
+        } else {
+          await uploadEvidenciaAcc(idTarget, file);
+        }
       }
 
-      setOk("Evidencia subida ✅");
-      setFile(null);
+      setOk(`Evidencias subidas ✅ (${files.length})`);
+      setFiles([]);
       await onUploaded?.();
       setTimeout(() => setOk(""), 2000);
     } catch (err) {
@@ -304,13 +313,45 @@ function UploadEvidence({ kind, idTarget, onUploaded }) {
 
   return (
     <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 8, maxWidth: 520 }}>
-      <b>Subir evidencia ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
+      <b>Subir evidencias ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
 
       <input
         type="file"
         accept="image/*"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        multiple
+        onChange={onPickFiles}
       />
+
+      {/* Preview */}
+      {files.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {files.map((f) => {
+            const url = URL.createObjectURL(f);
+            return (
+              <div
+                key={f.name + f.size}
+                style={{
+                  width: 110,
+                  border: "1px solid #ddd",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  background: "#fff",
+                }}
+              >
+                <img
+                  src={url}
+                  alt={f.name}
+                  style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }}
+                  onLoad={() => URL.revokeObjectURL(url)}
+                />
+                <div style={{ padding: 6, fontSize: 11, wordBreak: "break-all" }}>
+                  {f.name}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
@@ -325,11 +366,12 @@ function UploadEvidence({ kind, idTarget, onUploaded }) {
       )}
 
       <button disabled={saving} type="submit">
-        {saving ? "Subiendo..." : "Subir evidencia"}
+        {saving ? "Subiendo..." : `Subir ${files.length ? `(${files.length})` : ""}`}
       </button>
     </form>
   );
 }
+
 
 export default function InspeccionDetail() {
   const { id } = useParams();
@@ -338,6 +380,8 @@ export default function InspeccionDetail() {
   const [pageError, setPageError] = useState("");
   const [data, setData] = useState(null);
   const [accionMsgByObs, setAccionMsgByObs] = useState({});
+  const [obsMsgByObs, setObsMsgByObs] = useState({});
+  const obsTimersRef = useRef({});
   const accionTimersRef = useRef({});
 
   const [form, setForm] = useState({
@@ -367,9 +411,24 @@ export default function InspeccionDetail() {
     }, 4000);
   }
 
+  function showObsMsg(idObs, msg, type = "ok") {
+    setObsMsgByObs((prev) => ({ ...prev, [idObs]: { msg, type } }));
+
+    if (obsTimersRef.current[idObs]) clearTimeout(obsTimersRef.current[idObs]);
+
+    obsTimersRef.current[idObs] = setTimeout(() => {
+      setObsMsgByObs((prev) => {
+        const copy = { ...prev };
+        delete copy[idObs];
+        return copy;
+      });
+    }, 4000);
+  }
+
   useEffect(() => {
     return () => {
       Object.values(accionTimersRef.current).forEach((t) => clearTimeout(t));
+      Object.values(obsTimersRef.current).forEach((t) => clearTimeout(t));
     };
   }, []);
 
@@ -557,126 +616,155 @@ export default function InspeccionDetail() {
         {!loading && observaciones.length === 0 && <p style={{ opacity: 0.7 }}>Sin observaciones.</p>}
 
         {!loading &&
-          observaciones.map((o) => (
-            <div key={o.id_observacion} style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 12 }}>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <b>Obs #{o.id_observacion}</b>
-                <Badge>Riesgo: {o.nivel_riesgo}</Badge>
-                <Badge>Estado: {o.estado_observacion}</Badge>
-                <Badge>Item: {o.item_ref}</Badge>
-              </div>
+          observaciones.map((o) => {
+            const acciones = o.acciones || [];
+            const hayAcciones = acciones.length > 0;
+            const hayPendientes = acciones.some((x) => ![3, 4].includes(Number(x.id_estado_accion)));
 
-              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {o.id_estado_observacion !== 3 && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await actualizarEstadoObservacion(o.id_observacion, 3);
-                        await load();
-                        alert("Observacion cerrada OK");
-                      } catch (err) {
-                        console.error("inspeccion.detail.cerrarObservacion:", err);
-                        alert(getErrorMessage(err));
-                      }
+            return (
+              <div
+                key={o.id_observacion}
+                style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 12 }}
+              >
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <b>Obs #{o.id_observacion}</b>
+                  <Badge>Riesgo: {o.nivel_riesgo}</Badge>
+                  <Badge>Estado: {o.estado_observacion}</Badge>
+                  <Badge>Item: {o.item_ref}</Badge>
+                </div>
+
+                {/* Cerrar observación (solo si no hay pendientes) */}
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {o.id_estado_observacion !== 3 && (
+                    <>
+                      {!hayAcciones || !hayPendientes ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await actualizarEstadoObservacion(o.id_observacion, 3);
+                              await load();
+                              showObsMsg(o.id_observacion, "Observación cerrada ✅", "ok");
+                            } catch (err) {
+                              console.error("inspeccion.detail.cerrarObservacion:", err);
+                              showObsMsg(o.id_observacion, getErrorMessage(err), "error");
+                            }
+                          }}
+                        >
+                          Cerrar observación
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>
+                          No puedes cerrar: hay acciones pendientes.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {obsMsgByObs[o.id_observacion]?.msg && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 10,
+                      border:
+                        obsMsgByObs[o.id_observacion].type === "ok"
+                          ? "1px solid #b3ffb3"
+                          : "1px solid #ffb3b3",
+                      background:
+                        obsMsgByObs[o.id_observacion].type === "ok" ? "#ecffec" : "#ffecec",
                     }}
                   >
-                    Cerrar observacion
-                  </button>
+                    {obsMsgByObs[o.id_observacion].msg}
+                  </div>
                 )}
-              </div>
 
-              <div style={{ marginTop: 6 }}>
-                <b>Descripcion:</b> {o.desc_observacion}
-              </div>
-
-              <div style={{ marginTop: 10 }}>
-                <b>Evidencias (Obs)</b>
-                <EvidenceGrid evidencias={o.evidencias} />
-              </div>
-
-              <UploadEvidence
-                kind="OBS"
-                idTarget={o.id_observacion}
-                onUploaded={load}
-              />
-
-              <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} onMsg={showAccionMsg} />
-
-              {accionMsgByObs[o.id_observacion]?.msg && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 10,
-                    borderRadius: 10,
-                    border:
-                      accionMsgByObs[o.id_observacion].type === "ok"
-                        ? "1px solid #b3ffb3"
-                        : "1px solid #ffb3b3",
-                    background:
-                      accionMsgByObs[o.id_observacion].type === "ok" ? "#ecffec" : "#ffecec",
-                  }}
-                >
-                  {accionMsgByObs[o.id_observacion].msg}
+                <div style={{ marginTop: 6 }}>
+                  <b>Descripción:</b> {o.desc_observacion}
                 </div>
-              )}
 
-              <div style={{ marginTop: 12 }}>
-                <b>Acciones ({o.acciones?.length || 0})</b>
+                <div style={{ marginTop: 10 }}>
+                  <b>Evidencias (Obs)</b>
+                  <EvidenceGrid evidencias={o.evidencias} />
+                </div>
 
-                {!o.acciones || o.acciones.length === 0 ? (
-                  <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin acciones.</p>
-                ) : (
-                  o.acciones.map((a) => (
-                    <div
-                      key={a.id_accion}
-                      style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}
-                    >
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                        <b>Acc #{a.id_accion}</b>
-                        <Badge>Estado: {a.estado_accion}</Badge>
-                        <Badge>Compromiso: {fmtDate(a.fecha_compromiso)}</Badge>
-                        <Badge>Resp: {a.dni || a.responsable_interno_dni || "-"}</Badge>
-                      </div>
+                <UploadEvidence kind="OBS" idTarget={o.id_observacion} onUploaded={load} />
 
-                      <div style={{ marginTop: 6 }}>
-                        <b>Descripcion:</b> {a.desc_accion}
-                      </div>
+                <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} onMsg={showAccionMsg} />
 
-                      <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {a.id_estado_accion !== 3 && (
-                          <button
-                            onClick={async () => {
-                              try {
-                                await actualizarEstadoAccion(a.id_accion, 3);
-                                await load();
-                                alert("Accion cumplida OK");
-                              } catch (err) {
-                                console.error("inspeccion.detail.cumplirAccion:", err);
-                                alert(getErrorMessage(err));
-                              }
-                            }}
-                          >
-                            Marcar como cumplida
-                          </button>
-                        )}
-                      </div>
-
-                      <div style={{ marginTop: 10 }}>
-                        <b>Evidencias (Acc)</b>
-                        <EvidenceGrid evidencias={a.evidencias} />
-                      </div>
-
-                      <UploadEvidence
-                        kind="ACC"
-                        idTarget={a.id_accion}
-                        onUploaded={load}
-                      />
-                    </div>
-                  ))
+                {accionMsgByObs[o.id_observacion]?.msg && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 10,
+                      border:
+                        accionMsgByObs[o.id_observacion].type === "ok"
+                          ? "1px solid #b3ffb3"
+                          : "1px solid #ffb3b3",
+                      background:
+                        accionMsgByObs[o.id_observacion].type === "ok" ? "#ecffec" : "#ffecec",
+                    }}
+                  >
+                    {accionMsgByObs[o.id_observacion].msg}
+                  </div>
                 )}
+
+                <div style={{ marginTop: 12 }}>
+                  <b>Acciones ({acciones.length})</b>
+
+                  {acciones.length === 0 ? (
+                    <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin acciones.</p>
+                  ) : (
+                    acciones.map((a) => (
+                      <div
+                        key={a.id_accion}
+                        style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}
+                      >
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <b>Acc #{a.id_accion}</b>
+                          <Badge>Estado: {a.estado_accion}</Badge>
+                          <Badge>Compromiso: {fmtDate(a.fecha_compromiso)}</Badge>
+                          <Badge>Resp: {a.dni || a.responsable_interno_dni || "-"}</Badge>
+                        </div>
+
+                        <div style={{ marginTop: 6 }}>
+                          <b>Descripción:</b> {a.desc_accion}
+                        </div>
+
+                        <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {![3, 4].includes(Number(a.id_estado_accion)) && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await actualizarEstadoAccion(a.id_accion, 3);
+                                  await load();
+                                  alert("Acción cumplida ✅");
+                                } catch (err) {
+                                  console.error("inspeccion.detail.cumplirAccion:", err);
+                                  alert(getErrorMessage(err));
+                                }
+                              }}
+                            >
+                              Marcar como cumplida
+                            </button>
+                          )}
+                        </div>
+
+                        <div style={{ marginTop: 10 }}>
+                          <b>Evidencias (Acc)</b>
+                          <EvidenceGrid evidencias={a.evidencias} />
+                        </div>
+
+                        <UploadEvidence kind="ACC" idTarget={a.id_accion} onUploaded={load} />
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+
       </section>
     </div>
   );
