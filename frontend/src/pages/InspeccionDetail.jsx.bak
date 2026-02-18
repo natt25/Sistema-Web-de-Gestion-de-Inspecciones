@@ -5,17 +5,7 @@ import { crearObservacion, actualizarEstadoObservacion } from "../api/observacio
 import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
 import useOnlineStatus from "../hooks/useOnlineStatus";
-import {
-  addToQueue,
-  getAllQueue,
-  removeFromQueue,
-  addMutationToQueue,
-  getAllMutationsQueue,
-  removeMutationFromQueue,
-  setIdMap,
-  getIdMap,
-  getPendingCounts,
-} from "../utils/offlineQueue";
+import { addToQueue, getAllQueue, removeFromQueue } from "../utils/offlineQueue";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -30,23 +20,6 @@ function fmtDate(value) {
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString();
 }
-
-function isTempId(x) {
-  return typeof x === "string" && x.startsWith("tmp_");
-}
-
-function makeTempId(prefix) {
-  return `tmp_${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
-
-function pickIdFromCreateResponse(res, kind) {
-  // res viene de tu api (res.data)
-  if (!res) return null;
-  if (kind === "OBS") return res.id_observacion ?? res.id ?? res.insertedId ?? null;
-  if (kind === "ACC") return res.id_accion ?? res.id ?? res.insertedId ?? null;
-  return null;
-}
-
 
 function Badge({ children }) {
   return (
@@ -143,34 +116,7 @@ function EvidenceGrid({ evidencias }) {
   );
 }
 
-async function handleAccionCreated(info) {
-  // OFFLINE UI update
-  if (info?.__offlineCreatedAction) {
-    const { obsRef, action } = info;
-
-    setData((prev) => {
-      if (!prev) return prev;
-
-      return {
-        ...prev,
-        observaciones: (prev.observaciones || []).map((o) => {
-          if (String(o.id_observacion) !== String(obsRef)) return o;
-
-          const acciones = Array.isArray(o.acciones) ? o.acciones : [];
-          return { ...o, acciones: [action, ...acciones] };
-        }),
-      };
-    });
-
-    await refreshPending();
-    return;
-  }
-
-  // ONLINE -> recargar desde API
-  await load();
-}
-
-function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada }) {
+function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
   const [form, setForm] = useState({
     desc_accion: "",
     fecha_compromiso: "",
@@ -181,7 +127,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const online = useOnlineStatus();
 
   function onChange(e) {
     const { name, value } = e.target;
@@ -218,37 +163,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
       else {
         payload.responsable_externo_nombre = externoNombre;
         payload.responsable_externo_cargo = externoCargo;
-      }
-
-            // ✅ OFFLINE: guardar acción en cola (mutations)
-      if (!online) {
-        const tempId = makeTempId("acc");
-
-        await addMutationToQueue({
-          type: "ACC_CREATE",
-          tempId,
-          obsRef: idObservacion, // puede ser real o tmp_obs...
-          payload,
-          createdAt: new Date().toISOString(),
-        });
-
-        // Pintar en UI local: delegamos a InspeccionDetail vía onCreated(tempAction)
-        onMsg?.(idObservacion, "Acción guardada offline ✅", "ok");
-        await onCreated?.({
-          __offlineCreatedAction: true,
-          obsRef: idObservacion,
-          action: {
-            id_accion: tempId,
-            id_estado_accion: payload.id_estado_accion,
-            estado_accion: "PENDIENTE",
-            fecha_compromiso: payload.fecha_compromiso,
-            desc_accion: payload.desc_accion,
-            evidencias: [],
-            __pending: true,
-          },
-        });
-
-        return;
       }
 
       await crearAccion(idObservacion, payload);
@@ -291,18 +205,18 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
 
       <label style={{ display: "grid", gap: 6 }}>
         Descripción (desc_accion)
-        <textarea name="desc_accion" value={form.desc_accion} onChange={onChange} rows={2} disabled={inspeccionCerrada} />
+        <textarea name="desc_accion" value={form.desc_accion} onChange={onChange} rows={2} />
       </label>
 
       <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
         <label style={{ display: "grid", gap: 6 }}>
           Fecha compromiso
-          <input type="date" name="fecha_compromiso" value={form.fecha_compromiso} onChange={onChange} disabled={inspeccionCerrada}/>
+          <input type="date" name="fecha_compromiso" value={form.fecha_compromiso} onChange={onChange} />
         </label>
 
         <label style={{ display: "grid", gap: 6 }}>
           Estado (id_estado_accion)
-          <select name="id_estado_accion" value={form.id_estado_accion} onChange={onChange} disabled={inspeccionCerrada}>
+          <select name="id_estado_accion" value={form.id_estado_accion} onChange={onChange}>
             <option value="1">1 - ABIERTA</option>
             <option value="2">2 - EN PROCESO</option>
             <option value="3">3 - CUMPLIDA</option>
@@ -316,7 +230,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
             value={form.responsable_interno_dni}
             onChange={onChange}
             placeholder="Ej: 12345678"
-            disabled={inspeccionCerrada}
           />
         </label>
       </div>
@@ -329,7 +242,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
             value={form.responsable_externo_nombre}
             onChange={onChange}
             placeholder="Si no hay DNI interno"
-            disabled={inspeccionCerrada}
           />
         </label>
 
@@ -340,7 +252,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
             value={form.responsable_externo_cargo}
             onChange={onChange}
             placeholder="Si no hay DNI interno"
-            disabled={inspeccionCerrada}
           />
         </label>
       </div>
@@ -351,14 +262,14 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada })
         </div>
       )}
 
-      <button disabled={saving || inspeccionCerrada} type="submit">
-        {inspeccionCerrada ? "Inspección cerrada" : saving ? "Guardando..." : "Crear acción"}
+      <button disabled={saving} type="submit">
+        {saving ? "Guardando..." : "Crear acción"}
       </button>
     </form>
   );
 }
 
-function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrada }) {
+function UploadEvidence({ kind, idTarget, onUploaded, disabled }) {
   const [files, setFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -417,11 +328,57 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function sync() {
+      if (!online) return;
+
+      // candado global para que SOLO 1 componente sincronice
+      if (window.__OFFLINE_SYNC_RUNNING__) return;
+      window.__OFFLINE_SYNC_RUNNING__ = true;
+
+      try {
+        const pendientes = await getAllQueue();
+        if (!pendientes?.length) return;
+
+        let subioAlgo = false;
+
+        for (const item of pendientes) {
+          try {
+            if (!item.file) continue;
+
+            if (item.kind === "OBS") await uploadEvidenciaObs(item.idTarget, item.file);
+            else await uploadEvidenciaAcc(item.idTarget, item.file);
+
+            await removeFromQueue(item.id);
+            subioAlgo = true;
+          } catch (err) {
+            console.error("Error sync item:", err);
+          }
+        }
+
+        // solo recargar si realmente subió algo
+        if (subioAlgo && !cancelled) {
+          await onUploaded?.();
+        }
+      } finally {
+        window.__OFFLINE_SYNC_RUNNING__ = false;
+      }
+    }
+
+    sync();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [online]); 
+
   return (
     <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 8, maxWidth: 520 }}>
       <b>Subir evidencias ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
 
-      <input type="file" accept="image/*" multiple onChange={onPickFiles} disabled={disabled || saving || inspeccionCerrada}/>
+      <input type="file" accept="image/*" multiple onChange={onPickFiles} disabled={disabled || saving} />
 
       {files.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -482,122 +439,6 @@ export default function InspeccionDetail() {
     id_estado_observacion: "1",
   });
 
-    const online = useOnlineStatus();
-    const [pending, setPending] = useState({ total: 0, uploads: 0, mutations: 0 });
-    const [syncMsg, setSyncMsg] = useState("");
-
-    async function refreshPending() {
-      const c = await getPendingCounts();
-      setPending(c);
-    }
-
-    useEffect(() => {
-      refreshPending();
-    }, []);
-
-    async function syncNow({ silent = false } = {}) {
-      if (!online) {
-        if (!silent) setSyncMsg("Sin conexión: no se puede sincronizar.");
-        return;
-      }
-
-      if (window.__OFFLINE_SYNC_RUNNING__) return;
-      window.__OFFLINE_SYNC_RUNNING__ = true;
-
-      try {
-        if (!silent) setSyncMsg("Sincronizando...");
-
-        const mutations = await getAllMutationsQueue();
-        const uploads = await getAllQueue();
-
-        let subioAlgo = false;
-
-        // 1) Mutations: crear OBS primero, luego ACC
-        //    (pero puede venir mezclado; resolvemos por tipo)
-        const obsCreates = mutations.filter((m) => m.type === "OBS_CREATE");
-        const accCreates = mutations.filter((m) => m.type === "ACC_CREATE");
-
-        // --- OBS_CREATE ---
-        for (const m of obsCreates) {
-          try {
-            const res = await crearObservacion(m.idInspeccion, m.payload);
-            const realId = pickIdFromCreateResponse(res, "OBS");
-            if (realId != null) {
-              await setIdMap(m.tempId, Number(realId));
-              await removeMutationFromQueue(m.id);
-              subioAlgo = true;
-            }
-          } catch (err) {
-            console.error("SYNC OBS_CREATE error:", err);
-          }
-        }
-
-        // --- ACC_CREATE ---
-        for (const m of accCreates) {
-          try {
-            let obsId = m.obsRef;
-
-            // si referencia OBS temporal, buscar mapping
-            if (isTempId(obsId)) {
-              const map = await getIdMap(obsId);
-              if (!map?.realId) continue; // aún no se creó la obs real
-              obsId = map.realId;
-            }
-
-            const res = await crearAccion(obsId, m.payload);
-            const realId = pickIdFromCreateResponse(res, "ACC");
-            if (realId != null) {
-              await setIdMap(m.tempId, Number(realId));
-              await removeMutationFromQueue(m.id);
-              subioAlgo = true;
-            }
-          } catch (err) {
-            console.error("SYNC ACC_CREATE error:", err);
-          }
-        }
-
-        // 2) Uploads: resolver tempId si hace falta
-        for (const u of uploads) {
-          try {
-            if (!u.file) continue;
-
-            let targetId = u.idTarget;
-
-            if (isTempId(targetId)) {
-              const map = await getIdMap(targetId);
-              if (!map?.realId) continue; // aún no existe el target real
-              targetId = map.realId;
-            }
-
-            if (u.kind === "OBS") await uploadEvidenciaObs(targetId, u.file);
-            else await uploadEvidenciaAcc(targetId, u.file);
-
-            await removeFromQueue(u.id);
-            subioAlgo = true;
-          } catch (err) {
-            console.error("SYNC upload error:", err);
-          }
-        }
-
-        await refreshPending();
-
-        if (subioAlgo) {
-          await load(); // recarga 1 sola vez (sin flicker)
-          if (!silent) setSyncMsg("Sincronización completa ✅");
-        } else {
-          if (!silent) setSyncMsg("Nada pendiente por sincronizar.");
-        }
-      } finally {
-        window.__OFFLINE_SYNC_RUNNING__ = false;
-        if (!silent) setTimeout(() => setSyncMsg(""), 2500);
-      }
-    }
-
-    // Auto-sync cuando vuelve el internet
-    useEffect(() => {
-      if (online) syncNow({ silent: true });
-    }, [online]);
-
   const [savingObs, setSavingObs] = useState(false);
   const [obsError, setObsError] = useState("");
   const [obsOk, setObsOk] = useState("");
@@ -642,12 +483,10 @@ export default function InspeccionDetail() {
 
   async function load() {
     setLoading(true);
-    await refreshPending();
     setPageError("");
-    
     try {
       const res = await getInspeccionFull(id);
-      setData(res?.data ?? res);
+      setData(res);
     } catch (err) {
       console.error("inspeccion.detail.load:", err);
       const status = err?.response?.status;
@@ -673,76 +512,35 @@ export default function InspeccionDetail() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-    async function onCrearObservacion(e) {
-      e.preventDefault();
-      setObsError("");
-      setObsOk("");
+  async function onCrearObservacion(e) {
+    e.preventDefault();
+    setObsError("");
+    setObsOk("");
 
-      if (!form.item_ref.trim()) return setObsError("Falta item_ref.");
-      if (!form.desc_observacion.trim()) return setObsError("Falta descripcion.");
-      if (!form.id_nivel_riesgo) return setObsError("Falta nivel de riesgo.");
+    if (!form.item_ref.trim()) return setObsError("Falta item_ref.");
+    if (!form.desc_observacion.trim()) return setObsError("Falta descripcion.");
+    if (!form.id_nivel_riesgo) return setObsError("Falta nivel de riesgo.");
 
-      const payload = {
+    setSavingObs(true);
+    try {
+      await crearObservacion(id, {
         item_ref: form.item_ref.trim(),
         desc_observacion: form.desc_observacion.trim(),
         id_nivel_riesgo: Number(form.id_nivel_riesgo),
         id_estado_observacion: Number(form.id_estado_observacion),
-      };
+      });
 
-      setSavingObs(true);
-      try {
-        // ✅ OFFLINE
-        if (!online) {
-          const tempId = makeTempId("obs");
-
-          await addMutationToQueue({
-            type: "OBS_CREATE",
-            tempId,
-            idInspeccion: Number(id),
-            payload,
-            createdAt: new Date().toISOString(),
-          });
-
-          // insertar en UI local
-          setData((prev) => {
-            const base = prev ?? { cabecera: null, observaciones: [] };
-            const obsPendiente = {
-              id_observacion: tempId,
-              id_estado_observacion: payload.id_estado_observacion,
-              estado_observacion: "PENDIENTE",
-              nivel_riesgo: payload.id_nivel_riesgo,
-              item_ref: payload.item_ref,
-              desc_observacion: payload.desc_observacion,
-              evidencias: [],
-              acciones: [],
-              __pending: true,
-            };
-            return { ...base, observaciones: [obsPendiente, ...(base.observaciones || [])] };
-          });
-
-          setObsOk("Observación guardada offline ✅");
-          setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
-          await refreshPending();
-          return;
-        }
-
-        // ✅ ONLINE normal
-        await crearObservacion(id, payload);
-
-        setObsOk("Observacion creada OK");
-        setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
-        await load();
-      } catch (err) {
-        console.error("inspeccion.detail.crearObservacion:", err);
-        const msg = getErrorMessage(err);
-        setObsError(msg);
-        alert(msg); // <- temporal para ver el motivo exacto
-      } finally {
-        setSavingObs(false);
-        setTimeout(() => setObsOk(""), 2500);
-      }
+      setObsOk("Observacion creada OK");
+      setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
+      await load();
+    } catch (err) {
+      console.error("inspeccion.detail.crearObservacion:", err);
+      setObsError(getErrorMessage(err));
+    } finally {
+      setSavingObs(false);
+      setTimeout(() => setObsOk(""), 2500);
     }
-
+  }
 
   if (!id) {
     return (
@@ -756,42 +554,15 @@ export default function InspeccionDetail() {
 
   const cab = data?.cabecera;
   const observaciones = data?.observaciones || [];
-  const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
 
-    return (
+  return (
     <div style={{ padding: 16, display: "grid", gap: 12 }}>
-      {/* Barra superior */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <Link to="/inspecciones">Volver</Link>
-
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Badge>{online ? "🟢 Conectado" : "🔴 Sin conexión"}</Badge>
-          <Badge>Pendientes: {pending.total}</Badge>
-
-          <button onClick={() => syncNow()} disabled={!online || pending.total === 0}>
-            Sincronizar ahora
-          </button>
-
-          <button onClick={load} disabled={loading}>
-            {loading ? "Recargando..." : "Recargar"}
-          </button>
-        </div>
+        <button onClick={load} disabled={loading}>
+          {loading ? "Recargando..." : "Recargar"}
+        </button>
       </div>
-
-      {/* Mensaje sync */}
-      {syncMsg && (
-        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", background: "#f7f7f7" }}>
-          {syncMsg}
-        </div>
-      )}
 
       <h2 style={{ margin: 0 }}>Inspeccion #{id}</h2>
 
@@ -826,9 +597,6 @@ export default function InspeccionDetail() {
               <div>
                 <b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}
               </div>
-              <pre style={{ fontSize: 12, opacity: 0.7 }}>
-                {JSON.stringify({ online, estado: cab?.estado_inspeccion }, null, 2)}
-              </pre>
             </div>
           </div>
         )}
@@ -840,12 +608,12 @@ export default function InspeccionDetail() {
         <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
           <label style={{ display: "grid", gap: 6 }}>
             item_ref
-            <input name="item_ref" value={form.item_ref} onChange={onChangeForm} placeholder="Ej: 1.1" disabled={inspeccionCerrada} />
+            <input name="item_ref" value={form.item_ref} onChange={onChangeForm} placeholder="Ej: 1.1" />
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
             Nivel de riesgo (id_nivel_riesgo)
-            <select name="id_nivel_riesgo" value={form.id_nivel_riesgo} onChange={onChangeForm} disabled={inspeccionCerrada}>
+            <select name="id_nivel_riesgo" value={form.id_nivel_riesgo} onChange={onChangeForm}>
               <option value="1">1 - BAJO</option>
               <option value="2">2 - MEDIO</option>
               <option value="3">3 - ALTO</option>
@@ -854,7 +622,7 @@ export default function InspeccionDetail() {
 
           <label style={{ display: "grid", gap: 6 }}>
             Estado observacion (id_estado_observacion)
-            <select name="id_estado_observacion" value={form.id_estado_observacion} onChange={onChangeForm} disabled={inspeccionCerrada}>
+            <select name="id_estado_observacion" value={form.id_estado_observacion} onChange={onChangeForm}>
               <option value="1">1 - ABIERTA</option>
               <option value="2">2 - EN PROCESO</option>
               <option value="3">3 - CERRADA</option>
@@ -869,7 +637,6 @@ export default function InspeccionDetail() {
               onChange={onChangeForm}
               rows={3}
               placeholder="Describe la observacion..."
-              disabled={inspeccionCerrada}
             />
           </label>
 
@@ -885,8 +652,8 @@ export default function InspeccionDetail() {
             </div>
           )}
 
-          <button disabled={savingObs || inspeccionCerrada} type="submit">
-            {inspeccionCerrada ? "Inspección cerrada" : savingObs ? "Guardando..." : "Crear observacion"}
+          <button disabled={savingObs} type="submit">
+            {savingObs ? "Guardando..." : "Crear observacion"}
           </button>
         </form>
       </section>
@@ -910,17 +677,11 @@ export default function InspeccionDetail() {
               >
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   <b>Obs #{o.id_observacion}</b>
-                  {o.__pending && <Badge>🕓 PENDIENTE</Badge>}
                   <Badge>Riesgo: {o.nivel_riesgo}</Badge>
                   <Badge>Estado: {o.estado_observacion}</Badge>
                   <Badge>Item: {o.item_ref}</Badge>
                 </div>
 
-                <div style={{ marginTop: 6 }}>
-                  <b>Descripción:</b> {o.desc_observacion}
-                </div>
-
-                {/* (Luego aquí vuelves a pegar: cerrar obs, evidencias, uploads, acciones, etc.) */}
                 {/* Cerrar observación (solo si no hay pendientes) */}
                 <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {o.id_estado_observacion !== 3 && (
@@ -967,6 +728,10 @@ export default function InspeccionDetail() {
                   </div>
                 )}
 
+                <div style={{ marginTop: 6 }}>
+                  <b>Descripción:</b> {o.desc_observacion}
+                </div>
+
                 <div style={{ marginTop: 10 }}>
                   <b>Evidencias (Obs)</b>
                   <EvidenceGrid evidencias={o.evidencias} />
@@ -977,15 +742,9 @@ export default function InspeccionDetail() {
                   idTarget={o.id_observacion}
                   onUploaded={load}
                   disabled={o.id_estado_observacion === 3}
-                  inspeccionCerrada={inspeccionCerrada}
                 />
 
-                <CrearAccionForm
-                  idObservacion={o.id_observacion}
-                  onCreated={handleAccionCreated}
-                  onMsg={showAccionMsg}
-                  inspeccionCerrada={inspeccionCerrada || o.id_estado_observacion === 3}
-                />
+                <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} onMsg={showAccionMsg} />
 
                 {accionMsgByObs[o.id_observacion]?.msg && (
                   <div
@@ -1023,6 +782,10 @@ export default function InspeccionDetail() {
                           <Badge>Resp: {a.dni || a.responsable_interno_dni || "-"}</Badge>
                         </div>
 
+                        <div style={{ marginTop: 6 }}>
+                          <b>Descripción:</b> {a.desc_accion}
+                        </div>
+
                         <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
                           {![3, 4].includes(Number(a.id_estado_accion)) && (
                             <button
@@ -1052,7 +815,6 @@ export default function InspeccionDetail() {
                           idTarget={a.id_accion}
                           onUploaded={load}
                           disabled={[3,4].includes(Number(a.id_estado_accion))}
-                          inspeccionCerrada={inspeccionCerrada}
                         />
 
                       </div>
@@ -1062,9 +824,8 @@ export default function InspeccionDetail() {
               </div>
             );
           })}
-             
+
       </section>
     </div>
   );
-
 }

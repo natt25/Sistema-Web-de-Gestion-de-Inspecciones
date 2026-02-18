@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 
 export default function useOnlineStatus() {
-  const [online, setOnline] = useState(navigator.onLine);
+  const [online, setOnline] = useState(() => navigator.onLine);
 
   useEffect(() => {
-    const goOnline = () => setOnline(true);
-    const goOffline = () => setOnline(false);
+    const onUp = () => setOnline(true);
+    const onDown = () => setOnline(false);
 
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
+    window.addEventListener("online", onUp);
+    window.addEventListener("offline", onDown);
+
+    // por si el estado cambia antes de montar
+    setOnline(navigator.onLine);
 
     return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
+      window.removeEventListener("online", onUp);
+      window.removeEventListener("offline", onDown);
     };
   }, []);
 
