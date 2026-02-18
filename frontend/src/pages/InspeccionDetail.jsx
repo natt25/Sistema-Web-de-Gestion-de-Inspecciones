@@ -4,6 +4,8 @@ import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion, actualizarEstadoObservacion } from "../api/observaciones.api";
 import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
+import useOnlineStatus from "../hooks/useOnlineStatus";
+import { addToQueue, getAllQueue, removeFromQueue } from "../utils/offlineQueue";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -145,7 +147,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
     if (dni && (externoNombre || externoCargo)) {
       return setError("Usa responsable interno por DNI o responsable externo (nombre y cargo), no ambos.");
     }
-
     if (!dni && (!externoNombre || !externoCargo)) {
       return setError("Si no indicas DNI, debes completar responsable_externo_nombre y responsable_externo_cargo.");
     }
@@ -158,9 +159,8 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
         id_estado_accion: Number(form.id_estado_accion),
       };
 
-      if (dni) {
-        payload.responsable_interno_dni = dni;
-      } else {
+      if (dni) payload.responsable_interno_dni = dni;
+      else {
         payload.responsable_externo_nombre = externoNombre;
         payload.responsable_externo_cargo = externoCargo;
       }
@@ -170,15 +170,15 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
       setForm((prev) => ({
         ...prev,
         desc_accion: "",
+        fecha_compromiso: "",
         responsable_interno_dni: "",
         responsable_externo_nombre: "",
         responsable_externo_cargo: "",
       }));
 
-      onMsg?.(idObservacion, "Accion creada OK", "ok");
+      onMsg?.(idObservacion, "Acción creada ✅", "ok");
       await onCreated?.();
     } catch (err) {
-      console.error("inspeccion.detail.crearAccion:", err);
       const msg = getErrorMessage(err);
       setError(msg);
       onMsg?.(idObservacion, msg, "error");
@@ -201,10 +201,10 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
         background: "#fafafa",
       }}
     >
-      <b>Crear accion (Obs #{idObservacion})</b>
+      <b>Crear acción (Obs #{idObservacion})</b>
 
       <label style={{ display: "grid", gap: 6 }}>
-        Descripcion (desc_accion)
+        Descripción (desc_accion)
         <textarea name="desc_accion" value={form.desc_accion} onChange={onChange} rows={2} />
       </label>
 
@@ -263,18 +263,18 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg }) {
       )}
 
       <button disabled={saving} type="submit">
-        {saving ? "Guardando..." : "Crear accion"}
+        {saving ? "Guardando..." : "Crear acción"}
       </button>
     </form>
   );
 }
 
-function UploadEvidence({ kind, idTarget, onUploaded }) {
-  // kind: "OBS" | "ACC"
-  const [files, setFiles] = useState([]); // <- array
+function UploadEvidence({ kind, idTarget, onUploaded, disabled }) {
+  const [files, setFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+  const online = useOnlineStatus();
 
   function onPickFiles(e) {
     const picked = Array.from(e.target.files || []);
@@ -292,18 +292,35 @@ function UploadEvidence({ kind, idTarget, onUploaded }) {
 
     setSaving(true);
     try {
-      for (const file of files) {
-        if (kind === "OBS") {
-          await uploadEvidenciaObs(idTarget, file);
-        } else {
-          await uploadEvidenciaAcc(idTarget, file);
+      // OFFLINE -> guardar en cola
+      if (!online) {
+        for (const f of files) {
+          await addToQueue({
+            kind,
+            idTarget,
+            file: f,
+            pendingPath: `PENDING_UPLOAD/${Date.now()}_${f.name}`,
+            createdAt: new Date().toISOString(),
+          });
         }
+
+        setOk(`Guardado offline ✅ (${files.length})`);
+        setFiles([]);
+        // no recargar en offline
+        setTimeout(() => setOk(""), 2500);
+        return;
+      }
+
+      // ONLINE -> subir
+      for (const f of files) {
+        if (kind === "OBS") await uploadEvidenciaObs(idTarget, f);
+        else await uploadEvidenciaAcc(idTarget, f);
       }
 
       setOk(`Evidencias subidas ✅ (${files.length})`);
       setFiles([]);
       await onUploaded?.();
-      setTimeout(() => setOk(""), 2000);
+      setTimeout(() => setOk(""), 2500);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -311,18 +328,58 @@ function UploadEvidence({ kind, idTarget, onUploaded }) {
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function sync() {
+      if (!online) return;
+
+      // candado global para que SOLO 1 componente sincronice
+      if (window.__OFFLINE_SYNC_RUNNING__) return;
+      window.__OFFLINE_SYNC_RUNNING__ = true;
+
+      try {
+        const pendientes = await getAllQueue();
+        if (!pendientes?.length) return;
+
+        let subioAlgo = false;
+
+        for (const item of pendientes) {
+          try {
+            if (!item.file) continue;
+
+            if (item.kind === "OBS") await uploadEvidenciaObs(item.idTarget, item.file);
+            else await uploadEvidenciaAcc(item.idTarget, item.file);
+
+            await removeFromQueue(item.id);
+            subioAlgo = true;
+          } catch (err) {
+            console.error("Error sync item:", err);
+          }
+        }
+
+        // solo recargar si realmente subió algo
+        if (subioAlgo && !cancelled) {
+          await onUploaded?.();
+        }
+      } finally {
+        window.__OFFLINE_SYNC_RUNNING__ = false;
+      }
+    }
+
+    sync();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [online]); 
+
   return (
     <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 8, maxWidth: 520 }}>
       <b>Subir evidencias ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
 
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={onPickFiles}
-      />
+      <input type="file" accept="image/*" multiple onChange={onPickFiles} disabled={disabled || saving} />
 
-      {/* Preview */}
       {files.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {files.map((f) => {
@@ -330,13 +387,7 @@ function UploadEvidence({ kind, idTarget, onUploaded }) {
             return (
               <div
                 key={f.name + f.size}
-                style={{
-                  width: 110,
-                  border: "1px solid #ddd",
-                  borderRadius: 10,
-                  overflow: "hidden",
-                  background: "#fff",
-                }}
+                style={{ width: 110, border: "1px solid #ddd", borderRadius: 10, overflow: "hidden", background: "#fff" }}
               >
                 <img
                   src={url}
@@ -344,9 +395,7 @@ function UploadEvidence({ kind, idTarget, onUploaded }) {
                   style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }}
                   onLoad={() => URL.revokeObjectURL(url)}
                 />
-                <div style={{ padding: 6, fontSize: 11, wordBreak: "break-all" }}>
-                  {f.name}
-                </div>
+                <div style={{ padding: 6, fontSize: 11, wordBreak: "break-all" }}>{f.name}</div>
               </div>
             );
           })}
@@ -365,13 +414,12 @@ function UploadEvidence({ kind, idTarget, onUploaded }) {
         </div>
       )}
 
-      <button disabled={saving} type="submit">
+      <button disabled={saving || disabled} type="submit">
         {saving ? "Subiendo..." : `Subir ${files.length ? `(${files.length})` : ""}`}
       </button>
     </form>
   );
 }
-
 
 export default function InspeccionDetail() {
   const { id } = useParams();
@@ -431,6 +479,7 @@ export default function InspeccionDetail() {
       Object.values(obsTimersRef.current).forEach((t) => clearTimeout(t));
     };
   }, []);
+
 
   async function load() {
     setLoading(true);
@@ -688,7 +737,12 @@ export default function InspeccionDetail() {
                   <EvidenceGrid evidencias={o.evidencias} />
                 </div>
 
-                <UploadEvidence kind="OBS" idTarget={o.id_observacion} onUploaded={load} />
+                <UploadEvidence
+                  kind="OBS"
+                  idTarget={o.id_observacion}
+                  onUploaded={load}
+                  disabled={o.id_estado_observacion === 3}
+                />
 
                 <CrearAccionForm idObservacion={o.id_observacion} onCreated={load} onMsg={showAccionMsg} />
 
@@ -756,7 +810,13 @@ export default function InspeccionDetail() {
                           <EvidenceGrid evidencias={a.evidencias} />
                         </div>
 
-                        <UploadEvidence kind="ACC" idTarget={a.id_accion} onUploaded={load} />
+                        <UploadEvidence
+                          kind="ACC"
+                          idTarget={a.id_accion}
+                          onUploaded={load}
+                          disabled={[3,4].includes(Number(a.id_estado_accion))}
+                        />
+
                       </div>
                     ))
                   )}
