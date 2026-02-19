@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
@@ -36,7 +37,6 @@ function makeTempId(prefix) {
 }
 
 function pickIdFromCreateResponse(res, kind) {
-  // res viene de tu api (res.data)
   if (!res) return null;
   if (kind === "OBS") return res.id_observacion ?? res.id ?? res.insertedId ?? null;
   if (kind === "ACC") return res.id_accion ?? res.id ?? res.insertedId ?? null;
@@ -144,7 +144,6 @@ function applyPendingToData(base, mutations, uploads) {
   return { ...safeBase, observaciones: finalObs };
 }
 
-
 function Badge({ children }) {
   return (
     <span
@@ -239,7 +238,6 @@ function EvidenceGrid({ evidencias }) {
     </div>
   );
 }
-
 function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, online }) {
   const [form, setForm] = useState({
     desc_accion: "",
@@ -289,20 +287,18 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
         payload.responsable_externo_cargo = externoCargo;
       }
 
-            // ✅ OFFLINE: guardar acción en cola (mutations)
       if (!online) {
         const tempId = makeTempId("acc");
 
         await addMutationToQueue({
           type: "ACC_CREATE",
           tempId,
-          obsRef: idObservacion, // puede ser real o tmp_obs...
+          obsRef: idObservacion,
           payload,
           createdAt: new Date().toISOString(),
         });
 
-        // Pintar en UI local: delegamos a InspeccionDetail vía onCreated(tempAction)
-        onMsg?.(idObservacion, "Acción guardada offline ✅", "ok");
+        onMsg?.(idObservacion, "Accion guardada offline ?", "ok");
         await onCreated?.({
           __offlineCreatedAction: true,
           obsRef: idObservacion,
@@ -331,7 +327,7 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
         responsable_externo_cargo: "",
       }));
 
-      onMsg?.(idObservacion, "Acción creada ✅", "ok");
+      onMsg?.(idObservacion, "Accion creada ?", "ok");
       await onCreated?.();
     } catch (err) {
       const msg = getErrorMessage(err);
@@ -356,17 +352,17 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
         background: "#fafafa",
       }}
     >
-      <b>Crear acción (Obs #{idObservacion})</b>
+      <b>Crear accion (Obs #{idObservacion})</b>
 
       <label style={{ display: "grid", gap: 6 }}>
-        Descripción (desc_accion)
+        Descripcion (desc_accion)
         <textarea name="desc_accion" value={form.desc_accion} onChange={onChange} rows={2} disabled={inspeccionCerrada} />
       </label>
 
       <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
         <label style={{ display: "grid", gap: 6 }}>
           Fecha compromiso
-          <input type="date" name="fecha_compromiso" value={form.fecha_compromiso} onChange={onChange} disabled={inspeccionCerrada}/>
+          <input type="date" name="fecha_compromiso" value={form.fecha_compromiso} onChange={onChange} disabled={inspeccionCerrada} />
         </label>
 
         <label style={{ display: "grid", gap: 6 }}>
@@ -420,13 +416,891 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
         </div>
       )}
 
-                                  <button
+      <button disabled={saving || inspeccionCerrada} type="submit">
+        {inspeccionCerrada ? "Inspeccion cerrada" : saving ? "Guardando..." : "Crear accion"}
+      </button>
+    </form>
+  );
+}
+
+function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrada, online }) {
+  const [files, setFiles] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+
+  function onPickFiles(e) {
+    const picked = Array.from(e.target.files || []);
+    setFiles(picked);
+    setError("");
+    setOk("");
+  }
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setOk("");
+
+    if (!files.length) return setError("Selecciona uno o mas archivos.");
+
+    setSaving(true);
+    try {
+      if (!online) {
+        const placeholders = [];
+        for (const f of files) {
+          const pendingPath = `PENDING_UPLOAD/${Date.now()}_${f.name}`;
+
+          await addToQueue({
+            kind,
+            idTarget,
+            file: f,
+            pendingPath,
+            createdAt: new Date().toISOString(),
+            queueKey: `${kind}|${idTarget}|${f.name}|${f.size}|${f.lastModified}`,
+          });
+
+          placeholders.push({
+            id: `${Date.now()}_${f.name}`,
+            archivo_ruta: pendingPath,
+            archivo_nombre: f.name,
+            mime_type: f.type,
+            capturada_en: new Date().toISOString(),
+            __pending: true,
+          });
+        }
+
+        await onUploaded?.({ __offlineEvidence: true, kind, idTarget, placeholders });
+
+        setOk(`Guardado offline ? (${files.length})`);
+        setFiles([]);
+        setTimeout(() => setOk(""), 2500);
+        return;
+      }
+
+      for (const f of files) {
+        if (kind === "OBS") await uploadEvidenciaObs(idTarget, f);
+        else await uploadEvidenciaAcc(idTarget, f);
+      }
+
+      setOk(`Evidencias subidas ? (${files.length})`);
+      setFiles([]);
+      await onUploaded?.();
+      setTimeout(() => setOk(""), 2500);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 8, maxWidth: 520 }}>
+      <b>Subir evidencias ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
+
+      <input type="file" accept="image/*" multiple onChange={onPickFiles} disabled={disabled || saving || inspeccionCerrada} />
+
+      {files.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {files.map((f) => {
+            const url = URL.createObjectURL(f);
+            return (
+              <div
+                key={f.name + f.size}
+                style={{ width: 110, border: "1px solid #ddd", borderRadius: 10, overflow: "hidden", background: "#fff" }}
+              >
+                <img
+                  src={url}
+                  alt={f.name}
+                  style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }}
+                  onLoad={() => URL.revokeObjectURL(url)}
+                />
+                <div style={{ padding: 6, fontSize: 11, wordBreak: "break-all" }}>{f.name}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+          {error}
+        </div>
+      )}
+
+      {ok && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #b3ffb3", background: "#ecffec" }}>
+          {ok}
+        </div>
+      )}
+
+      <button disabled={saving || disabled} type="submit">
+        {saving ? "Subiendo..." : `Subir ${files.length ? `(${files.length})` : ""}`}
+      </button>
+    </form>
+  );
+}
+export default function InspeccionDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [pageError, setPageError] = useState("");
+  const [infoMsg, setInfoMsg] = useState("");
+  const [data, setData] = useState(null);
+  const [accionMsgByObs, setAccionMsgByObs] = useState({});
+  const [obsMsgByObs, setObsMsgByObs] = useState({});
+  const obsTimersRef = useRef({});
+  const accionTimersRef = useRef({});
+
+  const [form, setForm] = useState({
+    item_ref: "",
+    desc_observacion: "",
+    id_nivel_riesgo: "1",
+    id_estado_observacion: "1",
+  });
+
+  const online = useOnlineStatus();
+  const [pending, setPending] = useState({ total: 0, uploads: 0, mutations: 0 });
+  const [syncMsg, setSyncMsg] = useState("");
+
+  async function refreshPending() {
+    try {
+      const c = await getPendingCounts();
+      setPending(c);
+    } catch {
+      setPending({ total: 0, uploads: 0, mutations: 0 });
+    }
+  }
+
+  useEffect(() => {
+    refreshPending();
+  }, []);
+
+  async function syncNow({ silent = false } = {}) {
+    if (!online) {
+      if (!silent) setSyncMsg("Sin conexion: no se puede sincronizar.");
+      return;
+    }
+
+    if (window.__OFFLINE_SYNC_RUNNING__) return;
+    window.__OFFLINE_SYNC_RUNNING__ = true;
+
+    try {
+      if (!silent) setSyncMsg("Sincronizando...");
+
+      let mutations = [];
+      let uploads = [];
+      try {
+        mutations = await getAllMutationsQueue();
+        uploads = await getAllQueue();
+      } catch {
+        mutations = [];
+        uploads = [];
+      }
+      const seen = new Set();
+      const uploadsUnique = [];
+      for (const u of uploads) {
+        const k = u.queueKey || `${u.kind}|${u.idTarget}|${u.pendingPath || ""}`;
+        if (seen.has(k)) {
+          try { await removeFromQueue(u.id); } catch {}
+          continue;
+        }
+        seen.add(k);
+        uploadsUnique.push(u);
+      }
+
+      let removedMutations = 0;
+      let removedUploads = 0;
+      const uploadedPendingPaths = new Set();
+
+      if (DEBUG_SYNC) {
+        console.debug("[syncNow] queued", { mutations: mutations.length, uploads: uploads.length });
+      }
+
+      let subioAlgo = false;
+
+      const obsCreates = mutations.filter((m) => m.type === "OBS_CREATE");
+      const accCreates = mutations.filter((m) => m.type === "ACC_CREATE");
+
+      for (const m of obsCreates) {
+        try {
+          const res = await crearObservacion(m.idInspeccion, m.payload);
+          const realId = pickIdFromCreateResponse(res, "OBS");
+          if (realId != null) {
+            await setIdMap(m.tempId, Number(realId));
+            await removeMutationFromQueue(m.id);
+            removedMutations += 1;
+            subioAlgo = true;
+          }
+        } catch (err) {
+          console.error("SYNC OBS_CREATE error:", err);
+        }
+      }
+
+      for (const m of accCreates) {
+        try {
+          let obsId = m.obsRef;
+          if (isTempId(obsId)) {
+            const map = await getIdMap(obsId);
+            if (!map?.realId) continue;
+            obsId = map.realId;
+          }
+
+          const res = await crearAccion(obsId, m.payload);
+          const realId = pickIdFromCreateResponse(res, "ACC");
+          if (realId != null) {
+            await setIdMap(m.tempId, Number(realId));
+            await removeMutationFromQueue(m.id);
+            removedMutations += 1;
+            subioAlgo = true;
+          }
+        } catch (err) {
+          console.error("SYNC ACC_CREATE error:", err);
+        }
+      }
+
+      for (const u of uploadsUnique) {
+        try {
+          if (!u.file) continue;
+
+          let targetId = u.idTarget;
+          if (isTempId(targetId)) {
+            const map = await getIdMap(targetId);
+            if (!map?.realId) continue;
+            targetId = map.realId;
+          }
+
+          let uploaded = false;
+          try {
+            if (u.kind === "OBS") await uploadEvidenciaObs(targetId, u.file);
+            else await uploadEvidenciaAcc(targetId, u.file);
+            uploaded = true;
+          } catch (err) {
+            const status = err?.response?.status;
+            if (status === 409) uploaded = true;
+            else console.error("SYNC upload error:", err);
+          }
+
+          if (!uploaded) continue;
+          await removeFromQueue(u.id);
+          removedUploads += 1;
+          if (typeof u.pendingPath === "string" && u.pendingPath.startsWith("PENDING_UPLOAD/")) {
+            uploadedPendingPaths.add(u.pendingPath);
+          }
+          subioAlgo = true;
+        } catch (err) {
+          console.error("SYNC upload error:", err);
+        }
+      }
+
+      if (DEBUG_SYNC) {
+        console.debug("[syncNow] removed", { mutations: removedMutations, uploads: removedUploads });
+      }
+
+      await refreshPending();
+
+      if (subioAlgo) {
+        await removePendingPlaceholdersFromState(uploadedPendingPaths);
+        await load();
+        if (!silent) setSyncMsg("Sincronizacion completa ?");
+      } else {
+        if (!silent) setSyncMsg("Nada pendiente por sincronizar.");
+      }
+    } finally {
+      window.__OFFLINE_SYNC_RUNNING__ = false;
+      if (!silent) setTimeout(() => setSyncMsg(""), 2500);
+    }
+  }
+
+  useEffect(() => {
+    if (online) syncNow({ silent: true });
+  }, [online]);
+
+  const [savingObs, setSavingObs] = useState(false);
+  const [obsError, setObsError] = useState("");
+  const [obsOk, setObsOk] = useState("");
+
+  function showAccionMsg(idObs, msg, type = "ok") {
+    setAccionMsgByObs((prev) => ({ ...prev, [idObs]: { msg, type } }));
+
+    if (accionTimersRef.current[idObs]) {
+      clearTimeout(accionTimersRef.current[idObs]);
+    }
+
+    accionTimersRef.current[idObs] = setTimeout(() => {
+      setAccionMsgByObs((prev) => {
+        const copy = { ...prev };
+        delete copy[idObs];
+        return copy;
+      });
+    }, 4000);
+  }
+
+  function showObsMsg(idObs, msg, type = "ok") {
+    setObsMsgByObs((prev) => ({ ...prev, [idObs]: { msg, type } }));
+
+    if (obsTimersRef.current[idObs]) clearTimeout(obsTimersRef.current[idObs]);
+
+    obsTimersRef.current[idObs] = setTimeout(() => {
+      setObsMsgByObs((prev) => {
+        const copy = { ...prev };
+        delete copy[idObs];
+        return copy;
+      });
+    }, 4000);
+  }
+
+  useEffect(() => {
+    return () => {
+      Object.values(accionTimersRef.current).forEach((t) => clearTimeout(t));
+      Object.values(obsTimersRef.current).forEach((t) => clearTimeout(t));
+    };
+  }, []);
+
+  const dataRef = useRef(null);
+  useEffect(() => { dataRef.current = data; }, [data]);
+
+  async function setDataAndCache(next) {
+    setData(next);
+    try {
+      await setInspeccionCache(id, next);
+    } catch {}
+  }
+
+  async function load() {
+    setLoading(true);
+    await refreshPending();
+
+    let cached = null;
+    try {
+      cached = await getInspeccionCache(id);
+    } catch {}
+
+    if (!online) {
+      setPageError("");
+      if (!cached) setInfoMsg("Sin datos offline disponibles.");
+      else setInfoMsg("");
+
+      let mutations = [];
+      let uploads = [];
+      try {
+        mutations = await getAllMutationsQueue();
+        uploads = await getAllQueue();
+      } catch {
+        mutations = [];
+        uploads = [];
+      }
+      const merged = applyPendingToData(cached ?? { cabecera: null, observaciones: [] }, mutations, uploads);
+      await setDataAndCache(merged);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setPageError("");
+      setInfoMsg("");
+      const res = await getInspeccionFull(id);
+      const payload = res?.data ?? res ?? { cabecera: null, observaciones: [] };
+      const mutations = await getAllMutationsQueue();
+      const uploads = await getAllQueue();
+      const merged = applyPendingToData(payload, mutations, uploads);
+      await setDataAndCache(merged);
+    } catch (err) {
+      const isNetwork = !err?.response;
+      if (isNetwork && cached) {
+        let mutations = [];
+        let uploads = [];
+        try {
+          mutations = await getAllMutationsQueue();
+          uploads = await getAllQueue();
+        } catch {
+          mutations = [];
+          uploads = [];
+        }
+        const merged = applyPendingToData(cached, mutations, uploads);
+        await setDataAndCache(merged);
+        setPageError("");
+        setInfoMsg("");
+      } else {
+        console.error("inspeccion.detail.load:", err);
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          navigate("/login", { replace: true, state: { from: { pathname: `/inspecciones/${id}` } } });
+          return;
+        }
+        setPageError(getErrorMessage(err));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAccionCreated(info) {
+    if (info?.__offlineCreatedAction) {
+      const { obsRef, action } = info;
+
+      const base = dataRef.current;
+      if (!base) return;
+
+      const next = {
+        ...base,
+        observaciones: (base.observaciones || []).map((o) => {
+          if (String(o.id_observacion) !== String(obsRef)) return o;
+          const acciones = Array.isArray(o.acciones) ? o.acciones : [];
+          return { ...o, acciones: [action, ...acciones] };
+        }),
+      };
+
+      await setDataAndCache(next);
+      await refreshPending();
+      return;
+    }
+
+    await load();
+  }
+
+  async function handleEvidenceUploaded(info) {
+    if (info?.__offlineEvidence) {
+      const { kind, idTarget, placeholders } = info;
+      const base = dataRef.current;
+      if (!base) return;
+
+      const next = {
+        ...base,
+        observaciones: (base.observaciones || []).map((o) => {
+          if (kind === "OBS" && String(o.id_observacion) === String(idTarget)) {
+            const evs = Array.isArray(o.evidencias) ? o.evidencias : [];
+            const ya = new Set(evs.map((x) => x.archivo_ruta));
+            const nuevos = (placeholders || []).filter((p) => p?.archivo_ruta && !ya.has(p.archivo_ruta));
+            return { ...o, evidencias: [...nuevos, ...evs] };
+          }
+
+          if (kind === "ACC") {
+            const acciones = Array.isArray(o.acciones) ? o.acciones : [];
+            return {
+              ...o,
+              acciones: acciones.map((a) => {
+                if (String(a.id_accion) !== String(idTarget)) return a;
+                const evs = Array.isArray(a.evidencias) ? a.evidencias : [];
+                const ya = new Set(evs.map((x) => x.archivo_ruta));
+                const nuevos = (placeholders || []).filter((p) => p?.archivo_ruta && !ya.has(p.archivo_ruta));
+                return { ...a, evidencias: [...nuevos, ...evs] };
+              }),
+            };
+          }
+
+          return o;
+        }),
+      };
+
+      await setDataAndCache(next);
+      await refreshPending();
+      return;
+    }
+
+    await load();
+  }
+
+  useEffect(() => {
+    load();
+  }, [id, online]);
+
+  function onChangeForm(e) {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  async function onCrearObservacion(e) {
+    e.preventDefault();
+    setObsError("");
+    setObsOk("");
+
+    if (!form.item_ref.trim()) return setObsError("Falta item_ref.");
+    if (!form.desc_observacion.trim()) return setObsError("Falta descripcion.");
+    if (!form.id_nivel_riesgo) return setObsError("Falta nivel de riesgo.");
+
+    const payload = {
+      item_ref: form.item_ref.trim(),
+      desc_observacion: form.desc_observacion.trim(),
+      id_nivel_riesgo: Number(form.id_nivel_riesgo),
+      id_estado_observacion: Number(form.id_estado_observacion),
+    };
+
+    setSavingObs(true);
+    try {
+      if (!online) {
+        const tempId = makeTempId("obs");
+
+        await addMutationToQueue({
+          type: "OBS_CREATE",
+          tempId,
+          idInspeccion: Number(id),
+          payload,
+          createdAt: new Date().toISOString(),
+        });
+
+        const base = dataRef.current ?? { cabecera: null, observaciones: [] };
+        const obsPendiente = {
+          id_observacion: tempId,
+          id_estado_observacion: payload.id_estado_observacion,
+          estado_observacion: "PENDIENTE",
+          nivel_riesgo: payload.id_nivel_riesgo,
+          item_ref: payload.item_ref,
+          desc_observacion: payload.desc_observacion,
+          evidencias: [],
+          acciones: [],
+          __pending: true,
+        };
+
+        const next = { ...base, observaciones: [obsPendiente, ...(base.observaciones || [])] };
+        await setDataAndCache(next);
+
+        setObsOk("Observacion guardada offline ?");
+        setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
+        await refreshPending();
+        return;
+      }
+
+      await crearObservacion(id, payload);
+
+      setObsOk("Observacion creada OK");
+      setForm({ item_ref: "", desc_observacion: "", id_nivel_riesgo: "1", id_estado_observacion: "1" });
+      await load();
+    } catch (err) {
+      console.error("inspeccion.detail.crearObservacion:", err);
+      const msg = getErrorMessage(err);
+      setObsError(msg);
+    } finally {
+      setSavingObs(false);
+      setTimeout(() => setObsOk(""), 2500);
+    }
+  }
+
+  if (!id) {
+    return (
+      <div style={{ padding: 16 }}>
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+          No se encontro ID de inspeccion en la ruta.
+        </div>
+      </div>
+    );
+  }
+
+  const cab = data?.cabecera;
+  const observaciones = data?.observaciones || [];
+  const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
+  const visiblePageError = online ? pageError : "";
+
+  async function removePendingPlaceholdersFromState(pendingPaths) {
+    const removeAllPending = !pendingPaths || pendingPaths.size === 0;
+    const shouldRemovePendingPath = (value) => {
+      const path = String(value || "");
+      if (!path.startsWith("PENDING_UPLOAD/")) return false;
+      return removeAllPending || pendingPaths.has(path);
+    };
+
+    let updatedData = null;
+    setData((prev) => {
+      if (!prev) {
+        updatedData = prev;
+        return prev;
+      }
+
+      const obs = (prev.observaciones || []).map((o) => {
+        const evid = (o.evidencias || []).filter((e) => !shouldRemovePendingPath(e.archivo_ruta));
+
+        const acciones = (o.acciones || []).map((a) => {
+          const evA = (a.evidencias || []).filter((e) => !shouldRemovePendingPath(e.archivo_ruta));
+          return { ...a, evidencias: evA };
+        });
+
+        return { ...o, evidencias: evid, acciones };
+      });
+
+      updatedData = { ...prev, observaciones: obs };
+      return updatedData;
+    });
+
+    if (updatedData) {
+      await setInspeccionCache(id, updatedData);
+    }
+  }
+  return (
+    <div style={{ padding: 16, display: "grid", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <Link to="/inspecciones">Volver</Link>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Badge>{online ? "?? Conectado" : "?? Sin conexion"}</Badge>
+          <Badge>Pendientes: {pending.total}</Badge>
+          {pending.total > 0 && <Badge>Pendiente por sincronizar</Badge>}
+
+          <button onClick={() => syncNow()} disabled={!online || pending.total === 0}>
+            Sincronizar ahora
+          </button>
+
+          <button onClick={load} disabled={loading}>
+            {loading ? "Recargando..." : "Recargar"}
+          </button>
+        </div>
+      </div>
+
+      {syncMsg && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", background: "#f7f7f7" }}>
+          {syncMsg}
+        </div>
+      )}
+
+      {infoMsg && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", background: "#fafafa" }}>
+          {infoMsg}
+        </div>
+      )}
+
+      <h2 style={{ margin: 0 }}>Inspeccion #{id}</h2>
+
+      {visiblePageError && (
+        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+          {visiblePageError}
+        </div>
+      )}
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Cabecera</h3>
+        {!cab ? (
+          <p style={{ opacity: 0.7 }}>Sin cabecera.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Badge>Estado: {cab.estado_inspeccion}</Badge>
+              <Badge>Modo: {cab.modo_registro}</Badge>
+              <Badge>Area: {cab.desc_area}</Badge>
+              <Badge>
+                Formato: {cab.codigo_formato} v{cab.version_actual}
+              </Badge>
+            </div>
+
+            <div style={{ display: "grid", gap: 4 }}>
+              <div>
+                <b>Fecha inspeccion:</b> {fmtDate(cab.fecha_inspeccion)}
+              </div>
+              <div>
+                <b>Servicio:</b> {cab.nombre_servicio} {cab.servicio_detalle ? `- ${cab.servicio_detalle}` : ""}
+              </div>
+              <div>
+                <b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Crear observacion</h3>
+
+        <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            item_ref
+            <input name="item_ref" value={form.item_ref} onChange={onChangeForm} placeholder="Ej: 1.1" disabled={inspeccionCerrada} />
+          </label>
+
+          <label style={{ display: "grid", gap: 6 }}>
+            Nivel de riesgo (id_nivel_riesgo)
+            <select name="id_nivel_riesgo" value={form.id_nivel_riesgo} onChange={onChangeForm} disabled={inspeccionCerrada}>
+              <option value="1">1 - BAJO</option>
+              <option value="2">2 - MEDIO</option>
+              <option value="3">3 - ALTO</option>
+            </select>
+          </label>
+
+          <label style={{ display: "grid", gap: 6 }}>
+            Estado observacion (id_estado_observacion)
+            <select name="id_estado_observacion" value={form.id_estado_observacion} onChange={onChangeForm} disabled={inspeccionCerrada}>
+              <option value="1">1 - ABIERTA</option>
+              <option value="2">2 - EN PROCESO</option>
+              <option value="3">3 - CERRADA</option>
+            </select>
+          </label>
+
+          <label style={{ display: "grid", gap: 6 }}>
+            Descripcion
+            <textarea
+              name="desc_observacion"
+              value={form.desc_observacion}
+              onChange={onChangeForm}
+              rows={3}
+              placeholder="Describe la observacion..."
+              disabled={inspeccionCerrada}
+            />
+          </label>
+
+          {obsError && (
+            <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+              {obsError}
+            </div>
+          )}
+
+          {obsOk && (
+            <div style={{ padding: 10, borderRadius: 10, border: "1px solid #b3ffb3", background: "#ecffec" }}>
+              {obsOk}
+            </div>
+          )}
+
+          <button disabled={savingObs || inspeccionCerrada} type="submit">
+            {inspeccionCerrada ? "Inspeccion cerrada" : savingObs ? "Guardando..." : "Crear observacion"}
+          </button>
+        </form>
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Observaciones ({observaciones.length})</h3>
+
+        {loading && <p>Cargando...</p>}
+        {!loading && observaciones.length === 0 && <p style={{ opacity: 0.7 }}>Sin observaciones.</p>}
+
+        {!loading &&
+          observaciones.map((o) => {
+            const acciones = o.acciones || [];
+            const hayAcciones = acciones.length > 0;
+            const hayPendientes = acciones.some((x) => ![3, 4].includes(Number(x.id_estado_accion)));
+
+            return (
+              <div
+                key={o.id_observacion}
+                style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 12 }}
+              >
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <b>Obs #{o.id_observacion}</b>
+                  {o.__pending && <Badge>?? PENDIENTE</Badge>}
+                  <Badge>Riesgo: {o.nivel_riesgo}</Badge>
+                  <Badge>Estado: {o.estado_observacion}</Badge>
+                  <Badge>Item: {o.item_ref}</Badge>
+                </div>
+
+                <div style={{ marginTop: 6 }}>
+                  <b>Descripcion:</b> {o.desc_observacion}
+                </div>
+
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {o.id_estado_observacion !== 3 && (
+                    <>
+                      {!hayAcciones || !hayPendientes ? (
+                        <button
+                          disabled={!online}
+                          onClick={async () => {
+                            try {
+                              await actualizarEstadoObservacion(o.id_observacion, 3);
+                              await load();
+                              showObsMsg(o.id_observacion, "Observacion cerrada ?", "ok");
+                            } catch (err) {
+                              console.error("inspeccion.detail.cerrarObservacion:", err);
+                              showObsMsg(o.id_observacion, getErrorMessage(err), "error");
+                            }
+                          }}
+                        >
+                          Cerrar observacion
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>
+                          No puedes cerrar: hay acciones pendientes.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {obsMsgByObs[o.id_observacion]?.msg && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 10,
+                      border:
+                        obsMsgByObs[o.id_observacion].type === "ok"
+                          ? "1px solid #b3ffb3"
+                          : "1px solid #ffb3b3",
+                      background:
+                        obsMsgByObs[o.id_observacion].type === "ok" ? "#ecffec" : "#ffecec",
+                    }}
+                  >
+                    {obsMsgByObs[o.id_observacion].msg}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 10 }}>
+                  <b>Evidencias (Obs)</b>
+                  <EvidenceGrid evidencias={o.evidencias} />
+                </div>
+
+                <UploadEvidence
+                  kind="OBS"
+                  idTarget={o.id_observacion}
+                  onUploaded={handleEvidenceUploaded}
+                  disabled={o.id_estado_observacion === 3}
+                  inspeccionCerrada={inspeccionCerrada}
+                  online={online}
+                />
+
+                <CrearAccionForm
+                  idObservacion={o.id_observacion}
+                  onCreated={handleAccionCreated}
+                  onMsg={showAccionMsg}
+                  inspeccionCerrada={inspeccionCerrada || o.id_estado_observacion === 3}
+                  online={online}
+                />
+
+                {accionMsgByObs[o.id_observacion]?.msg && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 10,
+                      border:
+                        accionMsgByObs[o.id_observacion].type === "ok"
+                          ? "1px solid #b3ffb3"
+                          : "1px solid #ffb3b3",
+                      background:
+                        accionMsgByObs[o.id_observacion].type === "ok" ? "#ecffec" : "#ffecec",
+                    }}
+                  >
+                    {accionMsgByObs[o.id_observacion].msg}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 12 }}>
+                  <b>Acciones ({acciones.length})</b>
+
+                  {acciones.length === 0 ? (
+                    <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin acciones.</p>
+                  ) : (
+                    acciones.map((a) => (
+                      <div
+                        key={a.id_accion}
+                        style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}
+                      >
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <b>Acc #{a.id_accion}</b>
+                          <Badge>Estado: {a.estado_accion}</Badge>
+                          <Badge>Compromiso: {fmtDate(a.fecha_compromiso)}</Badge>
+                          <Badge>Resp: {a.dni || a.responsable_interno_dni || "-"}</Badge>
+                        </div>
+
+                        <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {![3, 4].includes(Number(a.id_estado_accion)) && (
+                            <button
                               disabled={!online}
                               onClick={async () => {
                                 try {
                                   await actualizarEstadoAccion(a.id_accion, 3);
                                   await load();
-                                  alert("Accion cumplida OK");
+                                  alert("Accion cumplida ?");
                                 } catch (err) {
                                   console.error("inspeccion.detail.cumplirAccion:", err);
                                   alert(getErrorMessage(err));
@@ -443,15 +1317,14 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
                           <EvidenceGrid evidencias={a.evidencias} />
                         </div>
 
-                        <UploadEvidence 
-                          kind="ACC" 
-                          idTarget={a.id_accion} 
-                          onUploaded={handleEvidenceUploaded} 
-                          disabled={[3,4].includes(Number(a.id_estado_accion))}
+                        <UploadEvidence
+                          kind="ACC"
+                          idTarget={a.id_accion}
+                          onUploaded={handleEvidenceUploaded}
+                          disabled={[3, 4].includes(Number(a.id_estado_accion))}
                           inspeccionCerrada={inspeccionCerrada}
                           online={online}
                         />
-
                       </div>
                     ))
                   )}
@@ -459,19 +1332,7 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
               </div>
             );
           })}
-             
       </section>
     </div>
   );
-
 }
-
-
-
-
-
-
-
-
-
-

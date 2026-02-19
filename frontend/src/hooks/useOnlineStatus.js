@@ -4,7 +4,7 @@ const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3000").repla
 
 async function pingBackend() {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 2000);
+  const t = setTimeout(() => ctrl.abort(), 5000);
 
   try {
     const res = await fetch(`${API_BASE}/api/health`, {
@@ -21,7 +21,7 @@ async function pingBackend() {
 }
 
 export default function useOnlineStatus() {
-  const [online, setOnline] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
   const tokenRef = useRef(0);
 
   useEffect(() => {
@@ -40,6 +40,7 @@ export default function useOnlineStatus() {
     };
 
     const handleOnline = () => {
+      setOnline(true);
       check();
     };
 
