@@ -13,6 +13,8 @@ import catalogosRoutes from "./routes/catalogos.routes.js";
 import inspeccionesRoutes from "./routes/inspecciones.routes.js";
 import observacionesRoutes from "./routes/observaciones.routes.js";
 import uploadsRoutes from "./routes/uploads.routes.js";
+import usuariosRoutes from "./routes/usuarios.routes.js";
+import auditoriaRoutes from "./routes/auditoria.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,8 +33,10 @@ app.use("/api/auth", authRoutes);
 app.use("/api/catalogos", catalogosRoutes);
 app.use("/api/inspecciones", inspeccionesRoutes);
 app.use("/api/inspecciones", observacionesRoutes);
-app.use("/storage", express.static(path.join(__dirname, "./storage")));
 app.use("/api/uploads", uploadsRoutes);
+app.use("/api/usuarios", usuariosRoutes);
+app.use("/api/auditoria", auditoriaRoutes);
+app.use("/storage", express.static(path.join(__dirname, "./storage")));
 
 // =======================
 // Ruta ra?z (solo informativa)
@@ -50,5 +54,7 @@ app.use((req, res) => {
     message: "Ruta no encontrada",
   });
 });
+
+
 
 export default app;
