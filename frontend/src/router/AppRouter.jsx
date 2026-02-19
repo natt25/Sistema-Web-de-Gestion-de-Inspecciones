@@ -7,6 +7,7 @@ import ChangePassword from "../pages/ChangePassword";
 import RequireRole from "../auth/RequireRole";
 import AdminUsuarios from "../pages/AdminUsuarios";
 import Pendientes from "../pages/Pendientes";
+import Perfil from "../pages/Perfil";
 
 export default function AppRouter() {
   return (
@@ -25,6 +26,8 @@ export default function AppRouter() {
           <Route path="/" element={<Navigate to="/inspecciones" replace />} />
           <Route path="/inspecciones" element={<InspeccionesList />} />
           <Route path="/inspecciones/:id" element={<InspeccionDetail />} />
+
+          <Route path="/perfil" element={<Perfil />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

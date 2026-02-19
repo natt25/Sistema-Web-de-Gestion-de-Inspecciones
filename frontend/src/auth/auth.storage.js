@@ -31,7 +31,8 @@ export function clearUser() {
   localStorage.removeItem(USER_KEY);
 }
 
-export function clearAuth() {
-  clearToken();
-  clearUser();
+export function clearAuth(){
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 }
+

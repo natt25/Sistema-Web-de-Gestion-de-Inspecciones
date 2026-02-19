@@ -10,6 +10,13 @@ const items = [
 
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
+
+  function handleLogout() {
+    clearAuth();
+    navigate("/login", { replace: true });
+    onNavigate?.();
+  }
+
   return (
     <>
       <div className="sidebar-brand">
@@ -28,7 +35,7 @@ export default function Sidebar({ onNavigate }) {
             className={({ isActive }) => `sidebar-item ${isActive ? "active" : ""}`}
             onClick={onNavigate}
           >
-            <span>{it.icon}</span>
+            <span className="sidebar-icon">{it.icon}</span>
             <span>{it.label}</span>
           </NavLink>
         ))}
@@ -36,19 +43,18 @@ export default function Sidebar({ onNavigate }) {
 
       <div className="sidebar-footer">
         <button
-          className="sidebar-item"
-          style={{ color: "#fecaca", borderColor: "rgba(239,68,68,.25)", background: "rgba(239,68,68,.08)" }}
-          onClick={() => {
-            clearAuth();
-            navigate("/login", { replace: true });
-            onNavigate?.();
-          }}
+          type="button"
+          className="sidebar-item sidebar-logout"
+          onClick={handleLogout}
         >
-          <span>🚪</span>
-          <span>Cerrar sesion</span>
+          <span className="sidebar-icon">🚪</span>
+          <span>Cerrar sesión</span>
         </button>
-        <div>Sistema Web de Gestion</div>
-        <div>Version 1.0</div>
+
+        <div className="sidebar-meta">
+          <div>Sistema Web de Gestión</div>
+          <div>Versión 1.0</div>
+        </div>
       </div>
     </>
   );
