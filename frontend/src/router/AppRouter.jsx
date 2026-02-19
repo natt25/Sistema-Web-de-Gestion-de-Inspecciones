@@ -7,6 +7,7 @@ import ChangePassword from "../pages/ChangePassword";
 import RequireRole from "../auth/RequireRole";
 import AdminUsuarios from "../pages/AdminUsuarios";
 import Pendientes from "../pages/Pendientes";
+import AppLayout from "../layouts/AppLayout";
 
 export default function AppRouter() {
   return (
@@ -15,17 +16,18 @@ export default function AppRouter() {
         <Route path="/login" element={<Login />} />
 
         <Route element={<RequireAuth />}>
-          <Route path="/change-password" element={<ChangePassword />} />
+          <Route element={<AppLayout />}>
+            <Route path="/change-password" element={<ChangePassword />} />
+            <Route path="/pendientes" element={<Pendientes />} />
 
-          <Route path="/pendientes" element={<Pendientes />} />
+            <Route element={<RequireRole roles={["ADMIN_PRINCIPAL", "ADMIN"]} />}>
+              <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+            </Route>
 
-          <Route element={<RequireRole roles={["ADMIN_PRINCIPAL", "ADMIN"]} />}>
-            <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+            <Route path="/" element={<Navigate to="/inspecciones" replace />} />
+            <Route path="/inspecciones" element={<InspeccionesList />} />
+            <Route path="/inspecciones/:id" element={<InspeccionDetail />} />
           </Route>
-
-          <Route path="/" element={<Navigate to="/inspecciones" replace />} />
-          <Route path="/inspecciones" element={<InspeccionesList />} />
-          <Route path="/inspecciones/:id" element={<InspeccionDetail />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
