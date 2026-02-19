@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { listarPendientes } from "../api/pendientes.api";
 import { getUser } from "../auth/auth.storage";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import Table from "../components/ui/Table";
+import Badge from "../components/ui/Badge";
 
 export default function Pendientes() {
   const [dias, setDias] = useState(7);
@@ -14,9 +20,9 @@ export default function Pendientes() {
     setMsg("");
     try {
       const data = await listarPendientes({ dias, solo_mias: soloMias });
-      setRows(data);
+      setRows(Array.isArray(data) ? data : []);
     } catch (e) {
-      setMsg("No se pudo cargar pendientes (si el endpoint no existe aún, lo creamos en backend)");
+      setMsg("No se pudo cargar pendientes.");
     } finally {
       setLoading(false);
     }
@@ -26,57 +32,53 @@ export default function Pendientes() {
 
   const user = getUser();
 
+  const columns = [
+    { key: "id_accion", label: "ID Accion" },
+    { key: "id_observacion", label: "Obs", render: (a) => a.id_observacion ?? "-" },
+    { key: "desc_accion", label: "Descripcion", render: (a) => a.desc_accion ?? a.descripcion ?? "-" },
+    { key: "responsable", label: "Responsable", render: (a) => a.responsable ?? "-" },
+    { key: "fecha_compromiso", label: "Fecha", render: (a) => a.fecha_compromiso ? String(a.fecha_compromiso).slice(0,10) : "-" },
+    { key: "estado", label: "Estado", render: (a) => a.estado ?? "-" },
+    { key: "dias_restantes", label: "Dias", render: (a) => a.dias_restantes ?? "-" },
+  ];
+
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Bandeja de Pendientes</h2>
-      <p style={{ marginTop: 0 }}>Usuario: {user?.dni} ({user?.rol})</p>
+    <DashboardLayout title="Pendientes">
+      <Card title="Parametros">
+        <div className="actions">
+          <Input
+            label="Dias"
+            type="number"
+            value={dias}
+            onChange={(e) => setDias(Number(e.target.value))}
+            min={1}
+            max={60}
+          />
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-        <label>Días</label>
-        <input type="number" value={dias} onChange={(e) => setDias(Number(e.target.value))} min={1} max={60} />
-        <label>
-          <input type="checkbox" checked={soloMias === 1} onChange={(e) => setSoloMias(e.target.checked ? 1 : 0)} />
-          Solo mis acciones
-        </label>
-        <button onClick={load}>Refrescar</button>
-      </div>
+          <label className="input-row">
+            <span className="label">Solo mis acciones</span>
+            <input
+              className="input"
+              type="checkbox"
+              checked={soloMias === 1}
+              onChange={(e) => setSoloMias(e.target.checked ? 1 : 0)}
+            />
+          </label>
 
-      {msg && <p>{msg}</p>}
-      {loading ? (
-        <p>Cargando...</p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
-            <thead>
-              <tr>
-                <th>ID Acción</th>
-                <th>Obs</th>
-                <th>Descripción</th>
-                <th>Responsable</th>
-                <th>Fecha compromiso</th>
-                <th>Estado</th>
-                <th>Días restantes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((a) => (
-                <tr key={a.id_accion}>
-                  <td>{a.id_accion}</td>
-                  <td>{a.id_observacion ?? "-"}</td>
-                  <td>{a.desc_accion ?? a.descripcion ?? "-"}</td>
-                  <td>{a.responsable ?? "-"}</td>
-                  <td>{a.fecha_compromiso ? String(a.fecha_compromiso).slice(0,10) : "-"}</td>
-                  <td>{a.estado ?? "-"}</td>
-                  <td>{a.dias_restantes ?? "-"}</td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr><td colSpan="7">No hay pendientes</td></tr>
-              )}
-            </tbody>
-          </table>
+          <Button variant="primary" onClick={load} disabled={loading}>
+            {loading ? "Cargando..." : "Refrescar"}
+          </Button>
         </div>
-      )}
-    </div>
+
+        {msg && <Badge>{msg}</Badge>}
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>
+          Usuario: {user?.dni} ({user?.rol})
+        </div>
+      </Card>
+
+      <Card title="Listado">
+        <Table columns={columns} data={rows} emptyText={loading ? "Cargando..." : "No hay pendientes"} />
+      </Card>
+    </DashboardLayout>
   );
 }

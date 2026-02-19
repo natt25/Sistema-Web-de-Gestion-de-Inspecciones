@@ -6,6 +6,10 @@ import { crearObservacion, actualizarEstadoObservacion } from "../api/observacio
 import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
 import useOnlineStatus from "../hooks/useOnlineStatus";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import Badge from "../components/ui/Badge";
 import {
   addToQueue, getAllQueue, removeFromQueue,
   addMutationToQueue, getAllMutationsQueue, removeMutationFromQueue,
@@ -142,22 +146,6 @@ function applyPendingToData(base, mutations, uploads) {
   });
 
   return { ...safeBase, observaciones: finalObs };
-}
-
-function Badge({ children }) {
-  return (
-    <span
-      style={{
-        padding: "2px 8px",
-        borderRadius: 999,
-        border: "1px solid #ddd",
-        background: "#f7f7f7",
-        fontSize: 12,
-      }}
-    >
-      {children}
-    </span>
-  );
 }
 
 function getErrorMessage(err) {
@@ -1025,32 +1013,37 @@ export default function InspeccionDetail() {
     }
   }
   return (
-    <div style={{ padding: 16, display: "grid", gap: 12 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <Link to="/inspecciones">Volver</Link>
+    <DashboardLayout title={`Inspeccion #${id}`}>
+      <div style={{ display: "grid", gap: 12 }}>
+      <Card>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <Link to="/inspecciones">
+            <Button variant="ghost">Volver</Button>
+          </Link>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Badge>{online ? "?? Conectado" : "?? Sin conexion"}</Badge>
-          <Badge>Pendientes: {pending.total}</Badge>
-          {pending.total > 0 && <Badge>Pendiente por sincronizar</Badge>}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <Badge>{online ? "Conectado" : "Sin conexion"}</Badge>
+            <Badge>Pendientes: {pending.total}</Badge>
+            {pending.total > 0 && <Badge>Pendiente por sincronizar</Badge>}
 
-          <button onClick={() => syncNow()} disabled={!online || pending.total === 0}>
-            Sincronizar ahora
-          </button>
+            <Button variant="outline" onClick={() => syncNow()} disabled={!online || pending.total === 0}>
+              Sincronizar ahora
+            </Button>
 
-          <button onClick={load} disabled={loading}>
-            {loading ? "Recargando..." : "Recargar"}
-          </button>
+            <Button variant="outline" onClick={load} disabled={loading}>
+              {loading ? "Recargando..." : "Recargar"}
+            </Button>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {syncMsg && (
         <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", background: "#f7f7f7" }}>
@@ -1072,8 +1065,7 @@ export default function InspeccionDetail() {
         </div>
       )}
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Cabecera</h3>
+      <Card title="Cabecera">
         {!cab ? (
           <p style={{ opacity: 0.7 }}>Sin cabecera.</p>
         ) : (
@@ -1100,10 +1092,9 @@ export default function InspeccionDetail() {
             </div>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Crear observacion</h3>
+      <Card title="Crear observacion">
 
         <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
           <label style={{ display: "grid", gap: 6 }}>
@@ -1153,14 +1144,13 @@ export default function InspeccionDetail() {
             </div>
           )}
 
-          <button disabled={savingObs || inspeccionCerrada} type="submit">
+          <Button variant="primary" disabled={savingObs || inspeccionCerrada} type="submit">
             {inspeccionCerrada ? "Inspeccion cerrada" : savingObs ? "Guardando..." : "Crear observacion"}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
 
-      <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Observaciones ({observaciones.length})</h3>
+      <Card title={`Observaciones (${observaciones.length})`}>
 
         {loading && <p>Cargando...</p>}
         {!loading && observaciones.length === 0 && <p style={{ opacity: 0.7 }}>Sin observaciones.</p>}
@@ -1192,7 +1182,8 @@ export default function InspeccionDetail() {
                   {o.id_estado_observacion !== 3 && (
                     <>
                       {!hayAcciones || !hayPendientes ? (
-                        <button
+                        <Button
+                          variant="outline"
                           disabled={!online}
                           onClick={async () => {
                             try {
@@ -1206,7 +1197,7 @@ export default function InspeccionDetail() {
                           }}
                         >
                           Cerrar observacion
-                        </button>
+                        </Button>
                       ) : (
                         <div style={{ fontSize: 12, opacity: 0.75 }}>
                           No puedes cerrar: hay acciones pendientes.
@@ -1294,7 +1285,8 @@ export default function InspeccionDetail() {
 
                         <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
                           {![3, 4].includes(Number(a.id_estado_accion)) && (
-                            <button
+                            <Button
+                              variant="outline"
                               disabled={!online}
                               onClick={async () => {
                                 try {
@@ -1308,7 +1300,7 @@ export default function InspeccionDetail() {
                               }}
                             >
                               Marcar como cumplida
-                            </button>
+                            </Button>
                           )}
                         </div>
 
@@ -1332,7 +1324,8 @@ export default function InspeccionDetail() {
               </div>
             );
           })}
-      </section>
-    </div>
+      </Card>
+      </div>
+    </DashboardLayout>
   );
 }

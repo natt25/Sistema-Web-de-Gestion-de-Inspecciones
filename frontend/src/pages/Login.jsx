@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { login } from "../auth/auth.service";
 import { getToken, setToken, setUser, getUser } from "../auth/auth.storage";
+import Input from "../components/ui/Input";
+import Button from "../components/ui/Button";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -13,7 +15,6 @@ export default function Login() {
   const redirectTo = location.state?.from?.pathname || "/inspecciones";
 
   useEffect(() => {
-    // si ya hay token y además user exige cambio -> manda a change-password
     if (getToken()) {
       const u = getUser();
       if (u?.debe_cambiar_password) {
@@ -29,7 +30,7 @@ export default function Login() {
     setError("");
 
     try {
-      const data = await login({ dni, password }); // { token, usuario }
+      const data = await login({ dni, password });
       setToken(data.token);
       setUser(data.usuario);
 
@@ -46,15 +47,13 @@ export default function Login() {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        {/* IZQUIERDA (branding) */}
         <section className="auth-left">
-          <h1 className="auth-title">Sistema Web de Gestión de Inspecciones</h1>
+          <h1 className="auth-title">Sistema Web de GestiÃ³n de Inspecciones</h1>
           <p className="auth-subtitle">
             Registro en campo, evidencias y reportes.
           </p>
         </section>
 
-        {/* DERECHA (form) */}
         <section className="auth-right">
           <div className="auth-tabs">
             <div className="auth-tab active">Login</div>
@@ -62,39 +61,33 @@ export default function Login() {
           </div>
 
           <form className="form" onSubmit={handleSubmit}>
-            <div className="input-row">
-              <div className="label">DNI / Documento de Identidad</div>
-              <input
-                className="input"
-                placeholder="DNI"
-                value={dni}
-                onChange={(e) => setDni(e.target.value)}
-                autoComplete="username"
-                inputMode="numeric"
-              />
-            </div>
+            <Input
+              label="DNI / Documento de Identidad"
+              placeholder="DNI"
+              value={dni}
+              onChange={(e) => setDni(e.target.value)}
+              autoComplete="username"
+              inputMode="numeric"
+            />
 
-            <div className="input-row">
-              <div className="label">Contraseña</div>
-              <input
-                className="input"
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-              {error && <div className="help error">{error}</div>}
-            </div>
+            <Input
+              label="ContraseÃ±a"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              error={error}
+            />
 
             <div className="actions">
-              <button className="btn-link" type="button" onClick={() => navigate("/change-password")}>
-                Cambiar contraseña
-              </button>
+              <Button variant="ghost" type="button" onClick={() => navigate("/change-password")}>
+                Cambiar contraseÃ±a
+              </Button>
 
-              <button className="btn-primary" type="submit">
-                ingresar →
-              </button>
+              <Button variant="primary" type="submit">
+                Ingresar
+              </Button>
             </div>
           </form>
         </section>

@@ -5,24 +5,29 @@ import {
   cambiarEstadoUsuario,
   resetPasswordUsuario,
 } from "../api/usuarios.api";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import Table from "../components/ui/Table";
+import Badge from "../components/ui/Badge";
 
 export default function AdminUsuarios() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
 
-  // form crear
   const [dni, setDni] = useState("");
-  const [idRol, setIdRol] = useState(3); // 1=ADMIN_PRINCIPAL,2=ADMIN,3=INSPECTOR (ajusta según tu tabla)
-  const [idEstado, setIdEstado] = useState(1); // 1=ACTIVO (ajusta)
-  const [password, setPassword] = useState("Cambio123*"); // inicial
+  const [idRol, setIdRol] = useState(3);
+  const [idEstado, setIdEstado] = useState(1);
+  const [password, setPassword] = useState("Cambio123*");
 
   async function load() {
     setLoading(true);
     setMsg("");
     try {
       const data = await listarUsuarios();
-      setRows(data);
+      setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setMsg("No se pudo cargar usuarios");
     } finally {
@@ -37,7 +42,7 @@ export default function AdminUsuarios() {
     setMsg("");
     try {
       await crearUsuario({ dni, id_rol: Number(idRol), id_estado_usuario: Number(idEstado), password });
-      setMsg("✅ Usuario creado");
+      setMsg("Usuario creado");
       setDni("");
       await load();
     } catch (e) {
@@ -46,7 +51,6 @@ export default function AdminUsuarios() {
   }
 
   async function toggleActivo(u) {
-    // aquí depende de tu catálogo de estados; asumo 1=ACTIVO y 2=INACTIVO
     const next = String(u.estado).toUpperCase() === "ACTIVO" ? 2 : 1;
     try {
       await cambiarEstadoUsuario(u.id_usuario, next);
@@ -57,94 +61,56 @@ export default function AdminUsuarios() {
   }
 
   async function onResetPassword(u) {
-    const nueva = prompt(`Nueva contraseña para DNI ${u.dni}:`);
+    const nueva = prompt(`Nueva contraseÃ±a para DNI ${u.dni}:`);
     if (!nueva) return;
     try {
       await resetPasswordUsuario(u.id_usuario, nueva);
-      setMsg("✅ Password reseteado (usuario debe cambiar al ingresar)");
+      setMsg("Password reseteado");
       await load();
     } catch {
       setMsg("No se pudo resetear password");
     }
   }
 
+  const columns = [
+    { key: "id_usuario", label: "ID" },
+    { key: "dni", label: "DNI" },
+    { key: "rol", label: "Rol" },
+    { key: "estado", label: "Estado" },
+    { key: "locked_until", label: "Locked", render: (u) => (u.locked_until ? "Si" : "No") },
+    { key: "last_login_at", label: "Ultimo login", render: (u) => (u.last_login_at ? String(u.last_login_at) : "-") },
+  ];
+
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Administración de Usuarios</h2>
-      {msg && <p>{msg}</p>}
+    <DashboardLayout title="Administracion">
+      <div className="grid-cards" style={{ gridTemplateColumns: "1.1fr 1.6fr" }}>
+        <Card title="Crear usuario">
+          <form className="form" onSubmit={onCreate}>
+            <Input label="DNI" value={dni} onChange={(e) => setDni(e.target.value)} required />
+            <Input label="Rol (id_rol)" type="number" value={idRol} onChange={(e) => setIdRol(e.target.value)} />
+            <Input label="Estado (id_estado_usuario)" type="number" value={idEstado} onChange={(e) => setIdEstado(e.target.value)} />
+            <Input label="Password inicial" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Button variant="primary" type="submit">Crear</Button>
+            {msg && <Badge>{msg}</Badge>}
+          </form>
+        </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <form onSubmit={onCreate} style={{ border: "1px solid #ddd", padding: 12 }}>
-          <h3>Crear usuario</h3>
-          <div>
-            <label>DNI</label>
-            <input value={dni} onChange={(e) => setDni(e.target.value)} required />
-          </div>
-
-          <div>
-            <label>Rol (id_rol)</label>
-            <input type="number" value={idRol} onChange={(e) => setIdRol(e.target.value)} />
-            <small>Ej: 1=ADMIN_PRINCIPAL, 2=ADMIN, 3=INSPECTOR</small>
-          </div>
-
-          <div>
-            <label>Estado (id_estado_usuario)</label>
-            <input type="number" value={idEstado} onChange={(e) => setIdEstado(e.target.value)} />
-            <small>Ej: 1=ACTIVO, 2=INACTIVO</small>
-          </div>
-
-          <div>
-            <label>Password inicial</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-
-          <button type="submit">Crear</button>
-        </form>
-
-        <div style={{ border: "1px solid #ddd", padding: 12 }}>
-          <h3>Usuarios</h3>
-          {loading ? (
-            <p>Cargando...</p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>DNI</th>
-                    <th>Rol</th>
-                    <th>Estado</th>
-                    <th>Locked</th>
-                    <th>Último login</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((u) => (
-                    <tr key={u.id_usuario}>
-                      <td>{u.id_usuario}</td>
-                      <td>{u.dni}</td>
-                      <td>{u.rol}</td>
-                      <td>{u.estado}</td>
-                      <td>{u.locked_until ? "Sí" : "No"}</td>
-                      <td>{u.last_login_at ? String(u.last_login_at) : "-"}</td>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        <button onClick={() => toggleActivo(u)}>
-                          {String(u.estado).toUpperCase() === "ACTIVO" ? "Desactivar" : "Activar"}
-                        </button>{" "}
-                        <button onClick={() => onResetPassword(u)}>Reset PW</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {rows.length === 0 && (
-                    <tr><td colSpan="7">Sin usuarios</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <Card title="Usuarios">
+          <Table
+            columns={columns}
+            data={rows}
+            emptyText={loading ? "Cargando..." : "Sin usuarios"}
+            renderActions={(u) => (
+              <>
+                <Button variant="outline" onClick={() => toggleActivo(u)}>
+                  {String(u.estado).toUpperCase() === "ACTIVO" ? "Desactivar" : "Activar"}
+                </Button>
+                <Button variant="ghost" onClick={() => onResetPassword(u)}>Reset PW</Button>
+              </>
+            )}
+          />
+        </Card>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

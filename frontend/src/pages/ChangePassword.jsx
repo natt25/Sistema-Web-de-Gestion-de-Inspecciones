@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getToken, getUser, setUser, clearAuth } from "../auth/auth.storage";
+import Input from "../components/ui/Input";
+import Button from "../components/ui/Button";
 
 export default function ChangePassword() {
   const [old_password, setOld] = useState("");
@@ -35,15 +37,14 @@ export default function ChangePassword() {
       const data = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        setMsg(data.message || "No se pudo cambiar la contraseña");
+        setMsg(data.message || "No se pudo cambiar la contraseÃ±a");
         return;
       }
 
-      // marcar usuario como "ya no requiere cambio"
       const u = getUser();
       if (u) setUser({ ...u, debe_cambiar_password: false });
 
-      setMsg("✅ Contraseña actualizada. Redirigiendo...");
+      setMsg("ContraseÃ±a actualizada. Redirigiendo...");
       setTimeout(() => navigate("/", { replace: true }), 700);
     } catch (err) {
       setMsg("Error de red o servidor");
@@ -53,35 +54,50 @@ export default function ChangePassword() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "40px auto", padding: 16 }}>
-      <h2>Cambiar contraseña</h2>
-      <p>Por seguridad, debes actualizar tu contraseña antes de continuar.</p>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <section className="auth-left">
+          <h1 className="auth-title">SSOMA</h1>
+          <p className="auth-subtitle">
+            Por seguridad, actualiza tu contraseÃ±a para continuar.
+          </p>
+        </section>
 
-      <form onSubmit={onSubmit}>
-        <label>Contraseña actual</label>
-        <input
-          type="password"
-          value={old_password}
-          onChange={(e) => setOld(e.target.value)}
-          required
-          style={{ width: "100%", padding: 10, margin: "6px 0 12px" }}
-        />
+        <section className="auth-right">
+          <div className="auth-tabs">
+            <div className="auth-tab active">Cambiar contraseÃ±a</div>
+          </div>
 
-        <label>Nueva contraseña</label>
-        <input
-          type="password"
-          value={new_password}
-          onChange={(e) => setNew(e.target.value)}
-          required
-          style={{ width: "100%", padding: 10, margin: "6px 0 12px" }}
-        />
+          <form className="form" onSubmit={onSubmit}>
+            <Input
+              label="ContraseÃ±a actual"
+              type="password"
+              value={old_password}
+              onChange={(e) => setOld(e.target.value)}
+              required
+            />
 
-        <button disabled={loading} style={{ width: "100%", padding: 10 }}>
-          {loading ? "Guardando..." : "Actualizar"}
-        </button>
+            <Input
+              label="Nueva contraseÃ±a"
+              type="password"
+              value={new_password}
+              onChange={(e) => setNew(e.target.value)}
+              required
+            />
 
-        {msg && <div style={{ marginTop: 12 }}>{msg}</div>}
-      </form>
+            {msg && <div className="help error">{msg}</div>}
+
+            <div className="actions">
+              <Button variant="ghost" type="button" onClick={() => navigate("/login")}>
+                Volver
+              </Button>
+              <Button variant="primary" type="submit" disabled={loading}>
+                {loading ? "Guardando..." : "Actualizar"}
+              </Button>
+            </div>
+          </form>
+        </section>
+      </div>
     </div>
   );
 }
