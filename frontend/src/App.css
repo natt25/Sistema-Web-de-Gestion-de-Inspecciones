@@ -225,10 +225,12 @@
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.45);
-  z-index: 20;
+  z-index: 40;
+  pointer-events: none;
 }
 
-.overlay.show{ display: block; }
+.overlay.show{ display: block;
+pointer-events: auto;}
 
 /* =========================
    Auth Layout (Login / ChangePassword)
@@ -431,7 +433,7 @@
   background: #fff;
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 80;
 }
 
 .topbar-left{

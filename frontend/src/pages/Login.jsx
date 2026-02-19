@@ -48,7 +48,7 @@ export default function Login() {
     <div className="auth-shell">
       <div className="auth-card">
         <section className="auth-left">
-          <h1 className="auth-title">Sistema Web de GestiÃ³n de Inspecciones</h1>
+          <h1 className="auth-title">Sistema Web de Gestión de Inspecciones</h1>
           <p className="auth-subtitle">
             Registro en campo, evidencias y reportes.
           </p>
@@ -71,7 +71,7 @@ export default function Login() {
             />
 
             <Input
-              label="ContraseÃ±a"
+              label="Contraseña"
               type="password"
               placeholder="Password"
               value={password}
@@ -82,7 +82,7 @@ export default function Login() {
 
             <div className="actions">
               <Button variant="ghost" type="button" onClick={() => navigate("/change-password")}>
-                Cambiar contraseÃ±a
+                Cambiar contraseña
               </Button>
 
               <Button variant="primary" type="submit">
