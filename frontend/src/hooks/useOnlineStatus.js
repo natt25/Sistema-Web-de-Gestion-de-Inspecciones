@@ -1,21 +1,64 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+
+async function pingBackend() {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 2000);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, {
+      method: "GET",
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 export default function useOnlineStatus() {
-  const [online, setOnline] = useState(() => navigator.onLine);
+  const [online, setOnline] = useState(false);
+  const tokenRef = useRef(0);
 
   useEffect(() => {
-    const onUp = () => setOnline(true);
-    const onDown = () => setOnline(false);
+    const token = ++tokenRef.current;
+    let cancelled = false;
+    let inFlight = false;
 
-    window.addEventListener("online", onUp);
-    window.addEventListener("offline", onDown);
+    const check = async () => {
+      if (cancelled || token !== tokenRef.current) return;
+      if (inFlight) return;
+      inFlight = true;
+      const ok = navigator.onLine ? await pingBackend() : false;
+      inFlight = false;
+      if (cancelled || token !== tokenRef.current) return;
+      setOnline(ok);
+    };
 
-    // por si el estado cambia antes de montar
-    setOnline(navigator.onLine);
+    const handleOnline = () => {
+      check();
+    };
+
+    const handleOffline = () => {
+      setOnline(false);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    check();
+    const interval = setInterval(check, 4000);
 
     return () => {
-      window.removeEventListener("online", onUp);
-      window.removeEventListener("offline", onDown);
+      cancelled = true;
+      if (token === tokenRef.current) tokenRef.current += 1;
+      clearInterval(interval);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 

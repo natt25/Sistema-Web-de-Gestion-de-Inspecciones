@@ -11,7 +11,7 @@ const INSPECCION_CACHE = "inspeccion_cache";
 function openDB() {
   return new Promise((resolve, reject) => {
     // ⬅️ subimos a versión 2 para crear stores nuevos
-    const req = indexedDB.open(DB_NAME, 2);
+    const req = indexedDB.open(DB_NAME, 3);
 
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -44,9 +44,21 @@ function openDB() {
 // addToQueue / getAllQueue / removeFromQueue
 
 export async function addToQueue(data) {
+  const payload = { ...data };
+  if (typeof File !== "undefined" && payload.file instanceof File) {
+    // Guardamos Blob + metadata para evitar fallas de structured clone en algunos navegadores
+    payload.blob = payload.file;
+    payload.fileMeta = {
+      name: payload.file.name,
+      type: payload.file.type,
+      lastModified: payload.file.lastModified,
+    };
+    delete payload.file;
+  }
+
   const db = await openDB();
   const tx = db.transaction(UPLOADS_STORE, "readwrite");
-  tx.objectStore(UPLOADS_STORE).add(data);
+  tx.objectStore(UPLOADS_STORE).add(payload);
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error);
@@ -59,7 +71,32 @@ export async function getAllQueue() {
   const store = tx.objectStore(UPLOADS_STORE);
   return new Promise((resolve) => {
     const req = store.getAll();
-    req.onsuccess = () => resolve(req.result || []);
+    req.onsuccess = () => {
+      const rows = (req.result || []).map((row) => {
+        if (row?.file) return row;
+        if (row?.blob && row?.fileMeta) {
+          try {
+            const { name, type, lastModified } = row.fileMeta;
+            if (typeof File !== "undefined") {
+              const file = new File([row.blob], name, { type, lastModified });
+              return { ...row, file };
+            }
+            const blob = row.blob;
+            blob.name = name;
+            blob.lastModified = lastModified;
+            return { ...row, file: blob };
+          } catch {
+            // fallback: usar Blob si File falla (poco probable)
+            const blob = row.blob;
+            blob.name = row.fileMeta?.name;
+            blob.lastModified = row.fileMeta?.lastModified;
+            return { ...row, file: blob };
+          }
+        }
+        return row;
+      });
+      resolve(rows);
+    };
     req.onerror = () => resolve([]);
   });
 }
