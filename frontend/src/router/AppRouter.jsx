@@ -4,6 +4,9 @@ import RequireAuth from "../auth/RequireAuth";
 import InspeccionesList from "../pages/InspeccionesList";
 import InspeccionDetail from "../pages/InspeccionDetail";
 import ChangePassword from "../pages/ChangePassword";
+import RequireRole from "../auth/RequireRole";
+import AdminUsuarios from "../pages/AdminUsuarios";
+import Pendientes from "../pages/Pendientes";
 
 export default function AppRouter() {
   return (
@@ -13,6 +16,13 @@ export default function AppRouter() {
 
         <Route element={<RequireAuth />}>
           <Route path="/change-password" element={<ChangePassword />} />
+
+          <Route path="/pendientes" element={<Pendientes />} />
+
+          <Route element={<RequireRole roles={["ADMIN_PRINCIPAL", "ADMIN"]} />}>
+            <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+          </Route>
+
           <Route path="/" element={<Navigate to="/inspecciones" replace />} />
           <Route path="/inspecciones" element={<InspeccionesList />} />
           <Route path="/inspecciones/:id" element={<InspeccionDetail />} />
