@@ -44,31 +44,61 @@ export default function Login() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Login</h2>
+    <div className="auth-shell">
+      <div className="auth-card">
+        {/* IZQUIERDA (branding) */}
+        <section className="auth-left">
+          <h1 className="auth-title">Sistema Web de Gestión de Inspecciones</h1>
+          <p className="auth-subtitle">
+            Registro en campo, evidencias y reportes.
+          </p>
+        </section>
 
-      <form onSubmit={handleSubmit}>
-        <div>
-          <input
-            placeholder="DNI"
-            value={dni}
-            onChange={(e) => setDni(e.target.value)}
-          />
-        </div>
+        {/* DERECHA (form) */}
+        <section className="auth-right">
+          <div className="auth-tabs">
+            <div className="auth-tab active">Login</div>
+            <div className="auth-tab">Registrarse</div>
+          </div>
 
-        <div>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
+          <form className="form" onSubmit={handleSubmit}>
+            <div className="input-row">
+              <div className="label">DNI / Documento de Identidad</div>
+              <input
+                className="input"
+                placeholder="DNI"
+                value={dni}
+                onChange={(e) => setDni(e.target.value)}
+                autoComplete="username"
+                inputMode="numeric"
+              />
+            </div>
 
-        {error && <p style={{ color: "red" }}>{error}</p>}
+            <div className="input-row">
+              <div className="label">Contraseña</div>
+              <input
+                className="input"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              {error && <div className="help error">{error}</div>}
+            </div>
 
-        <button type="submit">Ingresar</button>
-      </form>
+            <div className="actions">
+              <button className="btn-link" type="button" onClick={() => navigate("/change-password")}>
+                Cambiar contraseña
+              </button>
+
+              <button className="btn-primary" type="submit">
+                ingresar →
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
     </div>
   );
 }
