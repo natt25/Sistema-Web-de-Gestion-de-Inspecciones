@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { login } from "../auth/auth.service";
-import { getToken, setToken } from "../auth/auth.storage";
+import { getToken, setToken, setUser, getUser } from "../auth/auth.storage";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -9,11 +9,18 @@ export default function Login() {
   const [dni, setDni] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
   const redirectTo = location.state?.from?.pathname || "/inspecciones";
-  
+
   useEffect(() => {
+    // si ya hay token y además user exige cambio -> manda a change-password
     if (getToken()) {
-      navigate(redirectTo, { replace: true });
+      const u = getUser();
+      if (u?.debe_cambiar_password) {
+        navigate("/change-password", { replace: true });
+      } else {
+        navigate(redirectTo, { replace: true });
+      }
     }
   }, [navigate, redirectTo]);
 
@@ -22,9 +29,15 @@ export default function Login() {
     setError("");
 
     try {
-      const data = await login({ dni, password });
+      const data = await login({ dni, password }); // { token, usuario }
       setToken(data.token);
-      navigate(redirectTo, { replace: true });
+      setUser(data.usuario);
+
+      if (data.usuario?.debe_cambiar_password) {
+        navigate("/change-password", { replace: true });
+      } else {
+        navigate(redirectTo, { replace: true });
+      }
     } catch (err) {
       setError("Credenciales incorrectas");
     }
