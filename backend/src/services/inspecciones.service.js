@@ -1,5 +1,6 @@
 import repo from "../repositories/inspecciones.repository.js";
 import observacionesRepo from "../repositories/observaciones.repository.js";
+
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
   const esCatalogo = (id_otro == null) && (id_cliente != null) && (id_servicio != null);
   const esOtro = (id_otro != null) && (id_cliente == null) && (id_servicio == null);
@@ -229,11 +230,42 @@ async function actualizarEstadoAccion({ id_accion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
+async function crearInspeccionCompleta({ user, body }) {
+  const cabecera = body?.cabecera;
+  const respuestas = body?.respuestas;
+
+  if (!cabecera) return { ok: false, status: 400, message: "Falta cabecera" };
+  if (!Array.isArray(respuestas) || !respuestas.length) {
+    return { ok: false, status: 400, message: "Falta respuestas[]" };
+  }
+
+  // Validación fuerte: si estado=MALO, observación + acción obligatorias
+  for (const r of respuestas) {
+    if (r.estado === "MALO") {
+      if (!r.observacion || r.observacion.trim().length < 10) {
+        return { ok: false, status: 400, message: `Observación obligatoria en ${r.id_item}` };
+      }
+      if (!r.accion?.que || !r.accion?.quien || !r.accion?.cuando) {
+        return { ok: false, status: 400, message: `Acción obligatoria en ${r.id_item}` };
+      }
+    }
+  }
+
+  const data = await repo.crearInspeccionCompleta({
+    user,
+    cabecera,
+    respuestas
+  });
+
+  return { ok: true, status: 201, data };
+}
+
 export default {
   crearInspeccionCabecera,
   listarInspecciones,
   obtenerDetalleInspeccion,
   obtenerDetalleInspeccionFull,
+  crearInspeccionCompleta,
   actualizarEstadoInspeccion,
   actualizarEstadoObservacion,
   actualizarEstadoAccion

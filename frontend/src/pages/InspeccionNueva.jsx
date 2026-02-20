@@ -5,6 +5,7 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { obtenerDefinicionPlantilla } from "../api/plantillas.api";
 import InspeccionDinamicaForm from "../components/inspecciones/InspeccionDinamicaForm.jsx";
+import http from "../api/http";
 
 function useQuery() {
   const { search } = useLocation();
@@ -117,10 +118,29 @@ export default function InspeccionNueva() {
           <InspeccionDinamicaForm
             plantilla={plantilla}
             definicion={def.json}
-            onSubmit={(payload) => {
-              console.log("PAYLOAD INSPECCIÓN:", payload);
-              alert("Listo ✅ (por ahora solo imprime el JSON en consola).");
-              // Luego aquí llamamos al backend POST /api/inspecciones
+            onSubmit={async (payload) => {
+              try {
+                await http.post("/api/inspecciones", {
+                  cabecera: {
+                    id_plantilla_inspec: plantilla.id_plantilla_inspec,
+                    id_area: 1, // ⚠ temporal, luego vendrá del select
+                    id_cliente: null,
+                    id_servicio: null,
+                    servicio_detalle: null,
+                    fecha_inspeccion: new Date().toISOString(),
+                    id_estado_inspeccion: 1,
+                    id_modo_registro: 1
+                  },
+                  respuestas: payload.respuestas
+                });
+
+                alert("Inspección guardada correctamente ✅");
+                navigate("/inspecciones");
+
+              } catch (err) {
+                console.error(err);
+                alert("Error al guardar inspección ❌");
+              }
             }}
           />
         ) : null}

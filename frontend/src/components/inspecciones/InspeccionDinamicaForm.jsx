@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import Button from "../ui/Button.jsx";
 import Badge from "../ui/Badge.jsx";
+import { buscarResponsables } from "../../api/usuarios.api.js";
 
 /**
  * JSON esperado (según tu caso):
@@ -14,6 +15,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
   const [notes, setNotes] = useState({});     // { [key]: string }
   const [actions, setActions] = useState({}); // { [key]: { que, quien, cuando } }
   const [errors, setErrors] = useState({});   // { [key]: { note?, que?, quien?, cuando? } }
+  const [respOptions, setRespOptions] = useState({});
 
   const grouped = useMemo(() => {
     const map = new Map();
@@ -158,8 +160,6 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
               const desc = it.texto || ""; // <- texto del PDF
               const err = errors[key] || {};
               const act = actions[key] || { que: "", quien: "", cuando: "" };
-              const [respQuery, setRespQuery] = useState({});
-              const [respOptions, setRespOptions] = useState({});
               
               return (
                 <div key={key} className="card ins-item">
@@ -236,13 +236,15 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                             onChange={async (e) => {
                                 const v = e.target.value;
                                 setActions((p) => ({ ...p, [key]: { ...act, quien: v } }));
-                                setRespQuery((p) => ({ ...p, [key]: v }));
-
                                 if (v.trim().length >= 2) {
-                                const opts = await buscarResponsables(v.trim());
-                                setRespOptions((p) => ({ ...p, [key]: opts }));
+                                  try {
+                                    const opts = await buscarResponsables(v.trim());
+                                    setRespOptions((p) => ({ ...p, [key]: Array.isArray(opts) ? opts : [] }));
+                                  } catch {
+                                    setRespOptions((p) => ({ ...p, [key]: [] }));
+                                  }
                                 } else {
-                                setRespOptions((p) => ({ ...p, [key]: [] }));
+                                  setRespOptions((p) => ({ ...p, [key]: [] }));
                                 }
                             }}
                             placeholder="DNI o Apellido/Nombres"

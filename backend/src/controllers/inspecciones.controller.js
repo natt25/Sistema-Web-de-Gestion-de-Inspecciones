@@ -1,7 +1,7 @@
 import service from "../services/inspecciones.service.js";
 async function crear(req, res) {
   try {
-    const result = await service.crearInspeccionCabecera({ user: req.user, body: req.body });
+    const result = await service.crearInspeccionCompleta({ user: req.user, body: req.body });
 
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
