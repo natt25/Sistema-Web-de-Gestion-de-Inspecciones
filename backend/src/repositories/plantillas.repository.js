@@ -15,6 +15,7 @@ async function listPlantillas() {
   `;
   const pool = await getPool();
   const r = await pool.request().query(q);
+  console.log(`[plantillas.repo] listPlantillas -> ${r.recordset?.length || 0} registros`);
   return r.recordset;
 }
 

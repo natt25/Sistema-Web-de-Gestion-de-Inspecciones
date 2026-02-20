@@ -19,9 +19,14 @@ export default function PlantillasInspeccion() {
         setLoading(true);
         const data = await listarPlantillas();
         if (!ok) return;
-        setRows(Array.isArray(data) ? data : []);
+        const rowsData = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        setRows(rowsData);
       } catch (e) {
         if (!ok) return;
+        const status = e?.response?.status;
+        const url = e?.config?.url;
+        const message = e?.response?.data?.message || e?.message || "Error desconocido";
+        console.error("[PlantillasInspeccion] Error cargando plantillas:", { status, url, message });
         setError("No se pudieron cargar las plantillas.");
       } finally {
         if (ok) setLoading(false);

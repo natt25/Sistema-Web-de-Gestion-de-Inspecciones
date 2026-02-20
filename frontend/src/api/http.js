@@ -10,6 +10,8 @@ http.interceptors.request.use((config) => {
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
+  } else if ((config.url || "").startsWith("/api/")) {
+    console.warn("[http] Request sin token:", config.url);
   }
   return config;
 });
@@ -18,6 +20,9 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
+    const url = error?.config?.url;
+    const message = error?.response?.data?.message || error?.message;
+    console.error("[http] Error response:", { status, url, message });
     if (status === 401 || status === 403) {
       clearToken();
     }

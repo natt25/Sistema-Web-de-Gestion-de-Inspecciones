@@ -1,8 +1,16 @@
 import repo from "../repositories/plantillas.repository.js";
 
 async function list(req, res) {
-  const data = await repo.listPlantillas();
-  return res.json(data);
+  try {
+    const data = await repo.listPlantillas();
+    console.log(
+      `[plantillas.controller] GET /api/plantillas -> ${Array.isArray(data) ? data.length : 0} registros`
+    );
+    return res.json(data);
+  } catch (error) {
+    console.error("[plantillas.controller] list error:", error);
+    return res.status(500).json({ message: "Error al listar plantillas" });
+  }
 }
 
 async function definicion(req, res) {
