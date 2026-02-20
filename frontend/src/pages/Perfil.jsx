@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
 import { getUser } from "../auth/auth.storage";
 
 export default function Perfil() {
@@ -11,17 +10,35 @@ export default function Perfil() {
   const user = useMemo(() => getUser(), []);
   const [firmaFile, setFirmaFile] = useState(null);
   const [firmaPreview, setFirmaPreview] = useState("");
+  const fileInputRef = useRef(null);
 
   const nombre = user?.nombre || user?.name || "Usuario";
   const dni = user?.dni || "—";
   const rol = user?.rol || user?.role || "—";
   const email = user?.email || "";
 
+  function revokeBlobPreview(url) {
+    if (url && url.startsWith("blob:")) {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   function onPickFirma(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    revokeBlobPreview(firmaPreview);
     setFirmaFile(file);
     setFirmaPreview(URL.createObjectURL(file));
+  }
+
+  function limpiarFirmaSeleccionada() {
+    revokeBlobPreview(firmaPreview);
+    setFirmaFile(null);
+    setFirmaPreview("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }
 
   async function guardarFirma() {
@@ -95,7 +112,9 @@ export default function Perfil() {
 
         <Card title="Firma">
           <div style={{ display: "grid", gap: 12 }}>
-            <Input
+            <input
+              ref={fileInputRef}
+              className="input"
               type="file"
               accept="image/png,image/jpeg"
               onChange={onPickFirma}
@@ -118,8 +137,8 @@ export default function Perfil() {
               </Button>
               <Button
                 variant="ghost"
-                disabled={!firmaFile}
-                onClick={() => { setFirmaFile(null); setFirmaPreview(""); }}
+                disabled={!firmaFile && !firmaPreview}
+                onClick={limpiarFirmaSeleccionada}
               >
                 Limpiar
               </Button>

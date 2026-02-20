@@ -52,14 +52,16 @@ async function subirEvidenciaObservacion({ id_observacion, file }) {
 
   const hash = sha256File(file.path);
 
-  // ✅ anti-duplicado (DENTRO del async)
+  // anti-duplicado (DENTRO del async)
   const yaExiste = await obsRepo.existeHashEvidenciaObservacion({
     id_observacion: id,
     hash_archivo: hash
   });
 
   if (yaExiste) {
-    try { fs.unlinkSync(file.path); } catch (_) {}
+    try {
+      fs.unlinkSync(file.path);
+    } catch (_) {}
     return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
   }
 
@@ -90,14 +92,16 @@ async function subirEvidenciaAccion({ id_accion, file }) {
 
   const hash = sha256File(file.path);
 
-  // ✅ anti-duplicado (DENTRO del async)
+  // anti-duplicado (DENTRO del async)
   const yaExiste = await obsRepo.existeHashEvidenciaAccion({
     id_accion: id,
     hash_archivo: hash
   });
 
   if (yaExiste) {
-    try { fs.unlinkSync(file.path); } catch (_) {}
+    try {
+      fs.unlinkSync(file.path);
+    } catch (_) {}
     return { ok: false, status: 409, message: "Evidencia duplicada (mismo hash)" };
   }
 
@@ -117,6 +121,7 @@ async function subirEvidenciaAccion({ id_accion, file }) {
 }
 
 const FIRMAS_DIR = path.resolve("src/storage/firmas");
+const FIRMAS_EXTS = [".png", ".jpg", ".jpeg"];
 
 function ensureDirSync(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -128,8 +133,20 @@ const firmaStorage = multer.diskStorage({
     cb(null, FIRMAS_DIR);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname || "").toLowerCase() || ".png";
-    cb(null, `firma_${Date.now()}${ext}`);
+    const id = req.user?.id_usuario;
+    if (!id) return cb(new Error("No autenticado"));
+
+    const ext = file.mimetype === "image/png" ? ".png" : ".jpg";
+
+    for (const candidateExt of FIRMAS_EXTS) {
+      if (candidateExt === ext) continue;
+      const oldPath = path.join(FIRMAS_DIR, `firma_${id}${candidateExt}`);
+      try {
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      } catch {}
+    }
+
+    cb(null, `firma_${id}${ext}`);
   }
 });
 
@@ -153,19 +170,13 @@ async function subirFirmaUsuario({ id_usuario, file }) {
   if (!id_usuario) return { ok: false, status: 401, message: "No autenticado" };
   if (!file) return { ok: false, status: 400, message: "Archivo 'firma' requerido" };
 
-  // Borra posibles firmas antiguas con otro formato (por si cambió de png a jpg)
-  const id = id_usuario;
-  const posibles = [
-    path.join(FIRMAS_DIR, `firma_${id}.png`),
-    path.join(FIRMAS_DIR, `firma_${id}.jpg`),
-    path.join(FIRMAS_DIR, `firma_${id}.jpeg`)
-  ];
-
-  // OJO: NO borres la que acabas de subir
-  // Si el archivo subido es firma_{id}.png, no borres ese mismo
-  for (const p of posibles) {
-    if (p.endsWith(file.filename)) continue;
-    try { await fsp.unlink(p); } catch {}
+  const currentExt = path.extname(file.filename || "").toLowerCase();
+  for (const ext of FIRMAS_EXTS) {
+    if (ext === currentExt) continue;
+    const oldPath = path.join(FIRMAS_DIR, `firma_${id_usuario}${ext}`);
+    try {
+      await fsp.unlink(oldPath);
+    } catch {}
   }
 
   const relPath = `/storage/firmas/${file.filename}`;
