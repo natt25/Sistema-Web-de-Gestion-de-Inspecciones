@@ -3,7 +3,7 @@ import { clearAuth } from "../../auth/auth.storage";
 
 const items = [
   { to: "/", label: "Home", icon: "🏠" },
-  { to: "/inspecciones", label: "Inspecciones", icon: "📋" },
+  { to: "/inspecciones/plantillas", label: "Inspecciones", icon: "📋" },
   { to: "/pendientes", label: "Pendientes", icon: "⏰" },
   { to: "/admin/usuarios", label: "Usuarios", icon: "👥" },
 ];

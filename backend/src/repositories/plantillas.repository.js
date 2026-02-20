@@ -1,24 +1,34 @@
-import { getPool, sql } from "../config/database.js";
+import { sql, getPool } from "../config/database.js";
 
-async function listActivas() {
+async function listPlantillas() {
   const q = `
-    SELECT id_plantilla_inspec, codigo_formato, nombre_formato, version_actual
-    FROM SSOMA.INS_PLANTILLA_INSPECCION
-    WHERE estado = 1
-    ORDER BY nombre_formato;
+    SELECT
+      p.id_plantilla_inspec,
+      p.codigo_formato,
+      p.nombre_formato,
+      p.version_actual,
+      p.estado,
+      p.fecha_creacion
+    FROM SSOMA.INS_PLANTILLA_INSPECCION p
+    WHERE p.estado = 1
+    ORDER BY p.codigo_formato;
   `;
   const pool = await getPool();
   const r = await pool.request().query(q);
   return r.recordset;
 }
 
-async function getDefinicionActual(id_plantilla_inspec) {
+async function getDefinicion(id_plantilla_inspec) {
   const q = `
-    SELECT TOP 1 d.id_plantilla_def, d.version, d.json_definicion
+    SELECT TOP 1
+      d.id_plantilla_def,
+      d.id_plantilla_inspec,
+      d.version,
+      d.json_definicion,
+      d.checksum,
+      d.fecha_creacion
     FROM SSOMA.INS_PLANTILLA_DEFINICION d
-    JOIN SSOMA.INS_PLANTILLA_INSPECCION p ON p.id_plantilla_inspec = d.id_plantilla_inspec
     WHERE d.id_plantilla_inspec = @id
-      AND d.version = p.version_actual
     ORDER BY d.version DESC;
   `;
   const pool = await getPool();
@@ -28,4 +38,24 @@ async function getDefinicionActual(id_plantilla_inspec) {
   return r.recordset[0] || null;
 }
 
-export default { listActivas, getDefinicionActual };
+async function getDefinicionByVersion(id_plantilla_inspec, version) {
+  const q = `
+    SELECT TOP 1
+      d.id_plantilla_def,
+      d.id_plantilla_inspec,
+      d.version,
+      d.json_definicion,
+      d.checksum,
+      d.fecha_creacion
+    FROM SSOMA.INS_PLANTILLA_DEFINICION d
+    WHERE d.id_plantilla_inspec = @id AND d.version = @version;
+  `;
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("id", sql.Int, id_plantilla_inspec);
+  req.input("version", sql.Int, version);
+  const r = await req.query(q);
+  return r.recordset[0] || null;
+}
+
+export default { listPlantillas, getDefinicion, getDefinicionByVersion };
