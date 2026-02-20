@@ -44,4 +44,11 @@ router.post(
 
 router.get("/me", usuariosController.me);
 
+router.get(
+  "/buscar",
+  roleMiddleware(["ADMIN_PRINCIPAL", "ADMIN"]),
+  audit("USUARIO_SEARCH", { entity: "INS_USUARIO", entityIdFrom: "query.q" }),
+  usuariosController.buscar
+);
+
 export default router;

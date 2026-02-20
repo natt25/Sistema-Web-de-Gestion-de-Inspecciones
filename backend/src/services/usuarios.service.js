@@ -47,4 +47,8 @@ async function adminResetPassword(id_usuario, newPassword) {
   return { ok: true, status: 200 };
 }
 
-export default { list, create, update, changeStatus, adminResetPassword };
+async function buscar(q) {
+  return usuariosRepo.buscar(q);
+}
+
+export default { list, create, update, changeStatus, adminResetPassword, buscar };

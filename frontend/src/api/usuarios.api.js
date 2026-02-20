@@ -26,3 +26,8 @@ export function cambiarEstadoUsuario(id_usuario, id_estado_usuario) {
 export function resetPasswordUsuario(id_usuario, password) {
   return http.post(`/usuarios/${id_usuario}/reset-password`, { password });
 }
+
+export async function buscarResponsables(q) {
+  const r = await http.get(`/api/usuarios/buscar?q=${encodeURIComponent(q)}`);
+  return r.data; // [{id_usuario, dni, nombres, apellidos}, ...]
+}

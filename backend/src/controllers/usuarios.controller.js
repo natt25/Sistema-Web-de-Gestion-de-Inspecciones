@@ -39,4 +39,16 @@ async function me(req, res) {
   return res.json(u);
 }
 
-export default { list, create, update, changeStatus, resetPassword, me };
+async function buscar(req, res) {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (q.length < 2) return res.json([]);
+    const data = await usuariosService.buscar(q);
+    return res.json(Array.isArray(data) ? data : []);
+  } catch (e) {
+    console.error("usuarios.buscar:", e);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+export default { list, create, update, changeStatus, resetPassword, me, buscar };

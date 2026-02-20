@@ -126,4 +126,18 @@ async function getById(id_usuario) {
   return result.recordset[0] || null;
 }
 
-export default { list, create, update, setEstado, resetPassword, updateFirma, getById };
+async function buscar(q) {
+  const sqlQuery = `
+    SELECT TOP 10 id_usuario, dni, nombres, apellidos
+    FROM SSOMA.INS_USUARIO
+    WHERE (dni LIKE @q OR nombres LIKE @q OR apellidos LIKE @q)
+    ORDER BY apellidos, nombres;
+  `;
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("q", sql.NVarChar(120), `%${q}%`);
+  const r = await req.query(sqlQuery);
+  return r.recordset;
+}
+
+export default { list, create, update, setEstado, resetPassword, updateFirma, getById, buscar };
