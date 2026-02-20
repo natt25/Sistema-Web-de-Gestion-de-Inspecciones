@@ -204,7 +204,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                       rows={2}
                       value={notes[key] || ""}
                       onChange={(e) => setNotes((p) => ({ ...p, [key]: e.target.value }))}
-                      placeholder="Detalla observaciones, lugar específico y medidas inmediatas..."
+                      placeholder="Detalla observaciones, lugar específico y medidas correctivas inmeditadas tomadas." 
                     />
                     {err.note ? <div className="ins-error">{err.note}</div> : null}
                   </div>
