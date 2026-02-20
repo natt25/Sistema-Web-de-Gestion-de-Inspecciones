@@ -8,6 +8,8 @@ import RequireRole from "../auth/RequireRole";
 import AdminUsuarios from "../pages/AdminUsuarios";
 import Pendientes from "../pages/Pendientes";
 import Perfil from "../pages/Perfil";
+import InspeccionNueva from "../pages/InspeccionNueva";
+import InspeccionForm from "../pages/InspeccionForm";
 
 export default function AppRouter() {
   return (
@@ -28,6 +30,9 @@ export default function AppRouter() {
           <Route path="/inspecciones/:id" element={<InspeccionDetail />} />
 
           <Route path="/perfil" element={<Perfil />} />
+
+          <Route path="/inspecciones/nueva" element={<InspeccionNueva />} />
+          <Route path="/inspecciones/nueva/:idPlantilla" element={<InspeccionForm />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

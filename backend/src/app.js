@@ -16,6 +16,7 @@ import uploadsRoutes from "./routes/uploads.routes.js";
 import usuariosRoutes from "./routes/usuarios.routes.js";
 import auditoriaRoutes from "./routes/auditoria.routes.js";
 import accionesRoutes from "./routes/acciones.routes.js";
+import plantillasRoutes from "./routes/plantillas.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +40,7 @@ app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/auditoria", auditoriaRoutes);
 app.use("/storage", express.static(path.join(__dirname, "./storage")));
 app.use("/api/inspecciones", accionesRoutes);
+app.use("/api/plantillas", plantillasRoutes);
 
 // =======================
 // Ruta ra?z (solo informativa)
