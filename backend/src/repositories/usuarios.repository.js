@@ -92,4 +92,38 @@ async function resetPassword(id_usuario, { password_hash, debe_cambiar_password,
   await req.query(query);
 }
 
-export default { list, create, update, setEstado, resetPassword };
+async function updateFirma(id_usuario, { firma_path, firma_mime, firma_size }) {
+  const query = `
+    UPDATE SSOMA.INS_USUARIO
+    SET
+      firma_path = @firma_path,
+      firma_mime = @firma_mime,
+      firma_size = @firma_size,
+      firma_updated_at = SYSDATETIME()
+    WHERE id_usuario = @id_usuario;
+  `;
+
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("id_usuario", sql.Int, id_usuario);
+  req.input("firma_path", sql.NVarChar(300), firma_path ?? null);
+  req.input("firma_mime", sql.NVarChar(50), firma_mime ?? null);
+  req.input("firma_size", sql.Int, firma_size ?? null);
+
+  await req.query(query);
+}
+
+async function getById(id_usuario) {
+  const query = `
+    SELECT id_usuario, dni, firma_path, firma_mime, firma_size, firma_updated_at
+    FROM SSOMA.INS_USUARIO
+    WHERE id_usuario = @id_usuario;
+  `;
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("id_usuario", sql.Int, id_usuario);
+  const result = await req.query(query);
+  return result.recordset[0] || null;
+}
+
+export default { list, create, update, setEstado, resetPassword, updateFirma, getById };

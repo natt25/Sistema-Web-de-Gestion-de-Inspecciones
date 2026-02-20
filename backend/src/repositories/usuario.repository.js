@@ -65,4 +65,35 @@ async function onLoginFail(id_usuario, { maxAttempts = 5, lockMinutes = 10 } = {
   return result.recordset[0] || null;
 }
 
-export default { findByDni, onLoginSuccess, onLoginFail };
+async function updateFirma({ id_usuario, dni, firma_path, firma_mime, firma_size }) {
+  try {
+    // Usa el identificador que tengas disponible
+    // Si tienes id_usuario úsalo, si no usa dni
+    const where = id_usuario ? "id_usuario = @id_usuario" : "dni = @dni";
+
+    const q = `
+      UPDATE INS_USUARIOS
+      SET firma_path = @firma_path,
+          firma_mime = @firma_mime,
+          firma_size = @firma_size,
+          firma_updated_at = GETDATE()
+      WHERE ${where}
+    `;
+
+    const params = {
+      id_usuario,
+      dni,
+      firma_path,
+      firma_mime,
+      firma_size
+    };
+
+    await db.query(q, params);
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e.message };
+  }
+}
+
+export default { findByDni, onLoginSuccess, onLoginFail, updateFirma };

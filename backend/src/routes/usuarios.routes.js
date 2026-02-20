@@ -42,4 +42,6 @@ router.post(
   usuariosController.resetPassword
 );
 
+router.get("/me", usuariosController.me);
+
 export default router;

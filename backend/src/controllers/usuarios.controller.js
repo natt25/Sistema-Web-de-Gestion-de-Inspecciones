@@ -1,4 +1,5 @@
 import usuariosService from "../services/usuarios.service.js";
+import usuariosRepo from "../repositories/usuarios.repository.js";
 
 async function list(req, res) {
   const data = await usuariosService.list();
@@ -33,4 +34,9 @@ async function resetPassword(req, res) {
   res.json({ ok: true });
 }
 
-export default { list, create, update, changeStatus, resetPassword };
+async function me(req, res) {
+  const u = await usuariosRepo.getById(req.user.id_usuario);
+  return res.json(u);
+}
+
+export default { list, create, update, changeStatus, resetPassword, me };

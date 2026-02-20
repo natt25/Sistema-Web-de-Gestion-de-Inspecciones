@@ -37,4 +37,24 @@ async function subirAcc(req, res) {
   }
 }
 
-export default { subirObs, subirAcc };
+async function subirFirma(req, res) {
+  try {
+    const id_usuario = req.user?.id_usuario;
+
+    const result = await service.subirFirmaUsuario({
+      id_usuario,
+      file: req.file
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.status(200).json(result.data);
+  } catch (err) {
+    console.error("uploads.subirFirma:", err);
+    return res.status(500).json({ message: "Error interno", error: err.message });
+  }
+}
+
+export default { subirObs, subirAcc, subirFirma };

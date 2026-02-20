@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
@@ -25,15 +25,54 @@ export default function Perfil() {
   }
 
   async function guardarFirma() {
-    // TODO: aquí conectas tu endpoint real para firma
-    // Ejemplo:
-    // const form = new FormData();
-    // form.append("firma", firmaFile);
-    // await usuariosApi.subirFirma(form);
-    alert("Pendiente: conectar endpoint para guardar firma.");
+    if (!firmaFile) return;
+
+    const form = new FormData();
+    form.append("firma", firmaFile);
+
+    const token = localStorage.getItem("inspecciones_token");
+
+    const res = await fetch("http://localhost:3000/api/uploads/firma", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.message || "Error al guardar firma");
+      return;
+    }
+
+    const data = await res.json();
+    setFirmaPreview(`http://localhost:3000${data.firma_path}?t=${Date.now()}`);
+    alert("Firma guardada ✅");
+
+    // si quieres: mostrar la firma guardada desde backend
+    // setFirmaPreview(`http://localhost:3000${data.firma_path}`);
   }
 
-  return (
+  const API = "http://localhost:3000"; // ideal: env
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem("inspecciones_token");
+        const res = await fetch("http://localhost:3000/api/usuarios/me", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const me = await res.json();
+
+        if (me?.firma_path) {
+          // cache-bust para que se vea la última
+          setFirmaPreview(`http://localhost:3000${me.firma_path}?t=${Date.now()}`);
+        }
+      } catch {}
+    })();
+  }, []);
+
+    return (
     <DashboardLayout title="Mi perfil">
       <div style={{ display: "grid", gap: 16 }}>
         <Card title="Datos del usuario">

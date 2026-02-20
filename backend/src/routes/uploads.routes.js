@@ -20,4 +20,12 @@ router.post(
   controller.subirAcc
 );
 
+// PUT /api/uploads/firma  (firma del usuario logueado)
+router.put(
+  "/firma",
+  authMiddleware,
+  service.uploadFirmaMiddleware,
+  controller.subirFirma
+);
+
 export default router;

@@ -4,6 +4,8 @@ import multer from "multer";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import obsRepo from "../repositories/observaciones.repository.js";
+import fsp from "fs/promises";
+import usuariosRepo from "../repositories/usuarios.repository.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,8 +30,9 @@ function crearStorage(destDir) {
   return multer.diskStorage({
     destination: (req, file, cb) => cb(null, destDir),
     filename: (req, file, cb) => {
-      const safe = safeFileName(file.originalname);
-      cb(null, `${Date.now()}_${safe}`);
+      const ext = path.extname(file.originalname || "").toLowerCase() || ".png";
+      const id = req.user?.id_usuario || "user";
+      cb(null, `firma_${id}${ext}`);
     }
   });
 }
@@ -113,10 +116,95 @@ async function subirEvidenciaAccion({ id_accion, file }) {
   return { ok: true, status: 201, data: creado };
 }
 
+const FIRMAS_DIR = path.resolve("src/storage/firmas");
+
+function ensureDirSync(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+const firmaStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    ensureDirSync(FIRMAS_DIR);
+    cb(null, FIRMAS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase() || ".png";
+    cb(null, `firma_${Date.now()}${ext}`);
+  }
+});
+
+function firmaFileFilter(req, file, cb) {
+  const allowed = ["image/png", "image/jpeg", "image/jpg"];
+  if (!allowed.includes(file.mimetype)) {
+    return cb(new Error("Formato inválido. Solo PNG o JPG."), false);
+  }
+  cb(null, true);
+}
+
+const uploadFirma = multer({
+  storage: firmaStorage,
+  fileFilter: firmaFileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB
+});
+
+const uploadFirmaMiddleware = uploadFirma.single("firma");
+
+async function subirFirmaUsuario({ id_usuario, file }) {
+  if (!id_usuario) return { ok: false, status: 401, message: "No autenticado" };
+  if (!file) return { ok: false, status: 400, message: "Archivo 'firma' requerido" };
+
+  // Borra posibles firmas antiguas con otro formato (por si cambió de png a jpg)
+  const id = id_usuario;
+  const posibles = [
+    path.join(FIRMAS_DIR, `firma_${id}.png`),
+    path.join(FIRMAS_DIR, `firma_${id}.jpg`),
+    path.join(FIRMAS_DIR, `firma_${id}.jpeg`)
+  ];
+
+  // OJO: NO borres la que acabas de subir
+  // Si el archivo subido es firma_{id}.png, no borres ese mismo
+  for (const p of posibles) {
+    if (p.endsWith(file.filename)) continue;
+    try { await fsp.unlink(p); } catch {}
+  }
+
+  const relPath = `/storage/firmas/${file.filename}`;
+
+  const nasDir = process.env.NAS_FIRMAS_DIR;
+  if (nasDir) {
+    try {
+      await fsp.mkdir(nasDir, { recursive: true });
+      await fsp.copyFile(
+        path.join(FIRMAS_DIR, file.filename),
+        path.join(nasDir, file.filename)
+      );
+    } catch (e) {
+      console.warn("[firma] No se pudo copiar al NAS:", e.message);
+    }
+  }
+
+  await usuariosRepo.updateFirma(id_usuario, {
+    firma_path: relPath,
+    firma_mime: file.mimetype,
+    firma_size: file.size
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      firma_path: relPath,
+      firma_mime: file.mimetype,
+      firma_size: file.size
+    }
+  };
+}
 
 export default {
   uploadObsMiddleware,
   uploadAccMiddleware,
   subirEvidenciaObservacion,
-  subirEvidenciaAccion
+  subirEvidenciaAccion,
+  uploadFirmaMiddleware,
+  subirFirmaUsuario
 };
