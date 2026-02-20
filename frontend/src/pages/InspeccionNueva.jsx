@@ -23,13 +23,14 @@ export default function InspeccionNueva() {
 
   useEffect(() => {
     let ok = true;
+
     (async () => {
       try {
         setError("");
         setLoading(true);
 
         if (!plantillaId || Number.isNaN(plantillaId)) {
-          setError("Plantilla inválida. Vuelve a seleccionar una plantilla.");
+          setError("Plantilla inválida.");
           setDef(null);
           return;
         }
@@ -43,18 +44,17 @@ export default function InspeccionNueva() {
             : data.json_definicion;
 
         setDef({ ...data, json });
+
       } catch (e) {
         if (!ok) return;
-        setError("No se pudo cargar la definición de la plantilla.");
+        setError("No se pudo cargar la definición.");
         setDef(null);
       } finally {
         if (ok) setLoading(false);
       }
     })();
 
-    return () => {
-      ok = false;
-    };
+    return () => { ok = false; };
   }, [plantillaId]);
 
   const plantilla = def
@@ -69,81 +69,59 @@ export default function InspeccionNueva() {
   return (
     <DashboardLayout title="Nueva inspección">
       <div style={{ display: "grid", gap: 16 }}>
+        {/* ENCABEZADO SIEMPRE VISIBLE */}
         <Card title="Plantilla seleccionada">
-          {loading ? <div>Cargando...</div> : null}
-          {error ? (
-            <div style={{ color: "#b91c1c", fontWeight: 800 }}>{error}</div>
-          ) : null}
+          {loading && <div>Cargando plantilla...</div>}
 
-          {!loading && def ? (
+          {error && (
+            <div style={{ color: "#b91c1c", fontWeight: 800 }}>
+              {error}
+            </div>
+          )}
+
+          {!loading && !error && def && (
             <div style={{ display: "grid", gap: 8 }}>
-              <div>
-                <b>Código:</b> {def.json?.codigo_formato}
-              </div>
-              <div>
-                <b>Nombre:</b> {def.json?.nombre_formato}
-              </div>
-              <div>
-                <b>Versión:</b> {def.version}
-              </div>
+              <div><b>Código:</b> {def.json?.codigo_formato || def.codigo_formato || "-"}</div>
+              <div><b>Nombre:</b> {def.json?.nombre_formato || def.nombre_formato || "-"}</div>
+              <div><b>Versión:</b> {def.version ?? "-"}</div>
 
-              <div
-                style={{
-                  marginTop: 10,
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <Button onClick={() => navigate("/inspecciones")}>
                   Volver al listado
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/inspecciones/plantillas")}
-                >
+                <Button variant="outline" onClick={() => navigate("/inspecciones/plantillas")}>
                   Cambiar plantilla
                 </Button>
               </div>
-
-              <div style={{ marginTop: 12, color: "var(--muted)", fontSize: 13 }}>
-                Rellena la inspección marcando BUENO / MALO / N/A por cada ítem.
-              </div>
             </div>
-          ) : null}
+          )}
+
+          {!loading && !error && !def && (
+            <div style={{ color: "var(--muted)" }}>
+              No se encontró definición de plantilla.
+            </div>
+          )}
         </Card>
 
-        {/* ✅ FORMULARIO REAL (reemplaza la vista previa) */}
-        {!loading && def?.json?.items?.length ? (
+        {/* FORMULARIO */}
+        {def?.json?.items?.length ? (
           <InspeccionDinamicaForm
-            plantilla={plantilla}
-            definicion={def.json}
-            onSubmit={async (payload) => {
-              try {
-                await http.post("/api/inspecciones", {
-                  cabecera: {
-                    id_plantilla_inspec: plantilla.id_plantilla_inspec,
-                    id_area: 1, // ⚠ temporal, luego vendrá del select
-                    id_cliente: null,
-                    id_servicio: null,
-                    servicio_detalle: null,
-                    fecha_inspeccion: new Date().toISOString(),
-                    id_estado_inspeccion: 1,
-                    id_modo_registro: 1
-                  },
-                  respuestas: payload.respuestas
-                });
-
-                alert("Inspección guardada correctamente ✅");
-                navigate("/inspecciones");
-
-              } catch (err) {
-                console.error(err);
-                alert("Error al guardar inspección ❌");
-              }
+            plantilla={def}              // ✅ pásale def completo (tiene id, version, etc.)
+            definicion={def.json}        // ✅ pásale el JSON real
+            onSubmit={(payload) => {
+              console.log("PAYLOAD INSPECCIÓN:", payload);
+              alert("Listo ✅ (revisa consola)");
             }}
           />
-        ) : null}
+        ) : (
+          !loading && !error && (
+            <Card title="Sin items">
+              <div style={{ color: "var(--muted)" }}>
+                Esta plantilla no tiene items en su JSON.
+              </div>
+            </Card>
+          )
+        )}
       </div>
     </DashboardLayout>
   );
