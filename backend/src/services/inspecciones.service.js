@@ -111,6 +111,8 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
   if (!cabecera) {
     return { ok: false, status: 404, message: "Inspección no encontrada" };
   }
+  const participantes = await repo.listarParticipantesPorInspeccion(id);
+  const respuestas = await repo.listarRespuestasPorInspeccion(id);
   // 1) Observaciones base
   const observaciones = await observacionesRepo.listarPorInspeccion(id);
 
@@ -134,7 +136,16 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
     });
   }
 
-  return { ok: true, status: 200, data: { cabecera, observaciones: out } };
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      cabecera,
+      participantes: Array.isArray(participantes) ? participantes : [],
+      respuestas: Array.isArray(respuestas) ? respuestas : [],
+      observaciones: out,
+    },
+  };
 }
 
 async function actualizarEstadoInspeccion({ id_inspeccion, body }) {

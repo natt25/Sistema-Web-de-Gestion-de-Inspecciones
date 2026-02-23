@@ -1,5 +1,22 @@
 import { sql, getPool } from "../config/database.js";
 
+async function getColumns(schema, tableOrView) {
+  try {
+    const pool = await getPool();
+    const r = await pool.request()
+      .input("schema", sql.NVarChar, schema)
+      .input("name", sql.NVarChar, tableOrView)
+      .query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @name
+      `);
+    return new Set((r.recordset || []).map((x) => String(x.COLUMN_NAME || "").toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
 async function crearInspeccionCabecera(payload) {
   const query = `
     INSERT INTO SSOMA.INS_INSPECCION
@@ -205,6 +222,155 @@ async function actualizarEstadoInspeccion({ id_inspeccion, id_estado_inspeccion 
 
   const result = await request.query(query);
   return result.recordset[0] || null;
+}
+
+async function listarParticipantesPorInspeccion(id_inspeccion) {
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_inspeccion", sql.Int, Number(id_inspeccion));
+
+  const cols = await getColumns("SSOMA", "V_EMPLEADO");
+  const cDni =
+    cols.has("dni") ? "dni" :
+    cols.has("num_doc") ? "num_doc" :
+    cols.has("documento") ? "documento" : null;
+  const cNombres =
+    cols.has("nombres") ? "nombres" :
+    cols.has("nombre") ? "nombre" :
+    cols.has("nombres_empleado") ? "nombres_empleado" : null;
+  const cApellidos =
+    cols.has("apellidos") ? "apellidos" :
+    cols.has("apellido") ? "apellido" :
+    cols.has("apellido_paterno") ? "apellido_paterno" : null;
+  const cCargo =
+    cols.has("cargo") ? "cargo" :
+    cols.has("desc_cargo") ? "desc_cargo" :
+    cols.has("nombre_cargo") ? "nombre_cargo" : null;
+
+  const joinEmpleado = cDni
+    ? `
+      LEFT JOIN SSOMA.V_EMPLEADO ve
+        ON CAST(ve.${cDni} AS NVARCHAR(20)) = CAST(t.dni AS NVARCHAR(20))
+    `
+    : "";
+  const nombreExpr = cDni
+    ? `LTRIM(RTRIM(CONCAT(COALESCE(CAST(ve.${cApellidos || cNombres || cDni} AS NVARCHAR(150)), ''), ' ', COALESCE(CAST(ve.${cNombres || cApellidos || cDni} AS NVARCHAR(150)), ''))))`
+    : "CAST('' AS NVARCHAR(200))";
+  const cargoExpr = cCargo ? `CAST(ve.${cCargo} AS NVARCHAR(150))` : "CAST('' AS NVARCHAR(150))";
+
+  const query = `
+    WITH t AS (
+      SELECT
+        i.id_inspeccion,
+        i.id_usuario,
+        u.dni,
+        CAST('REALIZADO_POR' AS NVARCHAR(20)) AS tipo,
+        CAST(0 AS INT) AS orden_custom
+      FROM SSOMA.INS_INSPECCION i
+      LEFT JOIN SSOMA.INS_USUARIO u ON u.id_usuario = i.id_usuario
+      WHERE i.id_inspeccion = @id_inspeccion
+
+      UNION ALL
+
+      SELECT
+        p.id_inspeccion,
+        p.id_usuario,
+        u2.dni,
+        CAST('INSPECTOR' AS NVARCHAR(20)) AS tipo,
+        ISNULL(p.orden_custom, 9999) AS orden_custom
+      FROM SSOMA.INS_INSPECCION_PARTICIPANTE p
+      JOIN SSOMA.INS_INSPECCION i2 ON i2.id_inspeccion = p.id_inspeccion
+      LEFT JOIN SSOMA.INS_USUARIO u2 ON u2.id_usuario = p.id_usuario
+      WHERE p.id_inspeccion = @id_inspeccion
+        AND p.id_usuario <> i2.id_usuario
+    )
+    SELECT
+      CAST(t.dni AS NVARCHAR(20)) AS dni,
+      NULLIF(${nombreExpr}, '') AS nombre,
+      NULLIF(${cargoExpr}, '') AS cargo,
+      t.tipo
+    FROM t
+    ${joinEmpleado}
+    ORDER BY
+      CASE WHEN t.tipo = 'REALIZADO_POR' THEN 0 ELSE 1 END,
+      t.orden_custom,
+      t.dni;
+  `;
+
+  const result = await request.query(query);
+  return (result.recordset || []).map((r) => ({
+    dni: r.dni || "",
+    nombre: r.nombre || r.dni || "",
+    cargo: r.cargo || "",
+    tipo: r.tipo === "REALIZADO_POR" ? "REALIZADO_POR" : "INSPECTOR",
+  }));
+}
+
+async function listarRespuestasPorInspeccion(id_inspeccion) {
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_inspeccion", sql.Int, Number(id_inspeccion));
+
+  const existsReq = pool.request();
+  const exists = await existsReq.query(`
+    SELECT
+      campo = CASE WHEN OBJECT_ID('SSOMA.INS_PLANTILLA_CAMPO', 'U') IS NOT NULL THEN 1 ELSE 0 END,
+      categoria = CASE WHEN OBJECT_ID('SSOMA.INS_PLANTILLA_CATEGORIA', 'U') IS NOT NULL THEN 1 ELSE 0 END
+  `);
+  const hasCampo = Number(exists.recordset?.[0]?.campo || 0) === 1;
+  const hasCategoria = Number(exists.recordset?.[0]?.categoria || 0) === 1;
+
+  if (!hasCampo) {
+    const fallback = await request.query(`
+      SELECT
+        CAST(ri.id_campo AS NVARCHAR(50)) AS item_id,
+        CAST('SIN CATEGORIA' AS NVARCHAR(100)) AS categoria,
+        CAST(CONCAT('Campo ', ri.id_campo) AS NVARCHAR(250)) AS descripcion,
+        UPPER(CAST(ri.valor_opcion AS NVARCHAR(20))) AS estado,
+        CAST(ri.observacion AS NVARCHAR(300)) AS observacion,
+        CAST(NULL AS NVARCHAR(MAX)) AS accion_json
+      FROM SSOMA.INS_INSPECCION_RESPUESTA r
+      JOIN SSOMA.INS_RESPUESTA_ITEM ri ON ri.id_respuesta = r.id_respuesta
+      WHERE r.id_inspeccion = @id_inspeccion
+      ORDER BY ri.id_campo;
+    `);
+    return (fallback.recordset || []).map((r) => ({
+      item_id: r.item_id || "",
+      categoria: r.categoria || "SIN CATEGORIA",
+      descripcion: r.descripcion || "",
+      estado: r.estado || "NA",
+      observacion: r.observacion || "",
+      accion_json: null,
+    }));
+  }
+
+  const query = `
+    SELECT
+      CAST(COALESCE(ic.item_ref, ri.id_campo) AS NVARCHAR(50)) AS item_id,
+      ${hasCategoria ? "COALESCE(cat.nombre_categoria, cat.codigo_categoria, 'SIN CATEGORIA')" : "'SIN CATEGORIA'"} AS categoria,
+      COALESCE(ic.descripcion_item, ic.titulo_campo, ic.nombre_campo, CONCAT('Campo ', ri.id_campo)) AS descripcion,
+      UPPER(CAST(ri.valor_opcion AS NVARCHAR(20))) AS estado,
+      CAST(ri.observacion AS NVARCHAR(300)) AS observacion,
+      CAST(NULL AS NVARCHAR(MAX)) AS accion_json
+    FROM SSOMA.INS_INSPECCION_RESPUESTA r
+    JOIN SSOMA.INS_RESPUESTA_ITEM ri ON ri.id_respuesta = r.id_respuesta
+    LEFT JOIN SSOMA.INS_PLANTILLA_CAMPO ic ON ic.id_campo = ri.id_campo
+    ${hasCategoria ? "LEFT JOIN SSOMA.INS_PLANTILLA_CATEGORIA cat ON cat.id_categoria = ic.id_categoria" : ""}
+    WHERE r.id_inspeccion = @id_inspeccion
+    ORDER BY
+      ${hasCategoria ? "COALESCE(cat.nombre_categoria, cat.codigo_categoria, 'SIN CATEGORIA')" : "'SIN CATEGORIA'"},
+      CAST(COALESCE(ic.item_ref, ri.id_campo) AS NVARCHAR(50));
+  `;
+
+  const result = await request.query(query);
+  return (result.recordset || []).map((r) => ({
+    item_id: r.item_id || "",
+    categoria: r.categoria || "SIN CATEGORIA",
+    descripcion: r.descripcion || "",
+    estado: r.estado || "NA",
+    observacion: r.observacion || "",
+    accion_json: null,
+  }));
 }
 
 async function crearInspeccionCompleta({ user, cabecera, respuestas, participantes = [] }) {
@@ -429,5 +595,7 @@ export default {
   obtenerInspeccionPorId,
   obtenerEstadoInspeccion,
   actualizarEstadoInspeccion,
+  listarParticipantesPorInspeccion,
+  listarRespuestasPorInspeccion,
   crearInspeccionCompleta
 };

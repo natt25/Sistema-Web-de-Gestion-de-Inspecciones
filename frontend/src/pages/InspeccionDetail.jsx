@@ -61,7 +61,7 @@ function dedupeEvidencias(list) {
 }
 
 function applyPendingToData(base, mutations, uploads) {
-  const safeBase = base ?? { cabecera: null, observaciones: [] };
+  const safeBase = base ?? { cabecera: null, participantes: [], respuestas: [], observaciones: [] };
   const baseObs = Array.isArray(safeBase.observaciones) ? safeBase.observaciones : [];
   const obsMap = new Map(baseObs.map((o) => [String(o.id_observacion), { ...o }]));
   const prependObs = [];
@@ -146,7 +146,12 @@ function applyPendingToData(base, mutations, uploads) {
     return { ...o, evidencias, acciones };
   });
 
-  return { ...safeBase, observaciones: finalObs };
+  return {
+    ...safeBase,
+    participantes: Array.isArray(safeBase.participantes) ? safeBase.participantes : [],
+    respuestas: Array.isArray(safeBase.respuestas) ? safeBase.respuestas : [],
+    observaciones: finalObs,
+  };
 }
 
 function getErrorMessage(err) {
@@ -159,6 +164,17 @@ function getErrorMessage(err) {
   if (status === 409) return msg || "Conflicto (409).";
   if (status === 500) return "Error interno del servidor (500).";
   return msg || "Error inesperado. Revisa consola/backend.";
+}
+
+function parseAccionJson(value) {
+  if (!value) return null;
+  if (typeof value === "object") return value;
+  if (typeof value !== "string") return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 function EvidenceGrid({ evidencias }) {
@@ -785,7 +801,11 @@ export default function InspeccionDetail() {
         mutations = [];
         uploads = [];
       }
-      const merged = applyPendingToData(cached ?? { cabecera: null, observaciones: [] }, mutations, uploads);
+      const merged = applyPendingToData(
+        cached ?? { cabecera: null, participantes: [], respuestas: [], observaciones: [] },
+        mutations,
+        uploads
+      );
       await setDataAndCache(merged);
       setLoading(false);
       return;
@@ -795,7 +815,7 @@ export default function InspeccionDetail() {
       setPageError("");
       setInfoMsg("");
       const res = await getInspeccionFull(id);
-      const payload = res?.data ?? res ?? { cabecera: null, observaciones: [] };
+      const payload = res?.data ?? res ?? { cabecera: null, participantes: [], respuestas: [], observaciones: [] };
       const mutations = await getAllMutationsQueue();
       const uploads = await getAllQueue();
       const merged = applyPendingToData(payload, mutations, uploads);
@@ -982,7 +1002,17 @@ export default function InspeccionDetail() {
   }
 
   const cab = data?.cabecera;
+  const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
+  const respuestas = Array.isArray(data?.respuestas) ? data.respuestas : [];
   const observaciones = data?.observaciones || [];
+  const realizadoPor = participantes.find((p) => String(p?.tipo || "").toUpperCase() === "REALIZADO_POR");
+  const inspectores = participantes.filter((p) => String(p?.tipo || "").toUpperCase() === "INSPECTOR");
+  const respuestasPorCategoria = respuestas.reduce((acc, r) => {
+    const categoria = r?.categoria || "SIN CATEGORIA";
+    if (!acc[categoria]) acc[categoria] = [];
+    acc[categoria].push(r);
+    return acc;
+  }, {});
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
   const visiblePageError = online ? pageError : "";
 
@@ -1073,7 +1103,7 @@ export default function InspeccionDetail() {
         </div>
       )}
 
-      <Card title="Cabecera">
+      <Card title="Datos generales">
         {!cab ? (
           <p style={{ opacity: 0.7 }}>Sin cabecera.</p>
         ) : (
@@ -1098,6 +1128,76 @@ export default function InspeccionDetail() {
                 <b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}
               </div>
             </div>
+          </div>
+        )}
+      </Card>
+
+      <Card title="Realizado por">
+        {!realizadoPor ? (
+          <p style={{ opacity: 0.7 }}>Sin datos.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 4 }}>
+            <div>
+              <b>Nombre:</b> {realizadoPor.nombre || realizadoPor.dni || "-"}
+            </div>
+            <div>
+              <b>Cargo:</b> {realizadoPor.cargo || "-"}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card title={`Inspectores (${inspectores.length})`}>
+        {inspectores.length === 0 ? (
+          <p style={{ opacity: 0.7 }}>Sin datos.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {inspectores.map((p, idx) => (
+              <div key={`${p.dni || "sin-dni"}-${idx}`} style={{ borderTop: idx ? "1px solid #eee" : "none", paddingTop: idx ? 10 : 0 }}>
+                <div><b>{p.nombre || p.dni || "-"}</b></div>
+                <div style={{ opacity: 0.8 }}>{p.cargo || "-"}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card title="Respuestas">
+        {respuestas.length === 0 ? (
+          <p style={{ opacity: 0.7 }}>Sin datos.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 12 }}>
+            {Object.keys(respuestasPorCategoria).sort().map((categoria) => (
+              <div key={categoria}>
+                <h4 style={{ margin: "0 0 8px 0" }}>{categoria}</h4>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {respuestasPorCategoria[categoria].map((r, idx) => {
+                    const estado = String(r?.estado || "NA").toUpperCase();
+                    const accion = parseAccionJson(r?.accion_json);
+                    return (
+                      <div key={`${r?.item_id || "item"}-${idx}`} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <b>{r?.item_id || "-"}</b>
+                          <span>{r?.descripcion || "-"}</span>
+                          <Badge>{estado}</Badge>
+                        </div>
+                        {estado === "MALO" && (
+                          <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
+                            <div><b>Observacion:</b> {r?.observacion || "-"}</div>
+                            <div>
+                              <b>Accion:</b>{" "}
+                              {accion
+                                ? `${accion.que || "-"} | ${accion.quien || "-"} | ${accion.cuando || "-"}`
+                                : "-"}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Card>
