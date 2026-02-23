@@ -34,12 +34,32 @@ async function definicion(req, res) {
 
     if (!row) return res.status(404).json({ message: "Definicion no encontrada" });
 
+    let jsonDef = row.json_definicion;
+    try {
+      const parsed = typeof row.json_definicion === "string"
+        ? JSON.parse(row.json_definicion)
+        : row.json_definicion;
+
+      if (parsed && Array.isArray(parsed.items)) {
+        parsed.items = parsed.items.map((it, idx) => {
+          const idCampo = Number(it?.id_campo ?? it?.id ?? (idx + 1));
+          return {
+            ...it,
+            id_campo: Number.isNaN(idCampo) ? (idx + 1) : idCampo,
+          };
+        });
+      }
+      jsonDef = parsed;
+    } catch {
+      // si json_definicion no parsea, se devuelve tal cual
+    }
+
     return res.json({
       id_plantilla_inspec: row.id_plantilla_inspec,
       version: row.version,
       checksum: row.checksum,
       fecha_creacion: row.fecha_creacion,
-      json_definicion: row.json_definicion,
+      json_definicion: jsonDef,
     });
   } catch (error) {
     console.error("[plantillas.controller] definicion error:", error);

@@ -122,7 +122,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
         const key = getKey(it);
         const ans = answers[key] || null;
         return {
-          id_item: it.id,
+          id_campo: Number(it.id_campo ?? it.id),
           categoria: it.categoria || null,
           descripcion: it.texto || null, // <- ESTO ES lo del PDF
           estado: ans,                   // BUENO/MALO/NA

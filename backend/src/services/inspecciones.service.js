@@ -236,30 +236,53 @@ async function crearInspeccionCompleta({ user, body }) {
   const participantes = body?.participantes || [];
 
   if (!cabecera) return { ok: false, status: 400, message: "Falta cabecera" };
+  if (!cabecera.id_area) return { ok: false, status: 400, message: "id_area es obligatorio" };
   if (!Array.isArray(respuestas) || !respuestas.length) {
     return { ok: false, status: 400, message: "Falta respuestas[]" };
   }
 
-  // Validación fuerte: si estado=MALO, observación + acción obligatorias
-  for (const r of respuestas) {
-    if (r.estado === "MALO") {
-      if (!r.observacion || r.observacion.trim().length < 10) {
-        return { ok: false, status: 400, message: `Observación obligatoria en ${r.id_item}` };
-      }
-      if (!r.accion?.que || !r.accion?.quien || !r.accion?.cuando) {
-        return { ok: false, status: 400, message: `Acción obligatoria en ${r.id_item}` };
-      }
+  for (let i = 0; i < respuestas.length; i += 1) {
+    const r = respuestas[i];
+    const idCampo = Number(r?.id_campo);
+    if (!idCampo || Number.isNaN(idCampo)) {
+      return {
+        ok: false,
+        status: 400,
+        message: `Falta id_campo en respuestas[${i}]`,
+      };
     }
   }
 
-  const data = await repo.crearInspeccionCompleta({
-    user,
-    cabecera,
-    respuestas,
-    participantes
-  });
+  const repetidos = new Set();
+  const vistos = new Set();
+  for (const r of respuestas) {
+    const idCampo = Number(r.id_campo);
+    if (vistos.has(idCampo)) repetidos.add(idCampo);
+    vistos.add(idCampo);
+  }
+  if (repetidos.size) {
+    return {
+      ok: false,
+      status: 400,
+      message: `id_campo duplicado en respuestas: ${Array.from(repetidos).join(", ")}`,
+    };
+  }
 
-  return { ok: true, status: 201, data };
+  try {
+    const data = await repo.crearInspeccionCompleta({
+      user,
+      cabecera,
+      respuestas,
+      participantes
+    });
+
+    return { ok: true, status: 201, data };
+  } catch (err) {
+    if (err?.status === 400) {
+      return { ok: false, status: 400, message: err.message };
+    }
+    throw err;
+  }
 }
 
 export default {

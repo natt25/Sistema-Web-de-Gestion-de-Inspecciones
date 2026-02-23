@@ -456,7 +456,6 @@ export default function InspeccionHeaderForm({
 
           {/* INSPECTORES / COLABORADORES */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-            <b>Inspectores</b>
             <Badge>{(value?.participantes?.length || 0) + 1} total</Badge>
             <span className="help">Incluye al realizado por + inspectores agregados.</span>
           </div>

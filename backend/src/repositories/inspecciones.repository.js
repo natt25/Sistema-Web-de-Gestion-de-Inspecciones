@@ -207,7 +207,7 @@ async function actualizarEstadoInspeccion({ id_inspeccion, id_estado_inspeccion 
   return result.recordset[0] || null;
 }
 
-async function crearInspeccionCompleta({ user, cabecera, respuestas }) {
+async function crearInspeccionCompleta({ user, cabecera, respuestas, participantes = [] }) {
   const pool = await getPool();
   const tx = new sql.Transaction(pool);
 
@@ -266,49 +266,97 @@ async function crearInspeccionCompleta({ user, cabecera, respuestas }) {
     const inspeccion = rCab.recordset[0];
     const id_inspeccion = inspeccion.id_inspeccion;
 
-    // 2) Insert respuestas (una por item)
-    const qResp = `
+    // 2) Crea contenedor de respuestas (1 fila por inspeccion)
+    const qRespHeader = `
       INSERT INTO SSOMA.INS_INSPECCION_RESPUESTA
+      (id_inspeccion, created_at)
+      OUTPUT INSERTED.id_respuesta
+      VALUES
+      (@id_inspeccion, SYSUTCDATETIME());
+    `;
+
+    const reqRespHeader = new sql.Request(tx);
+    reqRespHeader.input("id_inspeccion", sql.Int, id_inspeccion);
+    const rRespHeader = await reqRespHeader.query(qRespHeader);
+    const id_respuesta = rRespHeader.recordset[0].id_respuesta;
+
+    // 3) Inserta items de respuesta (valor unico: valor_opcion)
+    const qRespItem = `
+      INSERT INTO SSOMA.INS_RESPUESTA_ITEM
       (
-        id_inspeccion,
-        item_id,
-        categoria,
-        estado,
-        observacion,
-        accion_json,
-        created_at
+        id_respuesta,
+        id_campo,
+        valor_opcion,
+        observacion
       )
       VALUES
       (
-        @id_inspeccion,
-        @item_id,
-        @categoria,
-        @estado,
-        @observacion,
-        @accion_json,
-        SYSUTCDATETIME()
+        @id_respuesta,
+        @id_campo,
+        @valor_opcion,
+        @observacion
       );
     `;
 
     for (const it of respuestas) {
       const reqR = new sql.Request(tx);
-      reqR.input("id_inspeccion", sql.Int, id_inspeccion);
-      reqR.input("item_id", sql.NVarChar(10), String(it.id_item));
-      reqR.input("categoria", sql.NVarChar(80), it.categoria ?? null);
-      reqR.input("estado", sql.NVarChar(10), it.estado ?? null);
-      reqR.input("observacion", sql.NVarChar(sql.MAX), it.observacion ?? null);
-      reqR.input("accion_json", sql.NVarChar(sql.MAX), it.accion ? JSON.stringify(it.accion) : null);
+      reqR.input("id_respuesta", sql.Int, id_respuesta);
+      reqR.input("id_campo", sql.Int, Number(it.id_campo));
+      reqR.input("valor_opcion", sql.NVarChar(20), it.estado ?? null);
+      // Regla pedida: truncar observacion a 300
+      reqR.input("observacion", sql.NVarChar(300), (it.observacion || "").slice(0, 300) || null);
+      await reqR.query(qRespItem);
+    }
 
-      await reqR.query(qResp);
+    // 4) Participantes (dni -> id_usuario)
+    if (Array.isArray(participantes) && participantes.length) {
+      for (let idx = 0; idx < participantes.length; idx += 1) {
+        const p = participantes[idx];
+        const dni = String(p?.dni || "").trim();
+        if (!dni) continue;
 
-      // 3) Si es MALO: aquí puedes también crear INS_OBSERVACION / INS_ACCION reales
-      // (si quieres que esos módulos sigan siendo tablas separadas)
-      // Ej: llamar a tus repos de observaciones/acciones o insertar aquí.
+        const reqFindUser = new sql.Request(tx);
+        reqFindUser.input("dni", sql.NVarChar(15), dni);
+        const rUser = await reqFindUser.query(`
+          SELECT TOP 1 id_usuario
+          FROM SSOMA.INS_USUARIO
+          WHERE dni = @dni
+        `);
+        const userRow = rUser.recordset?.[0];
+        if (!userRow?.id_usuario) {
+          const err = new Error(`Participante no tiene usuario: ${dni}`);
+          err.status = 400;
+          throw err;
+        }
+
+        const reqPart = new sql.Request(tx);
+        reqPart.input("id_inspeccion", sql.Int, id_inspeccion);
+        reqPart.input("id_usuario", sql.Int, userRow.id_usuario);
+        reqPart.input("orden_custom", sql.Int, idx + 1);
+        await reqPart.query(`
+          IF NOT EXISTS (
+            SELECT 1
+            FROM SSOMA.INS_INSPECCION_PARTICIPANTE
+            WHERE id_inspeccion = @id_inspeccion AND id_usuario = @id_usuario
+          )
+          BEGIN
+            INSERT INTO SSOMA.INS_INSPECCION_PARTICIPANTE
+            (id_inspeccion, id_usuario, orden_custom)
+            VALUES
+            (@id_inspeccion, @id_usuario, @orden_custom)
+          END
+        `);
+      }
     }
 
     await tx.commit();
 
-    return { inspeccion, total_respuestas: respuestas.length };
+    return {
+      id_inspeccion,
+      id_respuesta,
+      total_respuestas: respuestas.length,
+      inspeccion,
+    };
   } catch (e) {
     try { await tx.rollback(); } catch {}
     throw e;
