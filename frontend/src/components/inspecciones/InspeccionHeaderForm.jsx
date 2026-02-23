@@ -13,9 +13,10 @@ import {
   crearLugar,
 } from "../../api/busquedas.api";
 
+const DEBOUNCE_MS = 250;
+
 export default function InspeccionHeaderForm({
   headerDef,
-  catalogos,
   user,
   value,
   onChange,
@@ -34,99 +35,191 @@ export default function InspeccionHeaderForm({
   const [optLugares, setOptLugares] = useState([]);
   const [optColabs, setOptColabs] = useState([]);
 
-  const canServicio = !!value?.id_cliente;
-  const canArea = !!value?.id_servicio;
-  const canLugar = !!value?.id_area;
+  const [loadingCliente, setLoadingCliente] = useState(false);
+  const [loadingServicio, setLoadingServicio] = useState(false);
+  const [loadingArea, setLoadingArea] = useState(false);
+  const [loadingLugar, setLoadingLugar] = useState(false);
+  const [loadingColab, setLoadingColab] = useState(false);
+
+  const [tCliente, setTCliente] = useState(false);
+  const [tServicio, setTServicio] = useState(false);
+  const [tArea, setTArea] = useState(false);
+  const [tLugar, setTLugar] = useState(false);
+  const [tColab, setTColab] = useState(false);
 
   const setField = (k, v) => onChange((prev) => ({ ...(prev || {}), [k]: v }));
 
-  // autollenados del JSON: fecha / user / cargo / firma
+  const canServicio = Boolean(value?.id_cliente);
+  const canArea = Boolean(value?.id_servicio);
+  const canLugar = Boolean(value?.id_area);
+
   useEffect(() => {
     if (!headerDef) return;
 
     if (headerDef.fecha_inspeccion === "auto_today" && !value?.fecha_inspeccion) {
-      const today = new Date().toISOString().slice(0, 10);
-      setField("fecha_inspeccion", today);
+      setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
     }
 
-    if (headerDef.realizado_por === "auto_user" && user && !value?.realizado_por) {
-      setField("realizado_por", user?.nombre || user?.dni || "");
-    }
-
-    if (headerDef.cargo === "auto_user_cargo" && user && !value?.cargo) {
-      setField("cargo", user?.cargo || "");
-    }
-
-    if (headerDef.firma === "auto_user_firma" && user && !value?.firma_ruta) {
-      setField("firma_ruta", user?.firma_ruta || "");
+    // Inspector principal autollenado desde usuario logueado (readonly en UI).
+    if (user) {
+      if (!value?.realizado_por) setField("realizado_por", user.nombreCompleto || user.nombre || user.dni || "");
+      if (!value?.cargo) setField("cargo", user.cargo || "");
+      if (!value?.firma_ruta) setField("firma_ruta", user.firma_ruta || "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerDef, user]);
 
-  // Búsqueda cliente
   useEffect(() => {
-    const t = setTimeout(async () => {
-      const s = qCliente.trim();
-      if (!s) return setOptClientes([]);
-      const data = await buscarClientes(s);
-      setOptClientes(Array.isArray(data) ? data : []);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [qCliente]);
+    if (!tCliente) return;
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingCliente(true);
+        const rows = await buscarClientes(qCliente.trim());
+        setOptClientes(Array.isArray(rows) ? rows : []);
+      } catch {
+        setOptClientes([]);
+      } finally {
+        setLoadingCliente(false);
+      }
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [qCliente, tCliente]);
 
-  // Búsqueda servicio (depende de cliente)
   useEffect(() => {
-    const t = setTimeout(async () => {
-      const s = qServicio.trim();
-      if (!s || !value?.id_cliente) return setOptServicios([]);
-      const data = await buscarServicios(s);
-      setOptServicios(Array.isArray(data) ? data : []);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [qServicio, value?.id_cliente]);
+    if (!tServicio || !canServicio) return;
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingServicio(true);
+        const rows = await buscarServicios(qServicio.trim());
+        setOptServicios(Array.isArray(rows) ? rows : []);
+      } catch {
+        setOptServicios([]);
+      } finally {
+        setLoadingServicio(false);
+      }
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [qServicio, tServicio, canServicio]);
 
-  // Búsqueda áreas (depende de servicio)
   useEffect(() => {
-    const t = setTimeout(async () => {
-      const s = qArea.trim();
-      if (!s || !value?.id_servicio) return setOptAreas([]);
-      const data = await buscarAreas(s);
-      setOptAreas(Array.isArray(data) ? data : []);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [qArea, value?.id_servicio]);
+    if (!tArea || !canArea) return;
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingArea(true);
+        const rows = await buscarAreas(qArea.trim());
+        setOptAreas(Array.isArray(rows) ? rows : []);
+      } catch {
+        setOptAreas([]);
+      } finally {
+        setLoadingArea(false);
+      }
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [qArea, tArea, canArea]);
 
-  // Búsqueda lugares (depende de área)
   useEffect(() => {
-    const t = setTimeout(async () => {
-      const s = qLugar.trim();
-      if (!s || !value?.id_area) return setOptLugares([]);
-      const data = await buscarLugares({ q: s, id_area: value.id_area });
-      setOptLugares(Array.isArray(data) ? data : []);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [qLugar, value?.id_area]);
+    if (!tLugar || !canLugar) return;
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingLugar(true);
+        const rows = await buscarLugares({ q: qLugar.trim(), id_area: value?.id_area });
+        setOptLugares(Array.isArray(rows) ? rows : []);
+      } catch {
+        setOptLugares([]);
+      } finally {
+        setLoadingLugar(false);
+      }
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [qLugar, tLugar, canLugar, value?.id_area]);
 
-  // Búsqueda colaboradores
   useEffect(() => {
-    const t = setTimeout(async () => {
-      const s = qColab.trim();
-      if (!s) return setOptColabs([]);
-      const data = await buscarEmpleados(s);
-      setOptColabs(Array.isArray(data) ? data : []);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [qColab]);
+    if (!tColab) return;
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingColab(true);
+        const rows = await buscarEmpleados(qColab.trim());
+        setOptColabs(Array.isArray(rows) ? rows : []);
+      } catch {
+        setOptColabs([]);
+      } finally {
+        setLoadingColab(false);
+      }
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [qColab, tColab]);
+
+  async function loadDefaultsClientes() {
+    try {
+      setLoadingCliente(true);
+      const rows = await buscarClientes("");
+      setOptClientes(Array.isArray(rows) ? rows : []);
+    } catch {
+      setOptClientes([]);
+    } finally {
+      setLoadingCliente(false);
+    }
+  }
+
+  async function loadDefaultsServicios() {
+    if (!canServicio) return;
+    try {
+      setLoadingServicio(true);
+      const rows = await buscarServicios("");
+      setOptServicios(Array.isArray(rows) ? rows : []);
+    } catch {
+      setOptServicios([]);
+    } finally {
+      setLoadingServicio(false);
+    }
+  }
+
+  async function loadDefaultsAreas() {
+    if (!canArea) return;
+    try {
+      setLoadingArea(true);
+      const rows = await buscarAreas("");
+      setOptAreas(Array.isArray(rows) ? rows : []);
+    } catch {
+      setOptAreas([]);
+    } finally {
+      setLoadingArea(false);
+    }
+  }
+
+  async function loadDefaultsLugares() {
+    if (!canLugar) return;
+    try {
+      setLoadingLugar(true);
+      const rows = await buscarLugares({ q: "", id_area: value?.id_area });
+      setOptLugares(Array.isArray(rows) ? rows : []);
+    } catch {
+      setOptLugares([]);
+    } finally {
+      setLoadingLugar(false);
+    }
+  }
+
+  async function loadDefaultsColabs() {
+    try {
+      setLoadingColab(true);
+      const rows = await buscarEmpleados("");
+      setOptColabs(Array.isArray(rows) ? rows : []);
+    } catch {
+      setOptColabs([]);
+    } finally {
+      setLoadingColab(false);
+    }
+  }
 
   return (
     <Card title="Datos generales (FOR-013)">
       <div style={{ display: "grid", gap: 14 }}>
-        {/* Fila 1: Cliente / Servicio */}
         <div className="ins-grid">
           <Field label="Cliente / Unidad Minera">
             <Autocomplete
               placeholder="Escribe para buscar..."
-              displayValue={value?.cliente_text ?? (value?.id_cliente ? String(value.id_cliente) : "")}
+              displayValue={value?.cliente_text ?? ""}
               onInputChange={(txt) => {
                 setQCliente(txt);
                 onChange((prev) => ({
@@ -141,6 +234,11 @@ export default function InspeccionHeaderForm({
                   lugar_text: "",
                 }));
               }}
+              onFocus={() => {
+                setTCliente(true);
+                if (!qCliente.trim()) loadDefaultsClientes();
+              }}
+              loading={loadingCliente}
               options={optClientes}
               getOptionLabel={(c) => c.raz_social ?? String(c.id_cliente)}
               allowCustom
@@ -152,12 +250,15 @@ export default function InspeccionHeaderForm({
                   id_area: null,
                   id_lugar: null,
                   cliente_text: text,
+                  servicio_text: "",
+                  area_text: "",
+                  lugar_text: "",
                 }));
               }}
               onSelect={(c) => {
                 onChange((prev) => ({
                   ...(prev || {}),
-                  id_cliente: c.id_cliente,
+                  id_cliente: Number(c.id_cliente),
                   cliente_text: c.raz_social ?? "",
                   id_servicio: null,
                   id_area: null,
@@ -173,7 +274,8 @@ export default function InspeccionHeaderForm({
           <Field label="Servicio">
             <Autocomplete
               placeholder={canServicio ? "Escribe para buscar..." : "Selecciona cliente primero"}
-              displayValue={value?.servicio_text ?? (value?.id_servicio ? String(value.id_servicio) : "")}
+              disabled={!canServicio}
+              displayValue={value?.servicio_text ?? ""}
               onInputChange={(txt) => {
                 setQServicio(txt);
                 onChange((prev) => ({
@@ -186,9 +288,13 @@ export default function InspeccionHeaderForm({
                   lugar_text: "",
                 }));
               }}
+              onFocus={() => {
+                setTServicio(true);
+                if (!qServicio.trim()) loadDefaultsServicios();
+              }}
+              loading={loadingServicio}
               options={optServicios}
               getOptionLabel={(s) => s.nombre_servicio ?? String(s.id_servicio)}
-              disabled={!canServicio}
               allowCustom
               onCreateCustom={(text) => {
                 onChange((prev) => ({
@@ -197,12 +303,14 @@ export default function InspeccionHeaderForm({
                   id_area: null,
                   id_lugar: null,
                   servicio_text: text,
+                  area_text: "",
+                  lugar_text: "",
                 }));
               }}
               onSelect={(s) => {
                 onChange((prev) => ({
                   ...(prev || {}),
-                  id_servicio: s.id_servicio,
+                  id_servicio: Number(s.id_servicio),
                   servicio_text: s.nombre_servicio ?? "",
                   id_area: null,
                   id_lugar: null,
@@ -212,7 +320,6 @@ export default function InspeccionHeaderForm({
               }}
             />
 
-            {/* Detalle de servicio NO se cambia */}
             <div style={{ marginTop: 8 }}>
               <Input
                 placeholder="Detalle de servicio (opcional)"
@@ -223,12 +330,12 @@ export default function InspeccionHeaderForm({
           </Field>
         </div>
 
-        {/* Fila 2: Área / Lugar / Fecha */}
         <div className="ins-grid">
-          <Field label="Área">
+          <Field label="Area">
             <Autocomplete
               placeholder={canArea ? "Escribe para buscar..." : "Selecciona servicio primero"}
-              displayValue={value?.area_text ?? (value?.id_area ? String(value.id_area) : "")}
+              disabled={!canArea}
+              displayValue={value?.area_text ?? ""}
               onInputChange={(txt) => {
                 setQArea(txt);
                 onChange((prev) => ({
@@ -239,24 +346,32 @@ export default function InspeccionHeaderForm({
                   lugar_text: "",
                 }));
               }}
+              onFocus={() => {
+                setTArea(true);
+                if (!qArea.trim()) loadDefaultsAreas();
+              }}
+              loading={loadingArea}
               options={optAreas}
               getOptionLabel={(a) => a.desc_area ?? String(a.id_area)}
-              disabled={!canArea}
               allowCustom
               onCreateCustom={async (text) => {
-                const created = await crearArea(text);
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_area: created.id_area,
-                  area_text: created.desc_area,
-                  id_lugar: null,
-                  lugar_text: "",
-                }));
+                try {
+                  const created = await crearArea(text);
+                  onChange((prev) => ({
+                    ...(prev || {}),
+                    id_area: Number(created.id_area),
+                    area_text: created.desc_area ?? text,
+                    id_lugar: null,
+                    lugar_text: "",
+                  }));
+                } catch {
+                  // mantiene texto escrito si falla crear
+                }
               }}
               onSelect={(a) => {
                 onChange((prev) => ({
                   ...(prev || {}),
-                  id_area: a.id_area,
+                  id_area: Number(a.id_area),
                   area_text: a.desc_area ?? "",
                   id_lugar: null,
                   lugar_text: "",
@@ -267,8 +382,9 @@ export default function InspeccionHeaderForm({
 
           <Field label="Lugar">
             <Autocomplete
-              placeholder={canLugar ? "Escribe para buscar..." : "Selecciona área primero"}
-              displayValue={value?.lugar_text ?? (value?.id_lugar ? String(value.id_lugar) : "")}
+              placeholder={canLugar ? "Escribe para buscar..." : "Selecciona area primero"}
+              disabled={!canLugar}
+              displayValue={value?.lugar_text ?? ""}
               onInputChange={(txt) => {
                 setQLugar(txt);
                 onChange((prev) => ({
@@ -277,29 +393,38 @@ export default function InspeccionHeaderForm({
                   lugar_text: txt,
                 }));
               }}
+              onFocus={() => {
+                setTLugar(true);
+                if (!qLugar.trim()) loadDefaultsLugares();
+              }}
+              loading={loadingLugar}
               options={optLugares}
               getOptionLabel={(l) => l.desc_lugar ?? String(l.id_lugar)}
-              disabled={!canLugar}
               allowCustom
               onCreateCustom={async (text) => {
-                const created = await crearLugar({ id_area: value.id_area, desc_lugar: text });
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_lugar: created.id_lugar,
-                  lugar_text: created.desc_lugar,
-                }));
+                if (!value?.id_area) return;
+                try {
+                  const created = await crearLugar({ id_area: Number(value.id_area), desc_lugar: text });
+                  onChange((prev) => ({
+                    ...(prev || {}),
+                    id_lugar: Number(created.id_lugar),
+                    lugar_text: created.desc_lugar ?? text,
+                  }));
+                } catch {
+                  // mantiene texto escrito si falla crear
+                }
               }}
               onSelect={(l) => {
                 onChange((prev) => ({
                   ...(prev || {}),
-                  id_lugar: l.id_lugar,
+                  id_lugar: Number(l.id_lugar),
                   lugar_text: l.desc_lugar ?? "",
                 }));
               }}
             />
           </Field>
 
-          <Field label="Fecha de inspección">
+          <Field label="Fecha de inspeccion">
             <input
               type="date"
               className="ins-input"
@@ -309,7 +434,6 @@ export default function InspeccionHeaderForm({
           </Field>
         </div>
 
-        {/* Participantes */}
         <div style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <b>Participantes</b>
@@ -317,35 +441,21 @@ export default function InspeccionHeaderForm({
             <span className="help">Incluye al inspector principal + colaboradores.</span>
           </div>
 
-          {/* Inspector principal */}
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
             <div style={{ fontWeight: 900, marginBottom: 6 }}>Inspector principal</div>
             <div className="ins-grid">
               <Field label="Realizado por">
-                <Input
-                  value={value?.realizado_por ?? ""}
-                  onChange={(e) => setField("realizado_por", e.target.value)}
-                  placeholder="Nombre / DNI"
-                />
+                <Input value={value?.realizado_por ?? ""} placeholder="Nombre / DNI" disabled />
               </Field>
               <Field label="Cargo">
-                <Input
-                  value={value?.cargo ?? ""}
-                  onChange={(e) => setField("cargo", e.target.value)}
-                  placeholder="Cargo"
-                />
+                <Input value={value?.cargo ?? ""} placeholder="Cargo" disabled />
               </Field>
               <Field label="Firma (ruta)">
-                <Input
-                  value={value?.firma_ruta ?? ""}
-                  onChange={(e) => setField("firma_ruta", e.target.value)}
-                  placeholder="firma_x.png (auto si tienes firma)"
-                />
+                <Input value={value?.firma_ruta ?? ""} placeholder="firma.png" disabled />
               </Field>
             </div>
           </div>
 
-          {/* Colaboradores */}
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>Agregar colaborador</div>
 
@@ -355,18 +465,23 @@ export default function InspeccionHeaderForm({
                   placeholder="Escribe para buscar..."
                   displayValue={qColab}
                   onInputChange={setQColab}
+                  onFocus={() => {
+                    setTColab(true);
+                    if (!qColab.trim()) loadDefaultsColabs();
+                  }}
+                  loading={loadingColab}
                   options={optColabs}
                   getOptionLabel={(e) => {
-                    const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                    const dni = e.dni ? `(${e.dni})` : "";
-                    const cargo = e.cargo ? `— ${e.cargo}` : "";
-                    return `${nom} ${dni} ${cargo}`.trim();
+                    const base = e.nombreCompleto || `${e.apellidos || ""} ${e.nombres || ""}`.trim();
+                    const dni = e.dni ? ` (${e.dni})` : "";
+                    const cargo = e.cargo ? ` - ${e.cargo}` : "";
+                    return `${base}${dni}${cargo}`.trim();
                   }}
                   onSelect={(e) => {
                     onAddParticipante?.({
-                      dni: e.dni,
-                      nombre: `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim(),
-                      cargo: e.cargo ?? "",
+                      dni: e.dni || "",
+                      nombre: e.nombreCompleto || `${e.apellidos || ""} ${e.nombres || ""}`.trim(),
+                      cargo: e.cargo || "",
                     });
                     setQColab("");
                     setOptColabs([]);
@@ -380,7 +495,7 @@ export default function InspeccionHeaderForm({
                 {value.participantes.map((p, idx) => (
                   <div key={idx} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <div>
-                      <b>{p.nombre}</b> {p.cargo ? <span className="help">• {p.cargo}</span> : null}
+                      <b>{p.nombre}</b> {p.cargo ? <span className="help">- {p.cargo}</span> : null}
                     </div>
                     <button
                       type="button"

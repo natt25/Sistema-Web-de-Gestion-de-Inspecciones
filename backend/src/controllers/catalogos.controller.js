@@ -88,7 +88,7 @@ async function buscarClientes(req, res) {
     return res.json(data);
   } catch (err) {
     console.error("catalogos.buscarClientes:", err);
-    return res.status(500).json({ message: "Error interno" });
+    return res.json([]);
   }
 }
 
@@ -99,7 +99,7 @@ async function buscarServicios(req, res) {
     return res.json(data);
   } catch (err) {
     console.error("catalogos.buscarServicios:", err);
-    return res.status(500).json({ message: "Error interno" });
+    return res.json([]);
   }
 }
 
@@ -110,7 +110,7 @@ async function buscarAreas(req, res) {
     return res.json(data);
   } catch (err) {
     console.error("catalogos.buscarAreas:", err);
-    return res.status(500).json({ message: "Error interno" });
+    return res.json([]);
   }
 }
 
@@ -122,18 +122,7 @@ async function buscarLugares(req, res) {
     return res.json(data);
   } catch (err) {
     console.error("catalogos.buscarLugares:", err);
-    return res.status(500).json({ message: "Error interno" });
-  }
-}
-
-async function buscarEmpleados(req, res) {
-  try {
-    const q = (req.query.q || "").trim();
-    const data = await service.buscarEmpleados(q);
-    return res.json(data);
-  } catch (err) {
-    console.error("catalogos.buscarEmpleados:", err);
-    return res.status(500).json({ message: "Error interno" });
+    return res.json([]);
   }
 }
 
@@ -159,6 +148,17 @@ async function crearLugar(req, res) {
   } catch (err) {
     console.error("catalogos.crearLugar:", err);
     return res.status(500).json({ message: "Error interno" });
+  }
+}
+
+async function buscarEmpleados(req, res) {
+  try {
+    const q = (req.query.q || "").toString();
+    const data = await service.buscarEmpleados(q);
+    return res.json(data);
+  } catch (err) {
+    console.error("catalogos.buscarEmpleados:", err);
+    return res.json([]);
   }
 }
 

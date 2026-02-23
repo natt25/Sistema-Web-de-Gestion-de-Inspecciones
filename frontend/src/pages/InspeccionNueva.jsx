@@ -9,6 +9,7 @@ import { listarCatalogosInspeccion } from "../api/catalogos.api.js";
 import InspeccionHeaderForm from "../components/inspecciones/InspeccionHeaderForm.jsx";
 import InspeccionDinamicaForm from "../components/inspecciones/InspeccionDinamicaForm.jsx";
 import http from "../api/http.js";
+import { getUser } from "../auth/auth.storage.js";
 
 const IS_DEV = Boolean(import.meta.env.DEV);
 
@@ -28,6 +29,7 @@ export default function InspeccionNueva() {
   const q = useQuery();
   const navigate = useNavigate();
   const plantillaId = Number(q.get("plantilla"));
+  const user = getUser(); // debe incluir dni / nombreCompleto / cargo / firma_ruta
 
   // loading separado (def + catalogos)
   const [loadingDef, setLoadingDef] = useState(false);
@@ -192,7 +194,7 @@ export default function InspeccionNueva() {
           <InspeccionHeaderForm
             headerDef={def.json.header}
             catalogos={catalogos}
-            user={JSON.parse(localStorage.getItem("user") || "null")}
+            user={user}
             value={cabecera}
             onChange={setCabecera}
             onAddParticipante={(p) =>
@@ -218,9 +220,10 @@ export default function InspeccionNueva() {
             onSubmit={async (payload) => {
               const body = {
                 cabecera: {
-                  id_plantilla_inspec: def.id_plantilla_inspec,
+                  id_plantilla_inspec: Number(def.id_plantilla_inspec),
                   id_cliente: cabecera.id_cliente ? Number(cabecera.id_cliente) : null,
                   id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
+                  servicio_detalle: cabecera.servicio_detalle || null,
                   id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
                   id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
                   fecha_inspeccion: cabecera.fecha_inspeccion,

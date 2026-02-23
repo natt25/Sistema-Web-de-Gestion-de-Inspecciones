@@ -164,12 +164,13 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
           displayValue={qCli}
           onInputChange={(t) => { setQCli(t); doSearchCli(t); }}
           options={optCli}
-          loading={loading.cli}
           getOptionLabel={(c) => c.raz_social || c.nombre || c.id_cliente}
           onSelect={(c) => {
             setField("cliente", c);
             setQCli(c.raz_social || "");
           }}
+          onFocus={() => setTCliente(true)}
+          loading={loadingCliente}
         />
 
         <Autocomplete
@@ -179,12 +180,13 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
           displayValue={qSrv}
           onInputChange={(t) => { setQSrv(t); doSearchSrv(t); }}
           options={optSrv}
-          loading={loading.srv}
           getOptionLabel={(s) => s.nombre_servicio || s.nombre || `${s.id_servicio}`}
           onSelect={(s) => {
             setField("servicio", s);
             setQSrv(s.nombre_servicio || s.nombre || "");
           }}
+          onFocus={() => setTServicio(true)}
+          loading={loadingServicio}
         />
 
         <div className="ins-field">
@@ -206,7 +208,6 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
           displayValue={qArea}
           onInputChange={(t) => { setQArea(t); doSearchArea(t); }}
           options={optArea}
-          loading={loading.area}
           allowCustom
           onCreateCustom={async (text) => {
             const created = await crearArea(text);
@@ -221,6 +222,8 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
             setField("lugar", null);
             setQLugar("");
           }}
+          onFocus={() => setTArea(true)}
+          loading={loadingArea}
         />
 
         <Autocomplete
@@ -230,7 +233,6 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
           displayValue={qLugar}
           onInputChange={(t) => { setQLugar(t); if (value.area) doSearchLugar(t); }}
           options={optLugar}
-          loading={loading.lugar}
           allowCustom={!!value.area}
           onCreateCustom={async (text) => {
             if (!value.area?.id_area) return;
@@ -244,6 +246,8 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
             setQLugar(l.desc_lugar || "");
           }}
           hint={!value.area ? "Selecciona un área para buscar/crear lugares." : ""}
+          onFocus={() => setTLugar(true)}
+          loading={loadingLugar}
         />
       </div>
     </Card>

@@ -88,6 +88,7 @@ async function login({ dni, password }, reqMeta = {}) {
   }
 
   await usuarioRepo.onLoginSuccess?.(user.id_usuario);
+  const empleado = await usuarioRepo.getEmpleadoProfileByDni?.(user.dni).catch(() => null);
 
   const token = signToken({
     id_usuario: user.id_usuario,
@@ -99,6 +100,11 @@ async function login({ dni, password }, reqMeta = {}) {
     dni: user.dni,
     rol: user.rol,
     debe_cambiar_password: !!user.debe_cambiar_password || isExpired(user),
+    nombres: empleado?.nombres || "",
+    apellidos: empleado?.apellidos || "",
+    nombreCompleto: empleado?.nombreCompleto || user.dni,
+    cargo: empleado?.cargo || "",
+    firma_ruta: empleado?.firma_ruta || "",
   };
 
   await auditoriaService.log({

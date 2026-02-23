@@ -83,15 +83,15 @@ export default function InspeccionForm() {
               {/* Estos 3 son display-only */}
               <div style={{ display: "grid", gap: 6 }}>
                 <div className="label">Realizado por (DNI)</div>
-                <Input value={resp?.header?.realizado_por || ""} readOnly />
+                <Input value={value.realizado_por ?? ""} disabled />
               </div>
               <div style={{ display: "grid", gap: 6 }}>
                 <div className="label">Cargo</div>
-                <Input value={resp?.header?.cargo || ""} readOnly />
+                <Input value={value.cargo ?? ""} disabled />
               </div>
               <div style={{ display: "grid", gap: 6 }}>
                 <div className="label">Firma (ruta)</div>
-                <Input value={resp?.header?.firma_path || ""} readOnly />
+                <Input value={value.firma_ruta ?? ""} disabled />
               </div>
 
               {/* Estos sí se llenan */}

@@ -1,5 +1,22 @@
 import { sql, getPool } from "../config/database.js";
 
+async function getColumns(schema, tableOrView) {
+  try {
+    const pool = await getPool();
+    const r = await pool.request()
+      .input("schema", sql.NVarChar, schema)
+      .input("name", sql.NVarChar, tableOrView)
+      .query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @name
+      `);
+    return new Set((r.recordset || []).map((x) => String(x.COLUMN_NAME || "").toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
 async function findByDni(dni) {
   const query = `
     SELECT
@@ -66,6 +83,71 @@ async function onLoginFail(id_usuario, { maxAttempts = 5, lockMinutes = 10 } = {
   return result.recordset[0] || null;
 }
 
+async function getEmpleadoProfileByDni(dni) {
+  if (!dni) return null;
+
+  const cols = await getColumns("SSOMA", "V_EMPLEADO");
+  if (!cols.size) return null;
+
+  const colDni =
+    cols.has("dni") ? "dni" :
+    cols.has("num_doc") ? "num_doc" :
+    cols.has("documento") ? "documento" : null;
+
+  if (!colDni) return null;
+
+  const colNombres =
+    cols.has("nombres") ? "nombres" :
+    cols.has("nombre") ? "nombre" :
+    cols.has("nombres_empleado") ? "nombres_empleado" : null;
+
+  const colApellidos =
+    cols.has("apellidos") ? "apellidos" :
+    cols.has("apellido") ? "apellido" :
+    cols.has("apellido_paterno") ? "apellido_paterno" : null;
+
+  const colCargo =
+    cols.has("cargo") ? "cargo" :
+    cols.has("desc_cargo") ? "desc_cargo" :
+    cols.has("nombre_cargo") ? "nombre_cargo" : null;
+
+  const colFirma =
+    cols.has("firma_ruta") ? "firma_ruta" :
+    cols.has("firma_path") ? "firma_path" :
+    cols.has("ruta_firma") ? "ruta_firma" : null;
+
+  const selectSql = [
+    `${colDni} AS dni`,
+    colNombres ? `${colNombres} AS nombres` : `CAST('' AS NVARCHAR(150)) AS nombres`,
+    colApellidos ? `${colApellidos} AS apellidos` : `CAST('' AS NVARCHAR(150)) AS apellidos`,
+    colCargo ? `${colCargo} AS cargo` : `CAST('' AS NVARCHAR(150)) AS cargo`,
+    colFirma ? `${colFirma} AS firma_ruta` : `CAST('' AS NVARCHAR(250)) AS firma_ruta`,
+  ].join(", ");
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("dni", sql.NVarChar(20), String(dni));
+
+  const result = await request.query(`
+    SELECT TOP (1) ${selectSql}
+    FROM SSOMA.V_EMPLEADO
+    WHERE CAST(${colDni} AS NVARCHAR(20)) = @dni
+  `);
+
+  const row = result.recordset?.[0];
+  if (!row) return null;
+
+  const nombreCompleto = `${row.apellidos || ""} ${row.nombres || ""}`.trim() || row.dni || "";
+  return {
+    dni: row.dni || String(dni),
+    nombres: row.nombres || "",
+    apellidos: row.apellidos || "",
+    nombreCompleto,
+    cargo: row.cargo || "",
+    firma_ruta: row.firma_ruta || "",
+  };
+}
+
 async function updateFirma({ id_usuario, dni, firma_path, firma_mime, firma_size }) {
   try {
     // Usa el identificador que tengas disponible
@@ -97,4 +179,4 @@ async function updateFirma({ id_usuario, dni, firma_path, firma_mime, firma_size
   }
 }
 
-export default { findByDni, onLoginSuccess, onLoginFail, updateFirma };
+export default { findByDni, onLoginSuccess, onLoginFail, getEmpleadoProfileByDni, updateFirma };

@@ -1,19 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function Autocomplete({
   label,
   placeholder,
-  value,              // objeto seleccionado (o null)
-  displayValue,       // string que se muestra en el input
-  onInputChange,      // (text) => void
-  onSelect,           // (item) => void
-  options,            // lista [{...}]
-  getOptionLabel,     // (item) => string
-  loading,
+  displayValue,
+  onInputChange,
+  onSelect,
+  options,
+  getOptionLabel,
+  loading = false,
   allowCustom = false,
-  onCreateCustom,     // (text) => void (si allowCustom)
+  onCreateCustom,
   hint,
   required,
+  disabled = false,
+  onFocus,
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -27,29 +28,38 @@ export default function Autocomplete({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const hasOptions = (options?.length || 0) > 0;
+  const list = Array.isArray(options) ? options : [];
+  const hasOptions = list.length > 0;
+  const cleanText = String(displayValue || "").trim();
 
   return (
     <div ref={wrapRef} className="ins-field" style={{ position: "relative" }}>
-      <span style={{ fontWeight: required ? 900 : 800 }}>
-        {label} {required ? " *" : ""}
-      </span>
+      {label ? (
+        <span style={{ fontWeight: required ? 900 : 800 }}>
+          {label} {required ? " *" : ""}
+        </span>
+      ) : null}
 
       <input
         className="ins-input"
         placeholder={placeholder}
-        value={displayValue}
+        value={displayValue ?? ""}
+        disabled={disabled}
+        autoComplete="off"
         onChange={(e) => {
           onInputChange?.(e.target.value);
-          setOpen(true);
+          if (!disabled) setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
-        autoComplete="off"
+        onFocus={(e) => {
+          if (disabled) return;
+          setOpen(true);
+          onFocus?.(e);
+        }}
       />
 
       {hint ? <div className="help">{hint}</div> : null}
 
-      {open ? (
+      {open && !disabled ? (
         <div
           style={{
             position: "absolute",
@@ -64,36 +74,29 @@ export default function Autocomplete({
             overflow: "hidden",
           }}
         >
-          <div style={{ padding: 10, borderBottom: "1px solid var(--border)", display: "flex", gap: 10, alignItems: "center" }}>
+          <div
+            style={{
+              padding: 10,
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
             <b style={{ fontSize: 12, color: "var(--muted)" }}>
               {loading ? "Buscando..." : hasOptions ? "Resultados" : "Sin resultados"}
             </b>
-
-            {allowCustom && !loading ? (
-              <button
-                type="button"
-                className="menu-btn"
-                style={{ height: 34, marginLeft: "auto" }}
-                onClick={() => {
-                  if (!displayValue?.trim()) return;
-                  onCreateCustom?.(displayValue.trim());
-                  setOpen(false);
-                }}
-              >
-                + Crear “{displayValue?.trim() || ""}”
-              </button>
-            ) : null}
           </div>
 
           <div style={{ maxHeight: 260, overflow: "auto" }}>
-            {options?.map((it, idx) => (
+            {list.map((it, idx) => (
               <button
-                key={idx}
+                key={`${it?.id_cliente ?? it?.id_servicio ?? it?.id_area ?? it?.id_lugar ?? it?.dni ?? idx}`}
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();        // evita blur
-                  onSelect?.(it);            // selecciona
-                  setOpen(false);            // cierra
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onSelect?.(it);
+                  setOpen(false);
                 }}
                 style={{
                   width: "100%",
@@ -108,10 +111,22 @@ export default function Autocomplete({
               </button>
             ))}
 
+            {allowCustom && !loading && cleanText ? (
+              <button
+                type="button"
+                className="ins-dd-item"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onCreateCustom?.(cleanText);
+                  setOpen(false);
+                }}
+              >
+                + Crear "{cleanText}"
+              </button>
+            ) : null}
+
             {!hasOptions && !loading ? (
-              <div style={{ padding: 12, color: "var(--muted)" }}>
-                No hay coincidencias.
-              </div>
+              <div style={{ padding: 12, color: "var(--muted)" }}>No hay coincidencias.</div>
             ) : null}
           </div>
         </div>

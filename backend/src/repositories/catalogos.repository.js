@@ -149,89 +149,6 @@ async function buscarLugares(q, idArea) {
   return result.recordset;
 }
 
-async function buscarEmpleados(q) {
-  const pool = await getPool();
-  const request = pool.request();
-  request.input("q", sql.VarChar, `%${q}%`);
-
-  // 1) Detecta columnas disponibles en la vista
-  const colsRes = await request.query(`
-    SELECT c.name AS col
-    FROM sys.columns c
-    JOIN sys.objects o ON o.object_id = c.object_id
-    JOIN sys.schemas s ON s.schema_id = o.schema_id
-    WHERE s.name = 'SSOMA' AND o.name = 'V_EMPLEADO'
-    ORDER BY c.column_id;
-  `);
-  const cols = new Set((colsRes.recordset || []).map(r => String(r.col).toLowerCase()));
-
-  // helpers para elegir la 1ra que exista
-  const pick = (cands) => cands.find(x => cols.has(x.toLowerCase())) || null;
-
-  const colDni = pick(["dni", "num_documento", "documento", "nro_documento"]);
-  const colNombres = pick(["nombres", "nombre", "nom_empleado", "empleado_nombres", "nombres_empleado"]);
-  const colApellidos = pick(["apellidos", "apellido", "ape_empleado", "empleado_apellidos", "apellidos_empleado"]);
-  const colCargo = pick(["cargo", "desc_cargo", "nombre_cargo", "cargo_desc"]);
-
-  // 2) arma SELECT y WHERE solo con columnas existentes
-  //    Si no hay nombres/apellidos, igual busca por dni y/o por un campo "empleado" si existe.
-  const colEmpleado = pick(["empleado", "nombre_completo", "nom_completo", "full_name"]);
-
-  const selectDni = colDni ? `CAST(${colDni} AS VARCHAR(20)) AS dni` : `'' AS dni`;
-  const selectNombres = colNombres ? `${colNombres} AS nombres` : `'' AS nombres`;
-  const selectApellidos = colApellidos ? `${colApellidos} AS apellidos` : `'' AS apellidos`;
-  const selectCargo = colCargo ? `${colCargo} AS cargo` : `'' AS cargo`;
-  const selectEmpleado = colEmpleado ? `${colEmpleado} AS empleado` : `'' AS empleado`;
-
-  const whereParts = [];
-  if (colDni) whereParts.push(`CAST(${colDni} AS VARCHAR(20)) LIKE @q`);
-  if (colNombres) whereParts.push(`${colNombres} LIKE @q`);
-  if (colApellidos) whereParts.push(`${colApellidos} LIKE @q`);
-  if (colEmpleado) whereParts.push(`${colEmpleado} LIKE @q`);
-
-  // si no hay ninguna columna para filtrar, devuelve vacío (evita romper)
-  if (whereParts.length === 0) return [];
-
-  const orderBy = colApellidos && colNombres
-    ? `${colApellidos}, ${colNombres}`
-    : (colEmpleado ? colEmpleado : (colDni ? colDni : "1"));
-
-  const result = await request.query(`
-    SELECT TOP (20)
-      ${selectDni},
-      ${selectNombres},
-      ${selectApellidos},
-      ${selectCargo},
-      ${selectEmpleado}
-    FROM SSOMA.V_EMPLEADO
-    WHERE ${whereParts.join(" OR ")}
-    ORDER BY ${orderBy};
-  `);
-
-  // Normaliza: si no hay apellidos/nombres pero sí "empleado", intenta partirlo
-  return (result.recordset || []).map(r => {
-    const dni = r.dni ?? "";
-    let nombres = r.nombres ?? "";
-    let apellidos = r.apellidos ?? "";
-    const cargo = r.cargo ?? "";
-
-    if ((!nombres || !apellidos) && r.empleado) {
-      // simple: si viene "APELLIDOS, NOMBRES" o "NOMBRES APELLIDOS"
-      const txt = String(r.empleado).trim();
-      if (txt.includes(",")) {
-        const [a, n] = txt.split(",").map(x => x.trim());
-        apellidos = apellidos || a;
-        nombres = nombres || n;
-      } else {
-        // deja todo en apellidos si no podemos separar bien
-        apellidos = apellidos || txt;
-      }
-    }
-
-    return { dni, nombres, apellidos, cargo };
-  });
-}
-
 async function crearArea(desc_area) {
   const pool = await getPool();
   const request = pool.request();
@@ -257,6 +174,104 @@ async function crearLugar(id_area, desc_lugar) {
     VALUES (@id_area, @desc_lugar);
   `);
   return result.recordset?.[0];
+}
+
+async function getColumns(schema, tableOrView) {
+  try {
+    const pool = await getPool();
+    const r = await pool.request()
+      .input("schema", sql.NVarChar, schema)
+      .input("name", sql.NVarChar, tableOrView)
+      .query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @name
+      `);
+    return new Set((r.recordset || []).map((x) => String(x.COLUMN_NAME || "").toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
+async function buscarEmpleados(q) {
+  const pool = await getPool();
+  const cols = await getColumns("SSOMA", "V_EMPLEADO");
+
+  // candidatos de nombres de columnas según vistas típicas
+  const cDni =
+    cols.has("dni") ? "dni" :
+    cols.has("num_doc") ? "num_doc" :
+    cols.has("documento") ? "documento" : null;
+
+  const cNombres =
+    cols.has("nombres") ? "nombres" :
+    cols.has("nombre") ? "nombre" :
+    cols.has("nombres_empleado") ? "nombres_empleado" :
+    cols.has("nom") ? "nom" : null;
+
+  const cApellidos =
+    cols.has("apellidos") ? "apellidos" :
+    cols.has("apellido") ? "apellido" :
+    cols.has("apellido_paterno") ? "apellido_paterno" :
+    cols.has("ape_paterno") ? "ape_paterno" :
+    cols.has("ape_pat") ? "ape_pat" :
+    cols.has("apepat") ? "apepat" : null;
+
+  // si tu vista ya trae cargo en una columna directa
+  const cCargo =
+    cols.has("cargo") ? "cargo" :
+    cols.has("desc_cargo") ? "desc_cargo" :
+    cols.has("nombre_cargo") ? "nombre_cargo" : null;
+
+  if (!cDni) {
+    // sin dni no tiene sentido buscar
+    return [];
+  }
+
+  // armamos select con alias estables
+  const selectParts = [
+    `${cDni} AS dni`,
+    cNombres ? `${cNombres} AS nombres` : `CAST('' AS NVARCHAR(150)) AS nombres`,
+    cApellidos ? `${cApellidos} AS apellidos` : `CAST('' AS NVARCHAR(150)) AS apellidos`,
+    cCargo ? `${cCargo} AS cargo` : `CAST('' AS NVARCHAR(150)) AS cargo`,
+  ].join(", ");
+
+  // filtro
+  const like = `%${(q || "").trim()}%`;
+  const whereParts = [];
+
+  // si q viene vacío, devolvemos TOP por defecto
+  if ((q || "").trim()) {
+    whereParts.push(`CAST(${cDni} AS VARCHAR(20)) LIKE @q`);
+    if (cNombres) whereParts.push(`${cNombres} LIKE @q`);
+    if (cApellidos) whereParts.push(`${cApellidos} LIKE @q`);
+  }
+
+  const whereSql = whereParts.length ? `WHERE (${whereParts.join(" OR ")})` : "";
+  const orderSql = cApellidos ? `ORDER BY ${cApellidos}, ${cNombres || cDni}` : `ORDER BY ${cNombres || cDni}`;
+
+  const request = pool.request();
+  request.input("q", sql.NVarChar, like);
+
+  const result = await request.query(`
+    SELECT TOP (20) ${selectParts}
+    FROM SSOMA.V_EMPLEADO
+    ${whereSql}
+    ${orderSql};
+  `);
+
+  return (result.recordset || []).map((r) => {
+    const nombres = r.nombres || "";
+    const apellidos = r.apellidos || "";
+    const nombreCompleto = `${apellidos} ${nombres}`.trim() || (r.dni ? String(r.dni) : "");
+    return {
+      dni: r.dni ? String(r.dni) : "",
+      nombres,
+      apellidos,
+      cargo: r.cargo || "",
+      nombreCompleto,
+    };
+  });
 }
 
 export default { 
