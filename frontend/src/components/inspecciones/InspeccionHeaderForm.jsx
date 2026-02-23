@@ -434,54 +434,57 @@ export default function InspeccionHeaderForm({
           </Field>
         </div>
 
+        {/* REALIZADO POR */}
         <div style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <b>Participantes</b>
-            <Badge>{(value?.participantes?.length || 0) + 1} total</Badge>
-            <span className="help">Incluye al inspector principal + colaboradores.</span>
+            <b>Realizado por</b>
+            <span className="help">Datos del usuario que está creando la inspección.</span>
           </div>
 
+          {/* Datos del creador (solo nombre + cargo) */}
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
-            <div style={{ fontWeight: 900, marginBottom: 6 }}>Inspector principal</div>
             <div className="ins-grid">
-              <Field label="Realizado por">
-                <Input value={value?.realizado_por ?? ""} placeholder="Nombre / DNI" disabled />
+              <Field label="Nombre">
+                <Input value={value?.realizado_por ?? ""} disabled />
               </Field>
+
               <Field label="Cargo">
-                <Input value={value?.cargo ?? ""} placeholder="Cargo" disabled />
-              </Field>
-              <Field label="Firma (ruta)">
-                <Input value={value?.firma_ruta ?? ""} placeholder="firma.png" disabled />
+                <Input value={value?.cargo ?? ""} disabled />
               </Field>
             </div>
           </div>
 
+          {/* INSPECTORES / COLABORADORES */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+            <b>Inspectores</b>
+            <Badge>{(value?.participantes?.length || 0) + 1} total</Badge>
+            <span className="help">Incluye al realizado por + inspectores agregados.</span>
+          </div>
+
+          {/* Agregar inspector */}
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>Agregar colaborador</div>
+            <div style={{ fontWeight: 900, marginBottom: 10 }}>Agregar inspector</div>
 
             <div className="ins-grid">
-              <Field label="Buscar colaborador (DNI / Apellido / Nombre)">
+              <Field label="Buscar (DNI / Apellido / Nombre)">
                 <Autocomplete
                   placeholder="Escribe para buscar..."
                   displayValue={qColab}
                   onInputChange={setQColab}
-                  onFocus={() => {
-                    setTColab(true);
-                    if (!qColab.trim()) loadDefaultsColabs();
-                  }}
+                  onFocus={() => setTColab(true)}
                   loading={loadingColab}
                   options={optColabs}
                   getOptionLabel={(e) => {
-                    const base = e.nombreCompleto || `${e.apellidos || ""} ${e.nombres || ""}`.trim();
-                    const dni = e.dni ? ` (${e.dni})` : "";
-                    const cargo = e.cargo ? ` - ${e.cargo}` : "";
-                    return `${base}${dni}${cargo}`.trim();
+                    const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
+                    const dni = e.dni ? `(${e.dni})` : "";
+                    const cargo = e.cargo ? `— ${e.cargo}` : "";
+                    return `${nom} ${dni} ${cargo}`.trim();
                   }}
                   onSelect={(e) => {
                     onAddParticipante?.({
-                      dni: e.dni || "",
-                      nombre: e.nombreCompleto || `${e.apellidos || ""} ${e.nombres || ""}`.trim(),
-                      cargo: e.cargo || "",
+                      dni: e.dni,
+                      nombre: `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim(),
+                      cargo: e.cargo ?? "",
                     });
                     setQColab("");
                     setOptColabs([]);
@@ -495,7 +498,7 @@ export default function InspeccionHeaderForm({
                 {value.participantes.map((p, idx) => (
                   <div key={idx} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <div>
-                      <b>{p.nombre}</b> {p.cargo ? <span className="help">- {p.cargo}</span> : null}
+                      <b>{p.nombre}</b> {p.cargo ? <span className="help">• {p.cargo}</span> : null}
                     </div>
                     <button
                       type="button"
