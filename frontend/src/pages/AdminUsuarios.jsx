@@ -11,11 +11,19 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
+import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
 export default function AdminUsuarios() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  useLoadingWatchdog({
+    loading,
+    setLoading,
+    setMessage: setMsg,
+    label: "AdminUsuarios.load",
+    timeoutMs: 8000,
+  });
 
   const [dni, setDni] = useState("");
   const [idRol, setIdRol] = useState(3);

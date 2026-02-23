@@ -11,6 +11,10 @@ async function listarServicios() {
   return repo.listarServicios();
 }
 
+async function listarLugares(idArea) {
+  return repo.listarLugares(idArea);
+}
+
 async function listarLugaresPorArea(idArea) {
   return repo.listarLugaresPorArea(idArea);
 }
@@ -31,6 +35,7 @@ export default {
   listarClientes,
   listarAreas,
   listarServicios,
+  listarLugares,
   listarLugaresPorArea,
   listarNivelesRiesgo,
   listarPlantillas,

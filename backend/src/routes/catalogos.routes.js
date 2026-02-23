@@ -12,6 +12,9 @@ router.get("/servicios", authMiddleware, controller.listarServicios);
 // GET /api/catalogos/areas
 router.get("/areas", authMiddleware, controller.listarAreas);
 
+// GET /api/catalogos/lugares?id_area=1
+router.get("/lugares", authMiddleware, controller.listarLugares);
+
 // GET /api/catalogos/areas/:id/lugares
 router.get("/areas/:id/lugares", authMiddleware, controller.listarLugaresPorArea);
 

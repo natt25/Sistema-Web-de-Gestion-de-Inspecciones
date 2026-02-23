@@ -20,6 +20,28 @@ async function listarServicios() {
   return result.recordset;
 }
 
+async function listarLugares(idArea) {
+  const baseQuery = `
+    SELECT
+      id_lugar,
+      id_area,
+      desc_lugar
+    FROM SSOMA.INS_LUGAR
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+
+  if (idArea && !Number.isNaN(Number(idArea))) {
+    request.input("idArea", sql.Int, Number(idArea));
+    const result = await request.query(`${baseQuery} WHERE id_area = @idArea ORDER BY desc_lugar;`);
+    return result.recordset;
+  }
+
+  const result = await request.query(`${baseQuery} ORDER BY id_area, desc_lugar;`);
+  return result.recordset;
+}
+
 async function listarLugaresPorArea(idArea) {
   const query = `
     SELECT
@@ -72,6 +94,7 @@ export default {
   listarClientes, 
   listarAreas, 
   listarServicios, 
+  listarLugares,
   listarLugaresPorArea,
   listarNivelesRiesgo,
   listarPlantillas,

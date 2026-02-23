@@ -20,23 +20,23 @@ export default function AppRouter() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        <Route element={<RequireAuth />}>
-          <Route path="/" element={<Navigate to="/inspecciones/plantillas" replace />} />
+        <Route path="/" element={<RequireAuth />}>
+          <Route index element={<Navigate to="/inspecciones/plantillas" replace />} />
 
-          <Route path="/change-password" element={<ChangePassword />} />
-          <Route path="/pendientes" element={<Pendientes />} />
-          <Route path="/perfil" element={<Perfil />} />
+          <Route path="change-password" element={<ChangePassword />} />
+          <Route path="pendientes" element={<Pendientes />} />
+          <Route path="perfil" element={<Perfil />} />
 
-          <Route path="/inspecciones/plantillas" element={<PlantillasInspeccion />} />
-          <Route path="/inspecciones/nueva" element={<InspeccionNueva />} />
-          <Route path="/inspecciones/nueva/:idPlantilla" element={<InspeccionForm />} />
+          <Route path="inspecciones/plantillas" element={<PlantillasInspeccion />} />
+          <Route path="inspecciones/nueva" element={<InspeccionNueva />} />
+          <Route path="inspecciones/nueva/:idPlantilla" element={<InspeccionForm />} />
 
           {/* Historial (listado) */}
-          <Route path="/inspecciones" element={<InspeccionesList />} />
-          <Route path="/inspecciones/:id" element={<InspeccionDetail />} />
+          <Route path="inspecciones" element={<InspeccionesList />} />
+          <Route path="inspecciones/:id" element={<InspeccionDetail />} />
 
           <Route element={<RequireRole roles={["ADMIN_PRINCIPAL", "ADMIN"]} />}>
-            <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+            <Route path="admin/usuarios" element={<AdminUsuarios />} />
           </Route>
         </Route>
 

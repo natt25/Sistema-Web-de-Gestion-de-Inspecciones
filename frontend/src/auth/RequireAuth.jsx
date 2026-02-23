@@ -1,17 +1,27 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { getToken, getUser } from "./auth.storage";
+import { clearAuth, getToken, getUser } from "./auth.storage";
 
 export default function RequireAuth() {
   const location = useLocation();
   const token = getToken();
   const user = getUser();
 
+  if (import.meta.env.DEV) {
+    console.log("[RequireAuth] check", {
+      path: location.pathname,
+      hasToken: Boolean(token),
+      hasUser: Boolean(user),
+      mustChange: Boolean(user?.debe_cambiar_password),
+    });
+  }
+
   if (!token) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (!user) {
+    clearAuth();
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
 
-  // Si no tenemos user guardado, deja pasar (o podrías redirigir a login)
-  // Mejor: si token existe pero no user, igual deja pasar por ahora.
-  const mustChange = !!user?.debe_cambiar_password;
-
+  const mustChange = Boolean(user?.debe_cambiar_password);
   if (mustChange && location.pathname !== "/change-password") {
     return <Navigate to="/change-password" replace />;
   }

@@ -26,7 +26,11 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
     }
     // ordenar por id (o item_ref si luego lo agregas)
     for (const [k, arr] of map.entries()) {
-      arr.sort((a, b) => Number(a.id) - Number(b.id));
+      arr.sort((a, b) => {
+        const na = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+        const nb = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+        return na - nb;
+      });
       map.set(k, arr);
     }
     return Array.from(map.entries());

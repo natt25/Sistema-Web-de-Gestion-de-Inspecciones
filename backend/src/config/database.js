@@ -1,6 +1,7 @@
 import sql from "mssql/msnodesqlv8.js";
 import env from "./env.js";
 let pool;
+let queryLoggingPatched = false;
 const CONNECT_TIMEOUT_MS = 8000;
 const REQUEST_TIMEOUT_MS = 8000;
 
@@ -45,6 +46,31 @@ async function getPool() {
     CONNECT_TIMEOUT_MS,
     "DB connect"
   );
+
+  if (!queryLoggingPatched && sql?.Request?.prototype?.query) {
+    const originalQuery = sql.Request.prototype.query;
+    sql.Request.prototype.query = async function patchedQuery(command, ...rest) {
+      const started = Date.now();
+      const text = typeof command === "string" ? command.replace(/\s+/g, " ").trim() : "<non-string query>";
+      const preview = text.length > 140 ? `${text.slice(0, 140)}...` : text;
+      console.log("[db] query:start", { preview });
+      try {
+        const result = await withTimeout(
+          originalQuery.call(this, command, ...rest),
+          REQUEST_TIMEOUT_MS + 500,
+          "DB query"
+        );
+        const rows = result?.recordset?.length ?? null;
+        console.log("[db] query:end", { durationMs: Date.now() - started, rows });
+        return result;
+      } catch (error) {
+        console.error("[db] query:error", { durationMs: Date.now() - started, message: error?.message });
+        throw error;
+      }
+    };
+    queryLoggingPatched = true;
+  }
+
   return pool;
 }
 

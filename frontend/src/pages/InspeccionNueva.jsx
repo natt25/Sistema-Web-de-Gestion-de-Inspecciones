@@ -1,126 +1,260 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { clearToken } from "../auth/auth.storage.js";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
-import { obtenerDefinicionPlantilla } from "../api/plantillas.api";
+import { obtenerDefinicionPlantilla } from "../api/plantillas.api.js";
+import { listarCatalogosInspeccion } from "../api/catalogos.api.js";
+import InspeccionHeaderForm from "../components/inspecciones/InspeccionHeaderForm.jsx";
 import InspeccionDinamicaForm from "../components/inspecciones/InspeccionDinamicaForm.jsx";
-import http from "../api/http";
+import http from "../api/http.js";
+
+const IS_DEV = Boolean(import.meta.env.DEV);
 
 function useQuery() {
   const { search } = useLocation();
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 
+function getApiErrorMessage(error) {
+  const status = error?.response?.status;
+  const endpoint = error?.config?.url || "endpoint-desconocido";
+  const msg = error?.response?.data?.message || error?.message || "Error inesperado";
+  return `[HTTP ${status ?? "NO_STATUS"}] ${endpoint} - ${msg}`;
+}
+
 export default function InspeccionNueva() {
   const q = useQuery();
   const navigate = useNavigate();
-
   const plantillaId = Number(q.get("plantilla"));
-  const [loading, setLoading] = useState(true);
+
+  // loading separado (def + catalogos)
+  const [loadingDef, setLoadingDef] = useState(false);
+  const [loadingCats, setLoadingCats] = useState(false);
+
+  const loading = loadingDef || loadingCats;
+
   const [def, setDef] = useState(null);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
 
+  const [catalogos, setCatalogos] = useState({
+    clientes: [],
+    servicios: [],
+    areas: [],
+    lugares: [],
+  });
+
+  const [cabecera, setCabecera] = useState({
+    id_cliente: null,
+    id_servicio: null,
+    servicio_detalle: "",
+    id_area: null,
+    id_lugar: null,
+    fecha_inspeccion: "",
+    realizado_por: "",
+    cargo: "",
+    firma_ruta: "",
+    participantes: [],
+  });
+
+  // 1) Cargar definición (UNA SOLA VEZ por plantillaId)
   useEffect(() => {
-    let ok = true;
+    let alive = true;
+    const controller = new AbortController();
 
     (async () => {
+      setError("");
+      setDef(null);
+
+      if (!plantillaId || Number.isNaN(plantillaId)) {
+        setError("Plantilla inválida: falta ?plantilla=ID en la URL.");
+        return;
+      }
+
+      setLoadingDef(true);
+
       try {
-        setError("");
-        setLoading(true);
+        const data = await obtenerDefinicionPlantilla(plantillaId, undefined, {
+          signal: controller.signal,
+        });
 
-        if (!plantillaId || Number.isNaN(plantillaId)) {
-          setError("Plantilla inválida.");
-          setDef(null);
-          return;
-        }
-
-        const data = await obtenerDefinicionPlantilla(plantillaId);
-        if (!ok) return;
+        if (!alive) return;
 
         const json =
-          typeof data.json_definicion === "string"
+          typeof data?.json_definicion === "string"
             ? JSON.parse(data.json_definicion)
-            : data.json_definicion;
+            : data?.json_definicion;
 
         setDef({ ...data, json });
-
       } catch (e) {
-        if (!ok) return;
-        setError("No se pudo cargar la definición.");
-        setDef(null);
+        if (!alive) return;
+
+        const status = e?.response?.status;
+        setError(getApiErrorMessage(e));
+
+        if (status === 401 || status === 403) {
+          clearToken();
+          navigate("/login", { replace: true });
+        }
       } finally {
-        if (ok) setLoading(false);
+        if (alive) setLoadingDef(false);
       }
     })();
 
-    return () => { ok = false; };
-  }, [plantillaId]);
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, [plantillaId, navigate]);
 
-  const plantilla = def
-    ? {
-        id_plantilla_inspec: def.id_plantilla_inspec,
-        codigo_formato: def.json?.codigo_formato,
-        nombre_formato: def.json?.nombre_formato,
-        version: def.version,
+  // 2) Cargar catálogos (UNA SOLA VEZ al entrar a la página)
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      setWarning("");
+      setLoadingCats(true);
+
+      try {
+        const data = await listarCatalogosInspeccion();
+        if (!alive) return;
+        setCatalogos(data);
+      } catch (e) {
+        if (!alive) return;
+
+        const status = e?.response?.status;
+        setWarning(getApiErrorMessage(e));
+
+        if (status === 401 || status === 403) {
+          clearToken();
+          navigate("/login", { replace: true });
+        }
+      } finally {
+        if (alive) setLoadingCats(false);
       }
-    : null;
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [navigate]);
 
   return (
-    <DashboardLayout title="Nueva inspección">
+    <DashboardLayout title="Nueva inspeccion">
       <div style={{ display: "grid", gap: 16 }}>
-        {/* ENCABEZADO SIEMPRE VISIBLE */}
+        {/* Card plantilla seleccionada (tu UI) */}
         <Card title="Plantilla seleccionada">
-          {loading && <div>Cargando plantilla...</div>}
+          {loading && <div>Cargando...</div>}
 
-          {error && (
-            <div style={{ color: "#b91c1c", fontWeight: 800 }}>
-              {error}
-            </div>
-          )}
+          {error ? (
+            <div style={{ color: "#b91c1c", fontWeight: 800 }}>{error}</div>
+          ) : null}
 
-          {!loading && !error && def && (
+          {!loadingDef && !error && def ? (
             <div style={{ display: "grid", gap: 8 }}>
-              <div><b>Código:</b> {def.json?.codigo_formato || def.codigo_formato || "-"}</div>
-              <div><b>Nombre:</b> {def.json?.nombre_formato || def.nombre_formato || "-"}</div>
-              <div><b>Versión:</b> {def.version ?? "-"}</div>
+              <div>
+                <b>Codigo:</b> {def.json?.codigo_formato ?? "-"}
+              </div>
+              <div>
+                <b>Nombre:</b> {def.json?.nombre_formato ?? "-"}
+              </div>
+              <div>
+                <b>Version:</b> {def.version ?? "-"}
+              </div>
 
               <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button onClick={() => navigate("/inspecciones")}>
-                  Volver al listado
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/inspecciones/plantillas")}>
+                <Button onClick={() => navigate("/inspecciones/plantillas")}>
                   Cambiar plantilla
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/inspecciones")}>
+                  Volver al listado
                 </Button>
               </div>
             </div>
-          )}
+          ) : null}
 
-          {!loading && !error && !def && (
-            <div style={{ color: "var(--muted)" }}>
-              No se encontró definición de plantilla.
+          {!loadingDef && !error && !def ? (
+            <div style={{ color: "var(--muted)" }}>No se encontro la definicion.</div>
+          ) : null}
+
+          {IS_DEV ? (
+            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
+              <div>plantillaId: {String(plantillaId || "")}</div>
+              <div>loadingDef: {String(loadingDef)}</div>
+              <div>loadingCats: {String(loadingCats)}</div>
             </div>
-          )}
+          ) : null}
         </Card>
 
-        {/* FORMULARIO */}
+        {warning ? (
+          <Card title="Aviso">
+            <div style={{ color: "#92400e", fontWeight: 700 }}>{warning}</div>
+          </Card>
+        ) : null}
+
+        {/* Cabecera */}
+        {def?.json?.header ? (
+          <InspeccionHeaderForm
+            headerDef={def.json.header}
+            catalogos={catalogos}
+            user={null}
+            value={cabecera}
+            onChange={setCabecera}
+            onAddParticipante={(p) =>
+              setCabecera((prev) => ({
+                ...prev,
+                participantes: [...(prev.participantes || []), p],
+              }))
+            }
+            onRemoveParticipante={(idx) =>
+              setCabecera((prev) => ({
+                ...prev,
+                participantes: (prev.participantes || []).filter((_, i) => i !== idx),
+              }))
+            }
+          />
+        ) : null}
+
+        {/* Items */}
         {def?.json?.items?.length ? (
           <InspeccionDinamicaForm
-            plantilla={def}              // ✅ pásale def completo (tiene id, version, etc.)
-            definicion={def.json}        // ✅ pásale el JSON real
-            onSubmit={(payload) => {
-              console.log("PAYLOAD INSPECCIÓN:", payload);
-              alert("Listo ✅ (revisa consola)");
+            plantilla={def}
+            definicion={def.json}
+            onSubmit={async (payload) => {
+              const body = {
+                cabecera: {
+                  id_plantilla_inspec: def.id_plantilla_inspec,
+                  id_cliente: cabecera.id_cliente,
+                  id_servicio: cabecera.id_servicio,
+                  servicio_detalle: cabecera.servicio_detalle || null,
+                  id_area: cabecera.id_area,
+                  id_lugar: cabecera.id_lugar,
+                  fecha_inspeccion: cabecera.fecha_inspeccion,
+                  id_estado_inspeccion: 1,
+                  id_modo_registro: 1,
+                },
+                participantes: cabecera.participantes || [],
+                respuestas: payload.respuestas,
+              };
+
+              try {
+                const r = await http.post("/api/inspecciones", body);
+                alert(`Inspeccion creada ID: ${r.data?.id_inspeccion ?? "?"}`);
+                navigate("/inspecciones");
+              } catch (e) {
+                const status = e?.response?.status;
+                setError(getApiErrorMessage(e));
+                if (status === 401 || status === 403) {
+                  clearToken();
+                  navigate("/login", { replace: true });
+                }
+              }
             }}
           />
         ) : (
-          !loading && !error && (
-            <Card title="Sin items">
-              <div style={{ color: "var(--muted)" }}>
-                Esta plantilla no tiene items en su JSON.
-              </div>
-            </Card>
-          )
+          !loadingDef && !error && <Card title="Sin items">Esta plantilla no tiene items.</Card>
         )}
       </div>
     </DashboardLayout>

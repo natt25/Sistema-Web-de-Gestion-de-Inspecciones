@@ -7,6 +7,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
+import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
 export default function Pendientes() {
   const [dias, setDias] = useState(7);
@@ -14,6 +15,13 @@ export default function Pendientes() {
   const [rows, setRows] = useState([]);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
+  useLoadingWatchdog({
+    loading,
+    setLoading,
+    setMessage: setMsg,
+    label: "Pendientes.load",
+    timeoutMs: 8000,
+  });
 
   async function load() {
     setLoading(true);

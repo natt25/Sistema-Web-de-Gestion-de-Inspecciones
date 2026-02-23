@@ -8,6 +8,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
+import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
 function normalizeArray(data) {
   if (Array.isArray(data)) return data;
@@ -34,6 +35,13 @@ export default function InspeccionesList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [items, setItems] = useState([]);
+  useLoadingWatchdog({
+    loading,
+    setLoading,
+    setMessage: setError,
+    label: "InspeccionesList.load",
+    timeoutMs: 8000,
+  });
 
   const queryParams = useMemo(() => {
     const p = {};

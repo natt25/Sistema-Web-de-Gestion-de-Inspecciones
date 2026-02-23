@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { login } from "../auth/auth.service";
-import { getToken, setToken, setUser, getUser } from "../auth/auth.storage";
+import { clearAuth, getToken, setToken, setUser, getUser } from "../auth/auth.storage";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 
@@ -12,16 +12,22 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const redirectTo = location.state?.from?.pathname || "/inspecciones";
+  const redirectTo = location.state?.from?.pathname || "/inspecciones/plantillas";
 
   useEffect(() => {
-    if (getToken()) {
-      const u = getUser();
-      if (u?.debe_cambiar_password) {
-        navigate("/change-password", { replace: true });
-      } else {
-        navigate(redirectTo, { replace: true });
-      }
+    const token = getToken();
+    const u = getUser();
+
+    if (!token) return;
+    if (!u) {
+      clearAuth();
+      return;
+    }
+
+    if (u.debe_cambiar_password) {
+      navigate("/change-password", { replace: true });
+    } else {
+      navigate(redirectTo, { replace: true });
     }
   }, [navigate, redirectTo]);
 

@@ -14,28 +14,41 @@ async function list(req, res) {
 }
 
 async function definicion(req, res) {
+  const started = Date.now();
   const id = Number(req.params.id);
   const version = req.query.version ? Number(req.query.version) : null;
 
-  if (!id || Number.isNaN(id)) {
-    return res.status(400).json({ message: "id_plantilla_inspec inválido" });
-  }
-
-  const row = version
-    ? await repo.getDefinicionByVersion(id, version)
-    : await repo.getDefinicion(id);
-
-  if (!row) return res.status(404).json({ message: "Definición no encontrada" });
-
-  let json = row.json_definicion;
-  // si viene como string, lo dejamos; frontend puede parsear
-  return res.json({
-    id_plantilla_inspec: row.id_plantilla_inspec,
-    version: row.version,
-    checksum: row.checksum,
-    fecha_creacion: row.fecha_creacion,
-    json_definicion: json
+  console.log(`[plantillas.controller] GET /api/plantillas/${req.params.id}/definicion start`, {
+    version,
+    user: req.user?.id_usuario ?? null,
   });
+
+  try {
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ message: "id_plantilla_inspec invalido" });
+    }
+
+    const row = version
+      ? await repo.getDefinicionByVersion(id, version)
+      : await repo.getDefinicion(id);
+
+    if (!row) return res.status(404).json({ message: "Definicion no encontrada" });
+
+    return res.json({
+      id_plantilla_inspec: row.id_plantilla_inspec,
+      version: row.version,
+      checksum: row.checksum,
+      fecha_creacion: row.fecha_creacion,
+      json_definicion: row.json_definicion,
+    });
+  } catch (error) {
+    console.error("[plantillas.controller] definicion error:", error);
+    return res.status(500).json({ message: "Error al obtener definicion de plantilla" });
+  } finally {
+    console.log(`[plantillas.controller] GET /api/plantillas/${req.params.id}/definicion end`, {
+      durationMs: Date.now() - started,
+    });
+  }
 }
 
 export default { list, definicion };

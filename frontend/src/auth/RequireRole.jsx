@@ -4,6 +4,12 @@ import { getUser } from "./auth.storage";
 export default function RequireRole({ roles = [] }) {
   const user = getUser();
   const rol = String(user?.rol || "").toUpperCase();
+  if (import.meta.env.DEV) {
+    console.log("[RequireRole] check", {
+      rol,
+      roles,
+    });
+  }
 
   if (!rol) return <Navigate to="/login" replace />;
 

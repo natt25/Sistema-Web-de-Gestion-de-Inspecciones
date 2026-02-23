@@ -4,12 +4,20 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { listarPlantillas } from "../api/plantillas.api";
+import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
 export default function PlantillasInspeccion() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
+  useLoadingWatchdog({
+    loading,
+    setLoading,
+    setMessage: setError,
+    label: "PlantillasInspeccion.load",
+    timeoutMs: 8000,
+  });
 
   useEffect(() => {
     let ok = true;
@@ -73,7 +81,8 @@ export default function PlantillasInspeccion() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => navigate(`/inspecciones?nueva=1&plantilla=${p.id_plantilla_inspec}`)}
+                    // onClick={() => navigate(`/inspecciones?nueva=1&plantilla=${p.id_plantilla_inspec}`)}
+                    onClick={() => navigate(`/inspecciones`)}
                   >
                     Ver inspecciones
                   </Button>

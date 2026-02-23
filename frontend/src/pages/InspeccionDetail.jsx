@@ -6,6 +6,7 @@ import { crearObservacion, actualizarEstadoObservacion } from "../api/observacio
 import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
 import useOnlineStatus from "../hooks/useOnlineStatus";
+import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -532,6 +533,13 @@ export default function InspeccionDetail() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState("");
+  useLoadingWatchdog({
+    loading,
+    setLoading,
+    setMessage: setPageError,
+    label: "InspeccionDetail.load",
+    timeoutMs: 10000,
+  });
   const [infoMsg, setInfoMsg] = useState("");
   const [data, setData] = useState(null);
   const [accionMsgByObs, setAccionMsgByObs] = useState({});

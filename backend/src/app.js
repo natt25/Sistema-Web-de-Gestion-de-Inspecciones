@@ -20,12 +20,51 @@ import plantillasRoutes from "./routes/plantillas.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 const app = express();
 
 // Middlewares globales
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({
+  origin: "http://localhost:5173",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 app.use(express.json());
+app.use((req, res, next) => {
+  const started = Date.now();
+  res.on("finish", () => {
+    console.log("[http] request", {
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      durationMs: Date.now() - started,
+    });
+  });
+  next();
+});
+
+if (IS_DEV) {
+  app.use((req, res, next) => {
+    const timeoutMs = 12000;
+    const timer = setTimeout(() => {
+      if (res.headersSent) return;
+      console.error("[http] request timeout", {
+        method: req.method,
+        url: req.originalUrl,
+        timeoutMs,
+      });
+      res.status(504).json({
+        ok: false,
+        message: "Timeout de servidor (watchdog dev)",
+      });
+    }, timeoutMs);
+
+    res.on("finish", () => clearTimeout(timer));
+    res.on("close", () => clearTimeout(timer));
+    next();
+  });
+}
 
 // =======================
 // Rutas de la API
@@ -40,7 +79,10 @@ app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/auditoria", auditoriaRoutes);
 app.use("/storage", express.static(path.join(__dirname, "./storage")));
 app.use("/api/inspecciones", accionesRoutes);
-app.use("/api/plantillas", plantillasRoutes);
+app.use("/api/plantillas", (req, _res, next) => {
+  console.log("[app] mount /api/plantillas", { method: req.method, path: req.path });
+  next();
+}, plantillasRoutes);
 
 // =======================
 // Ruta ra?z (solo informativa)

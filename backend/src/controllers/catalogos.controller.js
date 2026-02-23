@@ -29,6 +29,17 @@ async function listarServicios(req, res) {
   }
 }
 
+async function listarLugares(req, res) {
+  try {
+    const idArea = req.query.id_area ? Number(req.query.id_area) : null;
+    const data = await service.listarLugares(idArea);
+    return res.json(data);
+  } catch (err) {
+    console.error("catalogos.listarLugares:", err);
+    return res.status(500).json({ message: "Error interno" });
+  }
+}
+
 async function listarLugaresPorArea(req, res) {
   try {
     const { id } = req.params;
@@ -74,6 +85,7 @@ export default {
   listarClientes,
   listarAreas,
   listarServicios,
+  listarLugares,
   listarLugaresPorArea,
   listarNivelesRiesgo,
   listarPlantillas,
