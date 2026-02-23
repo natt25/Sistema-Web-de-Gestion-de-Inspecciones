@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { clearAuth } from "../../auth/auth.storage";
 
 const items = [
@@ -10,6 +10,21 @@ const items = [
 
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isActive = (to) => {
+    const p = location.pathname;
+    if (to === "/") return p === "/";
+    if (to === "/inspecciones/plantillas") {
+      return p.startsWith("/inspecciones");
+    }
+    return p === to || p.startsWith(`${to}/`);
+  };
+
+  function go(to) {
+    navigate(to);
+    onNavigate?.();
+  }
 
   function handleLogout() {
     clearAuth();
@@ -29,15 +44,15 @@ export default function Sidebar({ onNavigate }) {
 
       <nav className="sidebar-nav">
         {items.map((it) => (
-          <NavLink
+          <button
             key={it.to}
-            to={it.to}
-            className={({ isActive }) => `sidebar-item ${isActive ? "active" : ""}`}
-            onClick={onNavigate}
+            type="button"
+            className={`sidebar-item ${isActive(it.to) ? "active" : ""}`}
+            onClick={() => go(it.to)}
           >
             <span className="sidebar-icon">{it.icon}</span>
             <span>{it.label}</span>
-          </NavLink>
+          </button>
         ))}
       </nav>
 

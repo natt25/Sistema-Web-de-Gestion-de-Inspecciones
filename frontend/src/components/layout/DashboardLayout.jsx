@@ -11,7 +11,12 @@ export default function DashboardLayout({ title, actions, children }) {
         <Sidebar onNavigate={() => setOpen(false)} />
       </div>
 
-      <div className={`overlay ${open ? "show" : ""}`} onClick={() => setOpen(false)} />
+      <div
+        className={`overlay ${open ? "show" : ""}`}
+        onClick={() => setOpen(false)}
+        aria-hidden={!open}
+        style={{ pointerEvents: open ? "auto" : "none" }}
+      />
 
       <div>
         <Topbar title={title} actions={actions} onToggle={() => setOpen((v) => !v)} />
