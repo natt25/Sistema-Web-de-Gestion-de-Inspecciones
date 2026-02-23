@@ -15,19 +15,29 @@ function isExpired(user) {
   return new Date(user.password_expires_at).getTime() < Date.now();
 }
 
+function isUserEnabled(user) {
+  const estadoText = String(user?.estado || "").trim().toUpperCase();
+  const estadoId = Number(user?.id_estado_usuario);
+
+  if (!Number.isNaN(estadoId) && estadoId === 1) return true;
+  return estadoText === "ACTIVO" || estadoText === "HABILITADO";
+}
+
 async function login({ dni, password }, reqMeta = {}) {
-  if (!dni || !password) {
+  const cleanDni = String(dni || "").trim();
+
+  if (!cleanDni || !password) {
     return { ok: false, status: 400, message: "dni y password son requeridos" };
   }
 
-  const user = await usuarioRepo.findByDni(dni);
+  const user = await usuarioRepo.findByDni(cleanDni);
 
   if (!user) {
     await auditoriaService.log({
       id_usuario: null,
       accion: "LOGIN_FAIL",
       entidad: "INS_USUARIO",
-      id_entidad: String(dni),
+      id_entidad: String(cleanDni),
       modo_cliente: reqMeta.modo_cliente ?? "UNKNOWN",
       exito: false,
       detalle: "Usuario no existe o credenciales inválidas",
@@ -37,7 +47,7 @@ async function login({ dni, password }, reqMeta = {}) {
     return { ok: false, status: 401, message: "Credenciales inválidas" };
   }
 
-  if (String(user.estado).toUpperCase() !== "ACTIVO") {
+  if (!isUserEnabled(user)) {
     await auditoriaService.log({
       id_usuario: user.id_usuario,
       accion: "LOGIN_FAIL",
@@ -45,11 +55,11 @@ async function login({ dni, password }, reqMeta = {}) {
       id_entidad: String(user.id_usuario),
       modo_cliente: reqMeta.modo_cliente ?? "UNKNOWN",
       exito: false,
-      detalle: `Usuario no habilitado: ${user.estado}`,
+      detalle: `Usuario no habilitado: ${user.estado ?? user.id_estado_usuario}`,
       ip_origen: reqMeta.ip_origen ?? null,
       user_agent: reqMeta.user_agent ?? null,
     });
-    return { ok: false, status: 403, message: `Usuario no habilitado: ${user.estado}` };
+    return { ok: false, status: 403, message: `Usuario no habilitado: ${user.estado ?? user.id_estado_usuario}` };
   }
 
   if (isLocked(user)) {

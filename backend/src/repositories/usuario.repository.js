@@ -5,6 +5,7 @@ async function findByDni(dni) {
     SELECT
       u.id_usuario,
       u.dni,
+      u.id_estado_usuario,
       u.password_hash,
       u.debe_cambiar_password,
       u.failed_attempts,

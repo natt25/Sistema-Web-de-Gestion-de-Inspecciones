@@ -16,15 +16,15 @@ export default function Login() {
 
   useEffect(() => {
     const token = getToken();
-    const u = getUser();
+    const user = getUser();
 
     if (!token) return;
-    if (!u) {
+    if (!user) {
       clearAuth();
       return;
     }
 
-    if (u.debe_cambiar_password) {
+    if (user.debe_cambiar_password) {
       navigate("/change-password", { replace: true });
     } else {
       navigate(redirectTo, { replace: true });
@@ -46,7 +46,14 @@ export default function Login() {
         navigate(redirectTo, { replace: true });
       }
     } catch (err) {
-      setError("Credenciales incorrectas");
+      const status = err?.response?.status;
+      const message = err?.response?.data?.message;
+
+      if (!err?.response) setError("Network error: no se pudo conectar con la API (http://localhost:3000).");
+      else if (status === 401) setError(message || "Credenciales incorrectas");
+      else if (status === 403) setError(message || "Usuario no habilitado");
+      else if (status === 500) setError("Error interno del servidor");
+      else setError(message || err?.message || "No se pudo iniciar sesion");
     }
   }
 
@@ -54,7 +61,7 @@ export default function Login() {
     <div className="auth-shell">
       <div className="auth-card">
         <section className="auth-left">
-          <h1 className="auth-title">Sistema Web de Gestión de Inspecciones</h1>
+          <h1 className="auth-title">Sistema Web de Gestion de Inspecciones</h1>
           <p className="auth-subtitle">
             Registro en campo, evidencias y reportes.
           </p>
@@ -77,7 +84,7 @@ export default function Login() {
             />
 
             <Input
-              label="Contraseña"
+              label="Contrasena"
               type="password"
               placeholder="Password"
               value={password}
@@ -88,7 +95,7 @@ export default function Login() {
 
             <div className="actions">
               <Button variant="ghost" type="button" onClick={() => navigate("/change-password")}>
-                Cambiar contraseña
+                Cambiar contrasena
               </Button>
 
               <Button variant="primary" type="submit">

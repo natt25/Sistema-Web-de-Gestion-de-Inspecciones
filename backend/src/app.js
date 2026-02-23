@@ -25,10 +25,20 @@ const IS_DEV = process.env.NODE_ENV !== "production";
 const app = express();
 
 // Middlewares globales
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
+
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin(origin, callback) {
+    // Permite requests sin Origin (curl/postman/server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Client-Mode"],
 }));
 app.use(express.json());
 app.use((req, res, next) => {
