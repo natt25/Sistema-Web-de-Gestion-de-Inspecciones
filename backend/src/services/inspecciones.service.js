@@ -233,6 +233,7 @@ async function actualizarEstadoAccion({ id_accion, body }) {
 async function crearInspeccionCompleta({ user, body }) {
   const cabecera = body?.cabecera;
   const respuestas = body?.respuestas;
+  const participantes = body?.participantes || [];
 
   if (!cabecera) return { ok: false, status: 400, message: "Falta cabecera" };
   if (!Array.isArray(respuestas) || !respuestas.length) {
@@ -254,7 +255,8 @@ async function crearInspeccionCompleta({ user, body }) {
   const data = await repo.crearInspeccionCompleta({
     user,
     cabecera,
-    respuestas
+    respuestas,
+    participantes
   });
 
   return { ok: true, status: 201, data };

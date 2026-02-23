@@ -221,7 +221,7 @@ export default function InspeccionNueva() {
               const body = {
                 cabecera: {
                   id_plantilla_inspec: Number(def.id_plantilla_inspec),
-                  id_cliente: cabecera.id_cliente ? Number(cabecera.id_cliente) : null,
+                  id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
                   id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
                   servicio_detalle: cabecera.servicio_detalle || null,
                   id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
