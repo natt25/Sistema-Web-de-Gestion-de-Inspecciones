@@ -199,7 +199,7 @@ export default function InspeccionNueva() {
           <InspeccionHeaderForm
             headerDef={def.json.header}
             catalogos={catalogos}
-            user={null}
+            user={JSON.parse(localStorage.getItem("user") || "null")}
             value={cabecera}
             onChange={setCabecera}
             onAddParticipante={(p) =>
@@ -226,11 +226,10 @@ export default function InspeccionNueva() {
               const body = {
                 cabecera: {
                   id_plantilla_inspec: def.id_plantilla_inspec,
-                  id_cliente: cabecera.id_cliente,
-                  id_servicio: cabecera.id_servicio,
-                  servicio_detalle: cabecera.servicio_detalle || null,
-                  id_area: cabecera.id_area,
-                  id_lugar: cabecera.id_lugar,
+                  id_cliente: cabecera.id_cliente ? Number(cabecera.id_cliente) : null,
+                  id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
+                  id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
+                  id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
                   fecha_inspeccion: cabecera.fecha_inspeccion,
                   id_estado_inspeccion: 1,
                   id_modo_registro: 1,

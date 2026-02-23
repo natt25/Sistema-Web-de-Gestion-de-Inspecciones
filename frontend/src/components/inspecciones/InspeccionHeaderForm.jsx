@@ -1,27 +1,42 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
-import Button from "../ui/Button";
 import Badge from "../ui/Badge";
+import Autocomplete from "../ui/Autocomplete";
+import {
+  buscarClientes,
+  buscarServicios,
+  buscarAreas,
+  buscarLugares,
+  buscarEmpleados,
+  crearArea,
+  crearLugar,
+} from "../../api/busquedas.api";
 
 export default function InspeccionHeaderForm({
-  headerDef,      // definicion.header (del JSON)
-  catalogos,      // { clientes, servicios, areas, lugares }
-  user,           // { dni, nombres, cargo, firma_ruta } opcional
-  value,          // objeto estado actual
-  onChange,       // (newValue) => void
+  headerDef,
+  catalogos,
+  user,
+  value,
+  onChange,
   onAddParticipante,
   onRemoveParticipante,
 }) {
-  const { clientes = [], servicios = [], areas = [], lugares = [] } = catalogos || {};
+  const [qCliente, setQCliente] = useState("");
+  const [qServicio, setQServicio] = useState("");
+  const [qArea, setQArea] = useState("");
+  const [qLugar, setQLugar] = useState("");
+  const [qColab, setQColab] = useState("");
 
-  const [participante, setParticipante] = useState({ nombre: "", cargo: "" });
+  const [optClientes, setOptClientes] = useState([]);
+  const [optServicios, setOptServicios] = useState([]);
+  const [optAreas, setOptAreas] = useState([]);
+  const [optLugares, setOptLugares] = useState([]);
+  const [optColabs, setOptColabs] = useState([]);
 
-  // filtrar lugares por área elegida (si tus lugares vienen con id_area)
-  const lugaresFiltrados = useMemo(() => {
-    if (!value?.id_area) return lugares;
-    return lugares.filter((l) => Number(l.id_area) === Number(value.id_area));
-  }, [lugares, value?.id_area]);
+  const canServicio = !!value?.id_cliente;
+  const canArea = !!value?.id_servicio;
+  const canLugar = !!value?.id_area;
 
   const setField = (k, v) => onChange((prev) => ({ ...(prev || {}), [k]: v }));
 
@@ -29,28 +44,79 @@ export default function InspeccionHeaderForm({
   useEffect(() => {
     if (!headerDef) return;
 
-    // fecha
-    if (headerDef.fecha_inspeccion === "auto_today" && !value.fecha_inspeccion) {
+    if (headerDef.fecha_inspeccion === "auto_today" && !value?.fecha_inspeccion) {
       const today = new Date().toISOString().slice(0, 10);
       setField("fecha_inspeccion", today);
     }
 
-    // realizado_por
-    if (headerDef.realizado_por === "auto_user" && user && !value.realizado_por) {
+    if (headerDef.realizado_por === "auto_user" && user && !value?.realizado_por) {
       setField("realizado_por", user?.nombre || user?.dni || "");
     }
 
-    // cargo
-    if (headerDef.cargo === "auto_user_cargo" && user && !value.cargo) {
+    if (headerDef.cargo === "auto_user_cargo" && user && !value?.cargo) {
       setField("cargo", user?.cargo || "");
     }
 
-    // firma: guardamos ruta o flag
-    if (headerDef.firma === "auto_user_firma" && user && !value.firma_ruta) {
+    if (headerDef.firma === "auto_user_firma" && user && !value?.firma_ruta) {
       setField("firma_ruta", user?.firma_ruta || "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerDef, user]);
+
+  // Búsqueda cliente
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const s = qCliente.trim();
+      if (!s) return setOptClientes([]);
+      const data = await buscarClientes(s);
+      setOptClientes(Array.isArray(data) ? data : []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [qCliente]);
+
+  // Búsqueda servicio (depende de cliente)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const s = qServicio.trim();
+      if (!s || !value?.id_cliente) return setOptServicios([]);
+      const data = await buscarServicios(s);
+      setOptServicios(Array.isArray(data) ? data : []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [qServicio, value?.id_cliente]);
+
+  // Búsqueda áreas (depende de servicio)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const s = qArea.trim();
+      if (!s || !value?.id_servicio) return setOptAreas([]);
+      const data = await buscarAreas(s);
+      setOptAreas(Array.isArray(data) ? data : []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [qArea, value?.id_servicio]);
+
+  // Búsqueda lugares (depende de área)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const s = qLugar.trim();
+      if (!s || !value?.id_area) return setOptLugares([]);
+      const data = await buscarLugares({ q: s, id_area: value.id_area });
+      setOptLugares(Array.isArray(data) ? data : []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [qLugar, value?.id_area]);
+
+  // Búsqueda colaboradores
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const s = qColab.trim();
+      if (!s) return setOptColabs([]);
+      const data = await buscarEmpleados(s);
+      setOptColabs(Array.isArray(data) ? data : []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [qColab]);
 
   return (
     <Card title="Datos generales (FOR-013)">
@@ -58,39 +124,99 @@ export default function InspeccionHeaderForm({
         {/* Fila 1: Cliente / Servicio */}
         <div className="ins-grid">
           <Field label="Cliente / Unidad Minera">
-            <select
-              className="ins-input"
-              value={value.id_cliente ?? ""}
-              onChange={(e) => setField("id_cliente", e.target.value || null)}
-            >
-              <option value="">— Seleccionar —</option>
-              {clientes.map((c) => (
-                <option key={c.id_cliente} value={c.id_cliente}>
-                  {c.raz_social}
-                </option>
-              ))}
-            </select>
+            <Autocomplete
+              placeholder="Escribe para buscar..."
+              displayValue={value?.cliente_text ?? (value?.id_cliente ? String(value.id_cliente) : "")}
+              onInputChange={(txt) => {
+                setQCliente(txt);
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_cliente: null,
+                  id_servicio: null,
+                  id_area: null,
+                  id_lugar: null,
+                  cliente_text: txt,
+                  servicio_text: "",
+                  area_text: "",
+                  lugar_text: "",
+                }));
+              }}
+              options={optClientes}
+              getOptionLabel={(c) => c.raz_social ?? String(c.id_cliente)}
+              allowCustom
+              onCreateCustom={(text) => {
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_cliente: null,
+                  id_servicio: null,
+                  id_area: null,
+                  id_lugar: null,
+                  cliente_text: text,
+                }));
+              }}
+              onSelect={(c) => {
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_cliente: c.id_cliente,
+                  cliente_text: c.raz_social ?? "",
+                  id_servicio: null,
+                  id_area: null,
+                  id_lugar: null,
+                  servicio_text: "",
+                  area_text: "",
+                  lugar_text: "",
+                }));
+              }}
+            />
           </Field>
 
           <Field label="Servicio">
-            <select
-              className="ins-input"
-              value={value.id_servicio ?? ""}
-              onChange={(e) => setField("id_servicio", e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">— Seleccionar —</option>
-              {servicios.map((s) => (
-                <option key={s.id_servicio} value={s.id_servicio}>
-                  {s.nombre_servicio}
-                </option>
-              ))}
-            </select>
+            <Autocomplete
+              placeholder={canServicio ? "Escribe para buscar..." : "Selecciona cliente primero"}
+              displayValue={value?.servicio_text ?? (value?.id_servicio ? String(value.id_servicio) : "")}
+              onInputChange={(txt) => {
+                setQServicio(txt);
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_servicio: null,
+                  id_area: null,
+                  id_lugar: null,
+                  servicio_text: txt,
+                  area_text: "",
+                  lugar_text: "",
+                }));
+              }}
+              options={optServicios}
+              getOptionLabel={(s) => s.nombre_servicio ?? String(s.id_servicio)}
+              disabled={!canServicio}
+              allowCustom
+              onCreateCustom={(text) => {
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_servicio: null,
+                  id_area: null,
+                  id_lugar: null,
+                  servicio_text: text,
+                }));
+              }}
+              onSelect={(s) => {
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_servicio: s.id_servicio,
+                  servicio_text: s.nombre_servicio ?? "",
+                  id_area: null,
+                  id_lugar: null,
+                  area_text: "",
+                  lugar_text: "",
+                }));
+              }}
+            />
 
-            {/* Si necesitas "OTRO" */}
+            {/* Detalle de servicio NO se cambia */}
             <div style={{ marginTop: 8 }}>
               <Input
                 placeholder="Detalle de servicio (opcional)"
-                value={value.servicio_detalle ?? ""}
+                value={value?.servicio_detalle ?? ""}
                 onChange={(e) => setField("servicio_detalle", e.target.value)}
               />
             </div>
@@ -100,62 +226,94 @@ export default function InspeccionHeaderForm({
         {/* Fila 2: Área / Lugar / Fecha */}
         <div className="ins-grid">
           <Field label="Área">
-            <select
-              className="ins-input"
-              value={value.id_area ?? ""}
-              onChange={(e) => {
-                const id_area = e.target.value ? Number(e.target.value) : null;
+            <Autocomplete
+              placeholder={canArea ? "Escribe para buscar..." : "Selecciona servicio primero"}
+              displayValue={value?.area_text ?? (value?.id_area ? String(value.id_area) : "")}
+              onInputChange={(txt) => {
+                setQArea(txt);
                 onChange((prev) => ({
-                    ...(prev || {}),
-                    id_area,
-                    id_lugar: null,
+                  ...(prev || {}),
+                  id_area: null,
+                  id_lugar: null,
+                  area_text: txt,
+                  lugar_text: "",
                 }));
-                }}            
-            >
-              <option value="">— Seleccionar —</option>
-              {areas.map((a) => (
-                <option key={a.id_area} value={a.id_area}>
-                  {a.desc_area}
-                </option>
-              ))}
-            </select>
+              }}
+              options={optAreas}
+              getOptionLabel={(a) => a.desc_area ?? String(a.id_area)}
+              disabled={!canArea}
+              allowCustom
+              onCreateCustom={async (text) => {
+                const created = await crearArea(text);
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_area: created.id_area,
+                  area_text: created.desc_area,
+                  id_lugar: null,
+                  lugar_text: "",
+                }));
+              }}
+              onSelect={(a) => {
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_area: a.id_area,
+                  area_text: a.desc_area ?? "",
+                  id_lugar: null,
+                  lugar_text: "",
+                }));
+              }}
+            />
           </Field>
 
           <Field label="Lugar">
-            <select
-              className="ins-input"
-              value={value.id_lugar ?? ""}
-              onChange={(e) => setField("id_lugar", e.target.value ? Number(e.target.value) : null)}
-              disabled={!value.id_area}
-              title={!value.id_area ? "Selecciona un área primero" : ""}
-            >
-              <option value="">— Seleccionar —</option>
-              {lugaresFiltrados.map((l) => (
-                <option key={l.id_lugar} value={l.id_lugar}>
-                  {l.desc_lugar}
-                </option>
-              ))}
-            </select>
-            {!value.id_area ? (
-              <div className="help">Selecciona un área para habilitar lugares.</div>
-            ) : null}
+            <Autocomplete
+              placeholder={canLugar ? "Escribe para buscar..." : "Selecciona área primero"}
+              displayValue={value?.lugar_text ?? (value?.id_lugar ? String(value.id_lugar) : "")}
+              onInputChange={(txt) => {
+                setQLugar(txt);
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_lugar: null,
+                  lugar_text: txt,
+                }));
+              }}
+              options={optLugares}
+              getOptionLabel={(l) => l.desc_lugar ?? String(l.id_lugar)}
+              disabled={!canLugar}
+              allowCustom
+              onCreateCustom={async (text) => {
+                const created = await crearLugar({ id_area: value.id_area, desc_lugar: text });
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_lugar: created.id_lugar,
+                  lugar_text: created.desc_lugar,
+                }));
+              }}
+              onSelect={(l) => {
+                onChange((prev) => ({
+                  ...(prev || {}),
+                  id_lugar: l.id_lugar,
+                  lugar_text: l.desc_lugar ?? "",
+                }));
+              }}
+            />
           </Field>
 
           <Field label="Fecha de inspección">
             <input
               type="date"
               className="ins-input"
-              value={value.fecha_inspeccion ?? ""}
+              value={value?.fecha_inspeccion ?? ""}
               onChange={(e) => setField("fecha_inspeccion", e.target.value)}
             />
           </Field>
         </div>
 
-        {/* Inspectores/Participantes */}
+        {/* Participantes */}
         <div style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <b>Participantes</b>
-            <Badge>{(value.participantes?.length || 0) + 1} total</Badge>
+            <Badge>{(value?.participantes?.length || 0) + 1} total</Badge>
             <span className="help">Incluye al inspector principal + colaboradores.</span>
           </div>
 
@@ -165,21 +323,21 @@ export default function InspeccionHeaderForm({
             <div className="ins-grid">
               <Field label="Realizado por">
                 <Input
-                  value={value.realizado_por ?? ""}
+                  value={value?.realizado_por ?? ""}
                   onChange={(e) => setField("realizado_por", e.target.value)}
                   placeholder="Nombre / DNI"
                 />
               </Field>
               <Field label="Cargo">
                 <Input
-                  value={value.cargo ?? ""}
+                  value={value?.cargo ?? ""}
                   onChange={(e) => setField("cargo", e.target.value)}
                   placeholder="Cargo"
                 />
               </Field>
               <Field label="Firma (ruta)">
                 <Input
-                  value={value.firma_ruta ?? ""}
+                  value={value?.firma_ruta ?? ""}
                   onChange={(e) => setField("firma_ruta", e.target.value)}
                   placeholder="firma_x.png (auto si tienes firma)"
                 />
@@ -192,38 +350,32 @@ export default function InspeccionHeaderForm({
             <div style={{ fontWeight: 900, marginBottom: 10 }}>Agregar colaborador</div>
 
             <div className="ins-grid">
-              <Field label="Nombre">
-                <Input
-                  value={participante.nombre}
-                  onChange={(e) => setParticipante((p) => ({ ...p, nombre: e.target.value }))}
-                  placeholder="Apellido / Nombre o DNI"
-                />
-              </Field>
-
-              <Field label="Cargo">
-                <Input
-                  value={participante.cargo}
-                  onChange={(e) => setParticipante((p) => ({ ...p, cargo: e.target.value }))}
-                  placeholder="Cargo"
-                />
-              </Field>
-
-              <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const n = participante.nombre.trim();
-                    if (!n) return;
-                    onAddParticipante?.({ nombre: n, cargo: (participante.cargo || "").trim() });
-                    setParticipante({ nombre: "", cargo: "" });
+              <Field label="Buscar colaborador (DNI / Apellido / Nombre)">
+                <Autocomplete
+                  placeholder="Escribe para buscar..."
+                  displayValue={qColab}
+                  onInputChange={setQColab}
+                  options={optColabs}
+                  getOptionLabel={(e) => {
+                    const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
+                    const dni = e.dni ? `(${e.dni})` : "";
+                    const cargo = e.cargo ? `— ${e.cargo}` : "";
+                    return `${nom} ${dni} ${cargo}`.trim();
                   }}
-                >
-                  + Agregar
-                </Button>
-              </div>
+                  onSelect={(e) => {
+                    onAddParticipante?.({
+                      dni: e.dni,
+                      nombre: `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim(),
+                      cargo: e.cargo ?? "",
+                    });
+                    setQColab("");
+                    setOptColabs([]);
+                  }}
+                />
+              </Field>
             </div>
 
-            {(value.participantes || []).length ? (
+            {(value?.participantes || []).length ? (
               <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                 {value.participantes.map((p, idx) => (
                   <div key={idx} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>

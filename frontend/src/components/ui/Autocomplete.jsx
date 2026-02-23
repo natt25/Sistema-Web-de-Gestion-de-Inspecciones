@@ -90,9 +90,10 @@ export default function Autocomplete({
               <button
                 key={idx}
                 type="button"
-                onClick={() => {
-                  onSelect?.(it);
-                  setOpen(false);
+                onMouseDown={(e) => {
+                  e.preventDefault();        // evita blur
+                  onSelect?.(it);            // selecciona
+                  setOpen(false);            // cierra
                 }}
                 style={{
                   width: "100%",
@@ -102,7 +103,6 @@ export default function Autocomplete({
                   background: "transparent",
                   cursor: "pointer",
                 }}
-                onMouseDown={(e) => e.preventDefault()} // evita blur antes del click
               >
                 <div style={{ fontWeight: 800 }}>{getOptionLabel(it)}</div>
               </button>

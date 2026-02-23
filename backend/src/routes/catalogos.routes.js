@@ -26,4 +26,15 @@ router.get("/plantillas", authMiddleware, controller.listarPlantillas);
 
 router.get("/estados-observacion", authMiddleware, controller.listarEstadosObservacion);
 
+// búsquedas
+router.get("/clientes/buscar", authMiddleware, controller.buscarClientes);
+router.get("/servicios/buscar", authMiddleware, controller.buscarServicios);
+router.get("/areas/buscar", authMiddleware, controller.buscarAreas);
+router.get("/lugares/buscar", authMiddleware, controller.buscarLugares);
+router.get("/empleados/buscar", authMiddleware, controller.buscarEmpleados);
+
+// creación
+router.post("/areas", authMiddleware, controller.crearArea);
+router.post("/lugares", authMiddleware, controller.crearLugar);
+
 export default router;
