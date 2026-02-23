@@ -179,13 +179,6 @@ export default function InspeccionNueva() {
             <div style={{ color: "var(--muted)" }}>No se encontro la definicion.</div>
           ) : null}
 
-          {IS_DEV ? (
-            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
-              <div>plantillaId: {String(plantillaId || "")}</div>
-              <div>loadingDef: {String(loadingDef)}</div>
-              <div>loadingCats: {String(loadingCats)}</div>
-            </div>
-          ) : null}
         </Card>
 
         {warning ? (
