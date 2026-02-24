@@ -30,19 +30,6 @@
   position: relative;
 }
 
-.sidebar-close{
-  margin-left: auto;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,.2);
-  background: transparent;
-  color: #fff;
-  font-weight: 900;
-  display: none;
-  cursor: pointer;
-}
-
 .sidebar-logo{
   width: 42px;
   height: 42px;
@@ -238,17 +225,12 @@
 }
 
 /* Drawer overlay */
-.overlay{
-  display: none;
+.sidebar-overlay{
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.45);
-  z-index: 40;
-  pointer-events: none;
+  z-index: 190;
 }
-
-.overlay.show{ display: block;
-pointer-events: auto;}
 
 /* =========================
    Auth Layout (Login / ChangePassword)
@@ -390,22 +372,38 @@ pointer-events: auto;}
   .grid-cards{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 860px){
+@media (max-width: 900px){
   .app-shell{ grid-template-columns: 1fr; }
-  .sidebar{
+  .sidebar.sidebar-mobile{
     position: fixed;
-    left: -280px;
-    z-index: 30;
-    transition: left .2s ease;
+    left: 0;
+    top: 0;
+    height: 100svh;
+    width: 260px;
+    transform: translateX(-100%);
+    z-index: 200;
+    transition: transform .2s ease;
   }
-  .sidebar.open{ left: 0; }
-  .hamburger{ display: inline-flex; }
-  .sidebar-close{ display: inline-flex; align-items: center; justify-content: center; }
+  .sidebar.sidebar-mobile.open{ transform: translateX(0); }
+  .topbar{
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .topbar-right{
+    width: 100%;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  .topbar-global-actions{
+    width: 100%;
+    justify-content: flex-start;
+    gap: 10px;
+  }
   .auth-card{ grid-template-columns: 1fr; max-width: 560px; }
   .content{ padding: 16px; }
+  .dashboard-content{ padding: 12px; }
   .topbar-title{ font-size: 16px; }
-  .topbar-actions{ width: 100%; justify-content: flex-start; }
-  .topbar-global-actions{ width: 100%; justify-content: flex-start; }
 }
 
 @media (max-width: 420px){
@@ -450,10 +448,10 @@ pointer-events: auto;}
 }
 
 .topbar{
-  height: 64px;
   display:flex;
   align-items:center;
   justify-content: space-between;
+  gap: 12px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   background: #fff;
@@ -466,20 +464,25 @@ pointer-events: auto;}
   display:flex;
   align-items:center;
   gap: 10px;
+  min-width: 0;
 }
 
 .topbar-title{
+  margin: 0;
   font-size: 18px;
   font-weight: 900;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.topbar-actions{
+.topbar-right{
   display:flex;
   align-items:center;
+  justify-content:flex-end;
   gap: 12px;
   flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
 .topbar-global-actions{
@@ -502,17 +505,18 @@ pointer-events: auto;}
   border-color: rgba(220,38,38,.35);
 }
 
-.hamburger{
+.hamburger-btn{
   width: 42px;
   height: 42px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: #fff;
   cursor: pointer;
-  display: none;
+  display: grid;
+  place-items: center;
 }
 
-.hamburger:hover{
+.hamburger-btn:hover{
   border-color: rgba(255,106,0,.45);
   background: rgba(255,106,0,.06);
 }
@@ -654,7 +658,7 @@ pointer-events: auto;}
 @media (max-width: 1200px){
   .ins-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 760px){
+@media (max-width: 900px){
   .ins-grid{ grid-template-columns: 1fr; }
 }
 

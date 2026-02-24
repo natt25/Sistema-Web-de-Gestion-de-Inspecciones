@@ -6,7 +6,8 @@ import http from "../../api/http";
 import { getPendingCounts, syncInspeccionesQueue } from "../../utils/offlineQueue";
 
 export default function DashboardLayout({ title, actions, children }) {
-  const [open, setOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 900px)").matches);
   const online = useOnlineStatus();
   const [pending, setPending] = useState({ total: 0, uploads: 0, mutations: 0, inspecciones: 0 });
   const [syncing, setSyncing] = useState(false);
@@ -18,6 +19,14 @@ export default function DashboardLayout({ title, actions, children }) {
 
   useEffect(() => {
     refreshPending();
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const onChange = (e) => setIsMobile(e.matches);
+    setIsMobile(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   useEffect(() => {
@@ -39,6 +48,17 @@ export default function DashboardLayout({ title, actions, children }) {
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isMobile || !sidebarOpen) {
+      document.body.style.overflow = "";
+      return;
+    }
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobile, sidebarOpen]);
 
   async function handleSync() {
     if (!online || pending.total <= 0 || syncing) return;
@@ -75,26 +95,24 @@ export default function DashboardLayout({ title, actions, children }) {
     </div>
   );
 
+  function toggleSidebar() {
+    if (!isMobile) return;
+    setSidebarOpen((v) => !v);
+  }
+
   return (
     <div className="app-shell">
-      <div className={`sidebar ${open ? "open" : ""}`}>
-        <Sidebar onNavigate={() => setOpen(false)} onClose={() => setOpen(false)} />
+      <div className={`sidebar ${isMobile ? "sidebar-mobile" : ""} ${isMobile && sidebarOpen ? "open" : ""}`}>
+        <Sidebar onNavigate={() => isMobile && setSidebarOpen(false)} />
       </div>
 
-      <div
-        className={`overlay ${open ? "show" : ""}`}
-        onClick={() => setOpen(false)}
-        aria-hidden={!open}
-        style={{ pointerEvents: open ? "auto" : "none" }}
-      />
+      {isMobile && sidebarOpen ? (
+        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} aria-hidden={!sidebarOpen} />
+      ) : null}
 
       <div>
-        <Topbar
-          title={title}
-          actions={headerActions}
-          onToggle={() => setOpen((v) => !v)}
-        />
-        <main className="content">{children}</main>
+        <Topbar title={title} actions={headerActions} onToggle={toggleSidebar} showHamburger={isMobile} />
+        <main className="content dashboard-content">{children}</main>
       </div>
     </div>
   );
