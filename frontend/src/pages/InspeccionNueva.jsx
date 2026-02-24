@@ -86,13 +86,7 @@ export default function InspeccionNueva() {
         });
 
         if (!alive) return;
-
-        const json =
-          typeof data?.json_definicion === "string"
-            ? JSON.parse(data.json_definicion)
-            : data?.json_definicion;
-
-        setDef({ ...data, json });
+        setDef({ ...data, json: data?.json ?? data?.json_definicion ?? null });
       } catch (e) {
         if (!alive) return;
 

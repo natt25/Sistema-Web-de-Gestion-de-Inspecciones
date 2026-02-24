@@ -106,8 +106,16 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
       respuestas: items.map((it) => {
         const key = getKey(it);
         const ans = answers[key] || null;
+        const idCampo = it?.id_campo != null ? Number(it.id_campo) : null;
+        if (idCampo == null || Number.isNaN(idCampo)) {
+          console.warn("[InspeccionDinamicaForm] item sin id_campo valido", {
+            id: it?.id ?? null,
+            item_ref: it?.item_ref ?? null,
+            texto: it?.texto ?? null,
+          });
+        }
         return {
-          id_campo: Number(it.id_campo),
+          id_campo: idCampo,
           item_ref: it.item_ref ?? it.id ?? null,
           categoria: it.categoria || null,
           descripcion: it.texto || null,

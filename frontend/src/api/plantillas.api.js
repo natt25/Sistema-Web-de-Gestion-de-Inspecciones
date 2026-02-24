@@ -10,7 +10,11 @@ export async function obtenerDefinicionPlantilla(id, version, options = {}) {
   const { data } = await http.get(`/api/plantillas/${id}/definicion${qs}`, {
     signal: options.signal,
   });
-  return data;
+  const json =
+    typeof data?.json_definicion === "string"
+      ? JSON.parse(data.json_definicion)
+      : data?.json_definicion;
+  return { ...data, json };
 }
 
 // alias compat
