@@ -1,5 +1,6 @@
 import repo from "../repositories/inspecciones.repository.js";
 import observacionesRepo from "../repositories/observaciones.repository.js";
+import plantillasRepo from "../repositories/plantillas.repository.js";
 
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
   const esCatalogo = (id_otro == null) && (id_cliente != null) && (id_servicio != null);
@@ -231,13 +232,12 @@ function badRequest(message, data) {
 
 async function crearInspeccionCompleta({ user, body }) {
   const cab = body?.cabecera;
-  const respuestas = Array.isArray(body?.respuestas) ? body.respuestas : [];
-  const participantes = Array.isArray(body?.participantes) ? body.participantes : [];
-
+  const { cabecera, participantes, respuestas } = body;
+  
   if (!cab?.id_plantilla_inspec) return badRequest("Falta cabecera.id_plantilla_inspec");
   if (!cab?.id_area) return badRequest("Falta cabecera.id_area");
   if (!cab?.fecha_inspeccion) return badRequest("Falta cabecera.fecha_inspeccion");
-  if (!respuestas.length) return badRequest("Falta respuestas");
+  if (!Array.isArray(respuestas) || !respuestas.length) return badRequest("Falta respuestas");
 
   // ✅ OJO: NO VALIDAMOS id_campo aquí.
   // Solo validamos que exista un item_ref o id para identificar el item.
@@ -263,11 +263,116 @@ async function crearInspeccionCompleta({ user, body }) {
     participantes,
   });
 
+  if (Array.isArray(body?.respuestas) && body?.cabecera?.id_plantilla_inspec) {
+    const mapped = await mapearIdCampoEnRespuestas({
+      id_plantilla_inspec: body.cabecera.id_plantilla_inspec,
+      respuestas: body.respuestas,
+    });
+    if (mapped.faltantes.length) {
+      console.warn("[inspecciones.create] id_campo faltantes (se guarda en JSON)", {
+        total: mapped.faltantes.length,
+        sample: mapped.faltantes.slice(0, 10),
+      });
+    }
+  }
+
   return {
     ok: true,
     status: 201,
     data: created, // {id_inspeccion, id_respuesta}
   };
+}
+
+function normalizeTxt(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function pickNum(s) {
+  const n = parseInt(String(s || "").replace(/\D/g, ""), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Intenta completar id_campo en respuestas usando:
+ * 1) item_ref exacto
+ * 2) descripcion/texto (match por texto)
+ * 3) fallback por ORDEN (i01,i02,... con campos ordenados)
+ */
+async function mapearIdCampoEnRespuestas({ id_plantilla_inspec, respuestas }) {
+  const campos = await plantillasRepo.listarCamposPorPlantilla(Number(id_plantilla_inspec));
+
+  // Maps por item_ref y por descripcion
+  const byItemRef = new Map(
+    (campos || [])
+      .filter((c) => c?.item_ref)
+      .map((c) => [String(c.item_ref).trim(), Number(c.id_campo)])
+  );
+
+  const byDesc = new Map(
+    (campos || [])
+      .filter((c) => c?.descripcion_item)
+      .map((c) => [normalizeTxt(c.descripcion_item), Number(c.id_campo)])
+  );
+
+  const usados = new Set();
+  const out = (respuestas || []).map((r) => ({ ...r }));
+
+  // 1) Mapear por item_ref / descripcion
+  for (const r of out) {
+    const raw = Number(r.id_campo);
+    if (raw && raw > 0 && !Number.isNaN(raw)) {
+      usados.add(raw);
+      continue;
+    }
+
+    const ref = String(r.item_ref ?? r.id ?? r.item_id ?? "").trim(); // soporta varias formas
+    const desc = normalizeTxt(r.descripcion ?? r.texto ?? r.desc ?? "");
+
+    let mapped = null;
+    if (ref && byItemRef.has(ref)) mapped = byItemRef.get(ref);
+    else if (desc && byDesc.has(desc)) mapped = byDesc.get(desc);
+
+    if (mapped && !usados.has(mapped)) {
+      r.id_campo = mapped;
+      usados.add(mapped);
+    }
+  }
+
+  // 2) Fallback por ORDEN (si siguen faltando)
+  const faltantes = out.filter((r) => !(Number(r.id_campo) > 0));
+  if (faltantes.length) {
+    const camposOrdenados = (campos || [])
+      .map((c) => ({ id_campo: Number(c.id_campo), item_ref: c.item_ref }))
+      .filter((c) => c.id_campo > 0 && !usados.has(c.id_campo))
+      .sort((a, b) => {
+        // si hay item_ref tipo i01 lo usa, sino id_campo
+        const na = pickNum(a.item_ref) || a.id_campo;
+        const nb = pickNum(b.item_ref) || b.id_campo;
+        return na - nb;
+      });
+
+    const faltOrden = [...faltantes].sort((a, b) => {
+      const ra = pickNum(a.item_ref ?? a.id ?? a.item_id);
+      const rb = pickNum(b.item_ref ?? b.id ?? b.item_id);
+      return ra - rb;
+    });
+
+    for (let i = 0; i < faltOrden.length && i < camposOrdenados.length; i++) {
+      faltOrden[i].id_campo = camposOrdenados[i].id_campo;
+      usados.add(camposOrdenados[i].id_campo);
+    }
+  }
+
+  const aunFaltan = out
+    .filter((r) => !(Number(r.id_campo) > 0))
+    .map((r, idx) => ({
+      idx,
+      item_ref: r.item_ref ?? r.id ?? null,
+      id: r.id ?? null,
+      texto: r.descripcion ?? r.texto ?? null,
+    }));
+
+  return { respuestas: out, faltantes: aunFaltan };
 }
 
 export default {

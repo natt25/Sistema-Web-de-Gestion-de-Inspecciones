@@ -63,7 +63,7 @@ async function definicion(req, res) {
         : row.json_definicion;
 
       if (parsed && Array.isArray(parsed.items)) {
-        const campos = await repo.listarCamposPorPlantilla(id);
+        const campos = await repo.listarCamposPorPlantilla(id, row.id_plantilla_def);
         const camposLimpios = (campos || []).map((c, idx) => ({
           idx,
           id_campo: Number(c.id_campo),
@@ -148,6 +148,7 @@ async function definicion(req, res) {
     }
 
     return res.json({
+      id_plantilla_def: row.id_plantilla_def,
       id_plantilla_inspec: row.id_plantilla_inspec,
       version: row.version,
       checksum: row.checksum,

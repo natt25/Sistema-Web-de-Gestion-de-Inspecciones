@@ -75,12 +75,26 @@ async function getDefinicionByVersion(id_plantilla_inspec, version) {
   return r.recordset[0] || null;
 }
 
-async function listarCamposPorPlantilla(id_plantilla_inspec) {
+async function listarCamposPorPlantilla(id_plantilla_inspec, id_plantilla_def = null) {
   const pool = await getPool();
-  const req = pool.request();
-  req.input("id", sql.Int, Number(id_plantilla_inspec));
+  const reqDef = pool.request();
+  reqDef.input("id_inspec", sql.Int, Number(id_plantilla_inspec));
 
-  // Soporta 2 modelos: campo->plantilla directo o campo->categoria->plantilla.
+  let idDef = id_plantilla_def ? Number(id_plantilla_def) : null;
+  if (!idDef) {
+    const rDef = await reqDef.query(`
+      SELECT TOP 1 id_plantilla_def
+      FROM SSOMA.INS_PLANTILLA_DEFINICION
+      WHERE id_plantilla_inspec = @id_inspec
+      ORDER BY version DESC;
+    `);
+    idDef = Number(rDef.recordset?.[0]?.id_plantilla_def || 0) || null;
+  }
+
+  const req = pool.request();
+  req.input("id_inspec", sql.Int, Number(id_plantilla_inspec));
+  req.input("id_def", sql.Int, idDef ? Number(idDef) : null);
+
   const query = `
     IF OBJECT_ID('SSOMA.INS_PLANTILLA_CAMPO', 'U') IS NULL
     BEGIN
@@ -91,28 +105,49 @@ async function listarCamposPorPlantilla(id_plantilla_inspec) {
       RETURN;
     END;
 
-    IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_inspec') IS NOT NULL
+    -- ✅ Si la tabla usa id_plantilla_def (tu caso, según SSMS)
+    IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_def') IS NOT NULL
     BEGIN
+      IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'etiqueta') IS NOT NULL
+      BEGIN
+        SELECT
+          c.id_campo,
+          CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
+          CAST(COALESCE(c.etiqueta, c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
+        FROM SSOMA.INS_PLANTILLA_CAMPO c
+        WHERE c.id_plantilla_def = @id_def;
+        RETURN;
+      END;
+
       SELECT
         c.id_campo,
-        LTRIM(RTRIM(COALESCE(CAST(c.item_ref AS NVARCHAR(50)), ''))) AS item_ref,
-        LTRIM(RTRIM(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo, ''))) AS descripcion_item
+        CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
+        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
       FROM SSOMA.INS_PLANTILLA_CAMPO c
-      WHERE c.id_plantilla_inspec = @id;
+      WHERE c.id_plantilla_def = @id_def;
       RETURN;
     END;
 
-    IF OBJECT_ID('SSOMA.INS_PLANTILLA_CATEGORIA', 'U') IS NOT NULL
-      AND COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_categoria') IS NOT NULL
-      AND COL_LENGTH('SSOMA.INS_PLANTILLA_CATEGORIA', 'id_plantilla_inspec') IS NOT NULL
+    -- (fallback antiguo) si tuviera id_plantilla_inspec
+    IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_inspec') IS NOT NULL
     BEGIN
+      IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'etiqueta') IS NOT NULL
+      BEGIN
+        SELECT
+          c.id_campo,
+          CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
+          CAST(COALESCE(c.etiqueta, c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
+        FROM SSOMA.INS_PLANTILLA_CAMPO c
+        WHERE c.id_plantilla_inspec = @id_inspec;
+        RETURN;
+      END;
+
       SELECT
         c.id_campo,
-        LTRIM(RTRIM(COALESCE(CAST(c.item_ref AS NVARCHAR(50)), ''))) AS item_ref,
-        LTRIM(RTRIM(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo, ''))) AS descripcion_item
+        CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
+        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
       FROM SSOMA.INS_PLANTILLA_CAMPO c
-      JOIN SSOMA.INS_PLANTILLA_CATEGORIA cat ON cat.id_categoria = c.id_categoria
-      WHERE cat.id_plantilla_inspec = @id;
+      WHERE c.id_plantilla_inspec = @id_inspec;
       RETURN;
     END;
 
@@ -126,4 +161,55 @@ async function listarCamposPorPlantilla(id_plantilla_inspec) {
   return r.recordset || [];
 }
 
-export default { listPlantillas, getDefinicion, getDefinicionByVersion, listarCamposPorPlantilla };
+async function ensureCamposFromJsonDefinicion(id_plantilla_def, jsonDef) {
+  if (!id_plantilla_def || !jsonDef || !Array.isArray(jsonDef.items)) return;
+
+  const pool = await getPool();
+
+  // ¿Ya existen campos para esa definición?
+  const exists = await pool.request()
+    .input("id_def", sql.Int, Number(id_plantilla_def))
+    .query(`
+      SELECT COUNT(1) AS n
+      FROM SSOMA.INS_PLANTILLA_CAMPO
+      WHERE id_plantilla_def = @id_def;
+    `);
+
+  const n = Number(exists.recordset?.[0]?.n || 0);
+  if (n > 0) return; // ya está sembrado
+
+  // Insertar un campo por ítem del JSON
+  // Ajusta valores por defecto si luego quieres "requerido" real, tipo_control real, etc.
+  for (let i = 0; i < jsonDef.items.length; i++) {
+    const it = jsonDef.items[i];
+    const itemRef = String(it?.item_ref ?? it?.id ?? "").trim();
+    const etiqueta = String(it?.texto ?? it?.descripcion ?? "").trim();
+    const seccion = String(it?.categoria ?? "GENERAL").trim();
+
+    if (!itemRef) continue;
+
+    await pool.request()
+      .input("id_def", sql.Int, Number(id_plantilla_def))
+      .input("id_tipo_control", sql.Int, 1) // 1 = default (ajusta si tienes catálogo)
+      .input("item_ref", sql.NVarChar(50), itemRef)
+      .input("etiqueta", sql.NVarChar(300), etiqueta || itemRef)
+      .input("requerido", sql.Bit, 0)
+      .input("orden", sql.Int, i + 1)
+      .input("seccion", sql.NVarChar(120), seccion)
+      .input("ayuda", sql.NVarChar(300), null)
+      .query(`
+        INSERT INTO SSOMA.INS_PLANTILLA_CAMPO
+          (id_plantilla_def, id_tipo_control, item_ref, etiqueta, requerido, orden, seccion, ayuda_texto)
+        VALUES
+          (@id_def, @id_tipo_control, @item_ref, @etiqueta, @requerido, @orden, @seccion, @ayuda);
+      `);
+  }
+}
+
+export default {
+  listPlantillas,
+  getDefinicion,
+  getDefinicionByVersion,
+  listarCamposPorPlantilla,
+  ensureCamposFromJsonDefinicion,
+};

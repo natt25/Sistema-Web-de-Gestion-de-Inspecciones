@@ -220,7 +220,7 @@ export default function InspeccionNueva() {
               const body = {
                 cabecera: {
                   id_plantilla_inspec: Number(def.id_plantilla_inspec),
-                  id_cliente: cabecera.id_cliente ? Number(cabecera.id_cliente) : null,
+                  id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
                   id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
                   servicio_detalle: cabecera.servicio_detalle || null,
                   id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
@@ -232,29 +232,14 @@ export default function InspeccionNueva() {
                 participantes: cabecera.participantes || [],
                 respuestas: payload.respuestas,
               };
-              const faltantes = (body.respuestas || [])
-                .map((r, index) => ({
-                  index,
-                  item_ref: r?.item_ref ?? null,
-                  texto: r?.descripcion ?? r?.texto ?? null,
-                  id_campo: r?.id_campo ?? null,
-                }))
-                .filter((r) => !r.id_campo || Number(r.id_campo) <= 0);
-
-              if (faltantes.length > 0) {
-                if (IS_DEV) {
-                  console.error("Plantilla mal mapeada: items sin id_campo", faltantes);
-                }
-                alert(
-                  `Plantilla mal mapeada: faltan id_campo en ${faltantes.length} items. ` +
-                  `Revisa /api/plantillas/:id/definicion y la tabla SSOMA.INS_PLANTILLA_CAMPO.`
-                );
-                return;
-              }
               console.log("[InspeccionNueva] online:", online);
               console.log("[InspeccionNueva] POST body:", body);
 
               try {
+                console.log("[SAVE] online?", online, "API:", import.meta.env.VITE_API_URL);
+                if (!online) {
+                  alert("Estas OFFLINE: se guardó en COLA local (IndexedDB), NO en SQL Server.");
+                }
                 if (!online) {
                   console.info("[inspecciones.create] offline -> queued (no POST)");
                   await addInspeccionToQueue(body);
@@ -264,7 +249,8 @@ export default function InspeccionNueva() {
                 }
 
                 const r = await http.post("/api/inspecciones", body);
-                alert(`Inspeccion creada ID: ${r.data?.id_inspeccion ?? "?"}`);
+                console.log("[SAVE] response:", r.data);
+                alert(`GUARDADO EN SQL ✅ ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`);
                 navigate("/inspecciones");
               } catch (e) {
                 const status = e?.response?.status;

@@ -8,6 +8,8 @@ async function crear(req, res) {
       return res.status(result.status).json({ message: result.message, ...(result.data || {}) });
     }
 
+    console.log("[POST /api/inspecciones] OK ->", result.data);
+
     return res.status(201).json(result.data);
   } catch (err) {
     console.error("inspecciones.crear FULL ERROR:", {

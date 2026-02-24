@@ -102,25 +102,6 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
     alert("handleSubmit ejecutado");
     if (!validate()) return;
 
-    const faltantes = items
-      .map((it, index) => ({
-        index,
-        id: it?.id ?? null,
-        item_ref: normItemRef(it?.item_ref ?? it?.ref ?? it?.id ?? ""),
-        texto: (it?.texto ?? it?.descripcion ?? "").trim() || null,
-        id_campo: it?.id_campo ? Number(it.id_campo) : null,
-      }))
-      .filter((it) => !Number(it.id_campo));
-
-    if (faltantes.length > 0) {
-      console.error("Items sin id_campo:", faltantes);
-      const detalle = faltantes
-        .map((f) => `#${f.index + 1} ref=${f.item_ref || "?"} id=${f.id ?? "?"} texto=${f.texto || "?"}`)
-        .join("\n");
-      alert(`ERROR: Plantilla sin id_campo mapeado.\n${detalle}\nRevisa consola.`);
-      return;
-    }
-
     const payload = {
       plantilla: {
         id: plantilla?.id_plantilla_inspec,
@@ -136,7 +117,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
           id_campo: idCampo,
           item_ref: it.item_ref ?? it.ref ?? it.id ?? null,
           categoria: it.categoria || null,
-          descripcion: it.texto || null,
+          descripcion: it.texto ?? it.descripcion ?? null,
           estado: ans,
           observacion: (notes[key] || "").trim(),
           accion: ans === "MALO" ? actions[key] || null : null,

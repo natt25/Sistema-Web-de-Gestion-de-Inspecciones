@@ -20,6 +20,7 @@ async function getPool() {
   if (pool && pool.connected) return pool;
 
   // Forzamos Windows Auth con msnodesqlv8
+  console.log("[DB CONNECT]");
   const config = {
     server: env.DB_SERVER,      // DESKTOP-DS8OTRU\\SQLEXPRESS
     database: env.DB_NAME,
@@ -35,6 +36,7 @@ async function getPool() {
       min: 0,
       idleTimeoutMillis: 10000
     }
+    
   };
 
   console.log("[db] using driver:", config.driver);
