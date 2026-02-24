@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import useOnlineStatus from "../../hooks/useOnlineStatus";
@@ -12,13 +12,20 @@ export default function DashboardLayout({ title, actions, children }) {
   const [pending, setPending] = useState({ total: 0, uploads: 0, mutations: 0, inspecciones: 0 });
   const [syncing, setSyncing] = useState(false);
 
-  async function refreshPending() {
+  // Solo actualiza estado si los contadores realmente cambiaron.
+  const refreshPending = useCallback(async () => {
     const counts = await getPendingCounts();
-    setPending(counts);
-  }
-
-  useEffect(() => {
-    refreshPending();
+    setPending((prev) => {
+      if (
+        prev.total === counts.total
+        && prev.uploads === counts.uploads
+        && prev.mutations === counts.mutations
+        && prev.inspecciones === counts.inspecciones
+      ) {
+        return prev;
+      }
+      return counts;
+    });
   }, []);
 
   useEffect(() => {
@@ -30,24 +37,9 @@ export default function DashboardLayout({ title, actions, children }) {
   }, []);
 
   useEffect(() => {
-    let timer = null;
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") refreshPending();
-    };
-    const handleOnlineOffline = () => refreshPending();
-
-    timer = setInterval(refreshPending, 3000);
-    window.addEventListener("online", handleOnlineOffline);
-    window.addEventListener("offline", handleOnlineOffline);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      if (timer) clearInterval(timer);
-      window.removeEventListener("online", handleOnlineOffline);
-      window.removeEventListener("offline", handleOnlineOffline);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, []);
+    // Refresca al montar y cuando cambia online, sin depender de `pending`.
+    refreshPending();
+  }, [online, refreshPending]);
 
   useEffect(() => {
     if (!isMobile || !sidebarOpen) {

@@ -5,7 +5,7 @@ import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
 
 export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit }) {
-  const items = definicion?.items || [];
+  const items = useMemo(() => (Array.isArray(definicion?.items) ? definicion.items : []), [definicion]);
   const [answers, setAnswers] = useState({});
   const [notes, setNotes] = useState({});
   const [actions, setActions] = useState({});
@@ -32,13 +32,23 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
 
   const total = items.length;
   const filled = Object.keys(answers).length;
-  const getKey = (it) => it.id ?? `${it.categoria}_${it.texto}`;
+  const getKey = (it) =>
+    normItemRef(
+      it.item_ref
+      ?? it.ref
+      ?? `${it.categoria || "GENERAL"}_${it.id_campo ?? "sin_campo"}_${it.id ?? "sin_id"}_${it.texto ?? ""}`,
+    );
 
   const setAnswer = (it, value) => {
     const key = getKey(it);
-    setAnswers((p) => ({ ...p, [key]: value }));
+    // Guard para evitar setState redundante con el mismo valor.
+    setAnswers((p) => {
+      if (p[key] === value) return p;
+      return { ...p, [key]: value };
+    });
     if (value !== "MALO") {
       setErrors((p) => {
+        if (!p[key]) return p;
         const copy = { ...p };
         delete copy[key];
         return copy;

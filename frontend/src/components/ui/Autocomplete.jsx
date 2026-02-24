@@ -91,7 +91,7 @@ export default function Autocomplete({
           <div style={{ maxHeight: 260, overflow: "auto" }}>
             {list.map((it, idx) => (
               <button
-                key={`${it?.id_cliente ?? it?.id_servicio ?? it?.id_area ?? it?.id_lugar ?? it?.dni ?? idx}`}
+                key={`${it?.id_cliente ?? it?.id_servicio ?? it?.id_area ?? it?.id_lugar ?? it?.dni ?? "opt"}-${idx}`}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {

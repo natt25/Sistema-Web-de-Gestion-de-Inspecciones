@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
 import Badge from "../ui/Badge";
@@ -47,27 +47,61 @@ export default function InspeccionHeaderForm({
   const [tLugar, setTLugar] = useState(false);
   const [tColab, setTColab] = useState(false);
 
-  const setField = (k, v) => onChange((prev) => ({ ...(prev || {}), [k]: v }));
+  // Guard de no-op: evita rerender/loop si el valor no cambia.
+  const setField = useCallback((k, v) => {
+    onChange((prev) => {
+      const base = prev || {};
+      if (base[k] === v) return base;
+      return { ...base, [k]: v };
+    });
+  }, [onChange]);
+
+  // Wrapper estable para updates compuestos con comparación previa.
+  const applyHeaderUpdate = useCallback((updater) => {
+    onChange((prev) => {
+      const base = prev || {};
+      const next = updater(base);
+      return next === base ? base : next;
+    });
+  }, [onChange]);
+
+  const autoFecha = headerDef?.fecha_inspeccion === "auto_today";
+  const userDefaults = useMemo(
+    () => ({
+      realizadoPor: user?.nombreCompleto || user?.nombre || user?.dni || "",
+      cargo: user?.cargo || "",
+      firmaRuta: user?.firma_ruta || "",
+    }),
+    [user?.nombreCompleto, user?.nombre, user?.dni, user?.cargo, user?.firma_ruta],
+  );
 
   const canServicio = Boolean(value?.id_cliente);
   const canArea = Boolean(value?.id_servicio);
   const canLugar = Boolean(value?.id_area);
 
   useEffect(() => {
-    if (!headerDef) return;
-
-    if (headerDef.fecha_inspeccion === "auto_today" && !value?.fecha_inspeccion) {
+    if (autoFecha && !value?.fecha_inspeccion) {
       setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
     }
 
     // Inspector principal autollenado desde usuario logueado (readonly en UI).
     if (user) {
-      if (!value?.realizado_por) setField("realizado_por", user.nombreCompleto || user.nombre || user.dni || "");
-      if (!value?.cargo) setField("cargo", user.cargo || "");
-      if (!value?.firma_ruta) setField("firma_ruta", user.firma_ruta || "");
+      if (!value?.realizado_por) setField("realizado_por", userDefaults.realizadoPor);
+      if (!value?.cargo) setField("cargo", userDefaults.cargo);
+      if (!value?.firma_ruta) setField("firma_ruta", userDefaults.firmaRuta);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [headerDef, user]);
+  }, [
+    autoFecha,
+    setField,
+    user,
+    userDefaults.cargo,
+    userDefaults.firmaRuta,
+    userDefaults.realizadoPor,
+    value?.cargo,
+    value?.fecha_inspeccion,
+    value?.firma_ruta,
+    value?.realizado_por,
+  ]);
 
   useEffect(() => {
     if (!tCliente) return;
@@ -256,17 +290,33 @@ export default function InspeccionHeaderForm({
                 }));
               }}
               onSelect={(c) => {
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_cliente: Number(c.id_cliente),
-                  cliente_text: c.raz_social ?? "",
-                  id_servicio: null,
-                  id_area: null,
-                  id_lugar: null,
-                  servicio_text: "",
-                  area_text: "",
-                  lugar_text: "",
-                }));
+                applyHeaderUpdate((prev) => {
+                  const nextId = Number(c.id_cliente);
+                  const nextText = c.raz_social ?? "";
+                  if (
+                    prev.id_cliente === nextId
+                    && (prev.cliente_text ?? "") === nextText
+                    && prev.id_servicio == null
+                    && prev.id_area == null
+                    && prev.id_lugar == null
+                    && (prev.servicio_text ?? "") === ""
+                    && (prev.area_text ?? "") === ""
+                    && (prev.lugar_text ?? "") === ""
+                  ) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    id_cliente: nextId,
+                    cliente_text: nextText,
+                    id_servicio: null,
+                    id_area: null,
+                    id_lugar: null,
+                    servicio_text: "",
+                    area_text: "",
+                    lugar_text: "",
+                  };
+                });
               }}
             />
           </Field>
@@ -308,15 +358,29 @@ export default function InspeccionHeaderForm({
                 }));
               }}
               onSelect={(s) => {
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_servicio: Number(s.id_servicio),
-                  servicio_text: s.nombre_servicio ?? "",
-                  id_area: null,
-                  id_lugar: null,
-                  area_text: "",
-                  lugar_text: "",
-                }));
+                applyHeaderUpdate((prev) => {
+                  const nextId = Number(s.id_servicio);
+                  const nextText = s.nombre_servicio ?? "";
+                  if (
+                    prev.id_servicio === nextId
+                    && (prev.servicio_text ?? "") === nextText
+                    && prev.id_area == null
+                    && prev.id_lugar == null
+                    && (prev.area_text ?? "") === ""
+                    && (prev.lugar_text ?? "") === ""
+                  ) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    id_servicio: nextId,
+                    servicio_text: nextText,
+                    id_area: null,
+                    id_lugar: null,
+                    area_text: "",
+                    lugar_text: "",
+                  };
+                });
               }}
             />
 
@@ -369,13 +433,25 @@ export default function InspeccionHeaderForm({
                 }
               }}
               onSelect={(a) => {
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_area: Number(a.id_area),
-                  area_text: a.desc_area ?? "",
-                  id_lugar: null,
-                  lugar_text: "",
-                }));
+                applyHeaderUpdate((prev) => {
+                  const nextId = Number(a.id_area);
+                  const nextText = a.desc_area ?? "";
+                  if (
+                    prev.id_area === nextId
+                    && (prev.area_text ?? "") === nextText
+                    && prev.id_lugar == null
+                    && (prev.lugar_text ?? "") === ""
+                  ) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    id_area: nextId,
+                    area_text: nextText,
+                    id_lugar: null,
+                    lugar_text: "",
+                  };
+                });
               }}
             />
           </Field>
@@ -415,11 +491,18 @@ export default function InspeccionHeaderForm({
                 }
               }}
               onSelect={(l) => {
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_lugar: Number(l.id_lugar),
-                  lugar_text: l.desc_lugar ?? "",
-                }));
+                applyHeaderUpdate((prev) => {
+                  const nextId = Number(l.id_lugar);
+                  const nextText = l.desc_lugar ?? "";
+                  if (prev.id_lugar === nextId && (prev.lugar_text ?? "") === nextText) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    id_lugar: nextId,
+                    lugar_text: nextText,
+                  };
+                });
               }}
             />
           </Field>
@@ -470,7 +553,10 @@ export default function InspeccionHeaderForm({
                   placeholder="Escribe para buscar..."
                   displayValue={qColab}
                   onInputChange={setQColab}
-                  onFocus={() => setTColab(true)}
+                  onFocus={() => {
+                    setTColab(true);
+                    if (!qColab.trim()) loadDefaultsColabs();
+                  }}
                   loading={loadingColab}
                   options={optColabs}
                   getOptionLabel={(e) => {
