@@ -8,7 +8,7 @@ const items = [
   { to: "/admin/usuarios", label: "Usuarios", icon: "👥" },
 ];
 
-export default function Sidebar({ onNavigate }) {
+export default function Sidebar({ onNavigate, onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -40,6 +40,14 @@ export default function Sidebar({ onNavigate }) {
           <div className="sidebar-title">SSOMA</div>
           <div className="sidebar-sub">Inspecciones</div>
         </div>
+        <button
+          type="button"
+          className="sidebar-close"
+          aria-label="Cerrar menu"
+          onClick={() => onClose?.()}
+        >
+          x
+        </button>
       </div>
 
       <nav className="sidebar-nav">

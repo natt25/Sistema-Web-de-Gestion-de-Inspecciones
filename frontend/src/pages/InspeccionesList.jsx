@@ -21,13 +21,37 @@ function toInputDate(value) {
   return value || "";
 }
 
+function formatDateISO(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getRangeDates(range, customDesde, customHasta) {
+  const today = new Date();
+  const end = formatDateISO(today);
+
+  if (range === "custom") {
+    return { desde: customDesde || "", hasta: customHasta || "" };
+  }
+
+  const from = new Date(today);
+  if (range === "7d") from.setDate(from.getDate() - 7);
+  if (range === "1m") from.setMonth(from.getMonth() - 1);
+  if (range === "3m") from.setMonth(from.getMonth() - 3);
+  if (range === "6m") from.setMonth(from.getMonth() - 6);
+  if (range === "1y") from.setFullYear(from.getFullYear() - 1);
+  return { desde: formatDateISO(from), hasta: end };
+}
+
 export default function InspeccionesList() {
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
     id_area: "",
     id_estado_inspeccion: "",
-    id_usuario: "",
+    range: "7d",
     desde: "",
     hasta: "",
   });
@@ -47,9 +71,9 @@ export default function InspeccionesList() {
     const p = {};
     if (filters.id_area) p.id_area = Number(filters.id_area);
     if (filters.id_estado_inspeccion) p.id_estado_inspeccion = Number(filters.id_estado_inspeccion);
-    if (filters.id_usuario) p.id_usuario = Number(filters.id_usuario);
-    if (filters.desde) p.desde = filters.desde;
-    if (filters.hasta) p.hasta = filters.hasta;
+    const { desde, hasta } = getRangeDates(filters.range, filters.desde, filters.hasta);
+    if (desde) p.desde = desde;
+    if (hasta) p.hasta = hasta;
     return p;
   }, [filters]);
 
@@ -109,12 +133,26 @@ export default function InspeccionesList() {
   return (
     <DashboardLayout title="Inspecciones" actions={actions}>
       <Card title="Filtros">
-        <div className="grid-cards" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
+        <div className="grid-cards filters-grid">
           <Input label="id_area" name="id_area" value={filters.id_area} onChange={onChange} placeholder="Ej: 1" />
           <Input label="id_estado_inspeccion" name="id_estado_inspeccion" value={filters.id_estado_inspeccion} onChange={onChange} placeholder="Ej: 1" />
-          <Input label="id_usuario" name="id_usuario" value={filters.id_usuario} onChange={onChange} placeholder="Ej: 5" />
-          <Input label="desde" type="date" name="desde" value={toInputDate(filters.desde)} onChange={onChange} />
-          <Input label="hasta" type="date" name="hasta" value={toInputDate(filters.hasta)} onChange={onChange} />
+          <label className="ins-field">
+            <span>Rango</span>
+            <select className="ins-input" name="range" value={filters.range} onChange={onChange}>
+              <option value="7d">7 dias</option>
+              <option value="1m">1 mes</option>
+              <option value="3m">3 meses</option>
+              <option value="6m">6 meses</option>
+              <option value="1y">1 ano</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </label>
+          {filters.range === "custom" ? (
+            <>
+              <Input label="desde" type="date" name="desde" value={toInputDate(filters.desde)} onChange={onChange} />
+              <Input label="hasta" type="date" name="hasta" value={toInputDate(filters.hasta)} onChange={onChange} />
+            </>
+          ) : null}
         </div>
 
         <div className="actions" style={{ marginTop: 12 }}>
@@ -125,7 +163,7 @@ export default function InspeccionesList() {
             variant="outline"
             type="button"
             onClick={() => {
-              setFilters({ id_area: "", id_estado_inspeccion: "", id_usuario: "", desde: "", hasta: "" });
+              setFilters({ id_area: "", id_estado_inspeccion: "", range: "7d", desde: "", hasta: "" });
               setTimeout(load, 0);
             }}
             disabled={loading}
