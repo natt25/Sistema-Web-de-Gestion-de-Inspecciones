@@ -9,6 +9,18 @@ function normalizeText(v) {
     .trim();
 }
 
+function normalizeRefKey(v) {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeRefNum(v) {
+  const n = Number.parseInt(String(v || "").replace(/\D/g, ""), 10);
+  return Number.isNaN(n) ? null : n;
+}
+
 async function list(req, res) {
   try {
     const data = await repo.listPlantillas();
@@ -44,6 +56,7 @@ async function definicion(req, res) {
     if (!row) return res.status(404).json({ message: "Definicion no encontrada" });
 
     let jsonDef = row.json_definicion;
+    let unmappedItems = [];
     try {
       const parsed = typeof row.json_definicion === "string"
         ? JSON.parse(row.json_definicion)
@@ -54,8 +67,8 @@ async function definicion(req, res) {
         const camposLimpios = (campos || []).map((c, idx) => ({
           idx,
           id_campo: Number(c.id_campo),
-          item_ref_raw: String(c.item_ref || "").trim(),
-          item_ref_num: Number.parseInt(String(c.item_ref || "").replace(/\D/g, ""), 10),
+          item_ref_raw: normalizeRefKey(c.item_ref),
+          item_ref_num: normalizeRefNum(c.item_ref),
           desc_norm: normalizeText(c.descripcion_item),
         }));
 
@@ -64,44 +77,70 @@ async function definicion(req, res) {
         const byDesc = new Map();
         for (const c of camposLimpios) {
           if (c.item_ref_raw) byItemRef.set(c.item_ref_raw, c.id_campo);
-          if (!Number.isNaN(c.item_ref_num)) byItemRefNum.set(c.item_ref_num, c.id_campo);
+          if (c.item_ref_num != null) byItemRefNum.set(c.item_ref_num, c.id_campo);
           if (c.desc_norm) byDesc.set(c.desc_norm, c.id_campo);
         }
 
-        let firstMissing = null;
+        const missingItems = [];
+        let mappedCount = 0;
         parsed.items = parsed.items.map((it, idx) => {
           const rawIdCampo = Number(it?.id_campo);
-          const itemRef = String(it?.item_ref ?? it?.id ?? "").trim();
-          const itemNum = Number.parseInt(String(it?.id ?? it?.item_ref ?? "").replace(/\D/g, ""), 10);
+          const refCandidates = [it?.item_ref, it?.ref, it?.id, it?.codigo, it?.numero];
+          const refKey = refCandidates
+            .map((v) => normalizeRefKey(v))
+            .find((v) => v);
+          const refNum = refCandidates
+            .map((v) => normalizeRefNum(v))
+            .find((v) => v != null);
           const desc = normalizeText(it?.descripcion ?? it?.texto);
 
           const mapped =
             (!Number.isNaN(rawIdCampo) && rawIdCampo > 0) ? rawIdCampo :
-            (itemRef && byItemRef.get(itemRef)) ? byItemRef.get(itemRef) :
-            (!Number.isNaN(itemNum) && byItemRefNum.get(itemNum)) ? byItemRefNum.get(itemNum) :
+            (refKey && byItemRef.get(refKey)) ? byItemRef.get(refKey) :
+            (refNum != null && byItemRefNum.get(refNum)) ? byItemRefNum.get(refNum) :
             (desc && byDesc.get(desc)) ? byDesc.get(desc) :
             (camposLimpios[idx]?.id_campo || null);
 
-          if (!mapped && !firstMissing) {
-            firstMissing = {
+          if (!mapped) {
+            const missing = {
               idx,
               id: it?.id ?? null,
+              ref: it?.ref ?? null,
               item_ref: it?.item_ref ?? null,
-              texto: it?.texto ?? it?.descripcion ?? null,
+              descripcion: it?.descripcion ?? it?.texto ?? null,
             };
+            missingItems.push(missing);
+            console.warn("[definicion] item sin id_campo", {
+              plantilla: id,
+              item_ref: missing.item_ref ?? missing.ref,
+              desc: missing.descripcion,
+            });
+          } else {
+            mappedCount += 1;
           }
 
           return { ...it, id_campo: mapped ? Number(mapped) : null };
         });
 
-        if (firstMissing) {
+        if (missingItems.length > 0) {
           console.warn("[plantillas.controller] item sin id_campo mapeado", {
             plantilla: id,
-            firstMissing,
+            firstMissing: missingItems[0],
+            totalMissing: missingItems.length,
             totalItems: parsed.items.length,
             totalCampos: camposLimpios.length,
           });
         }
+
+        unmappedItems = missingItems;
+        const sample = missingItems.slice(0, 10);
+        console.log("[plantillas.controller] definicion mapping", {
+          plantilla: id,
+          totalItems: parsed.items.length,
+          mapped: mappedCount,
+          unmapped: missingItems.length,
+          sampleUnmapped: sample,
+        });
       }
       jsonDef = parsed;
     } catch {
@@ -114,6 +153,7 @@ async function definicion(req, res) {
       checksum: row.checksum,
       fecha_creacion: row.fecha_creacion,
       json_definicion: jsonDef,
+      unmapped_items: unmappedItems,
     });
   } catch (error) {
     console.error("[plantillas.controller] definicion error:", error);

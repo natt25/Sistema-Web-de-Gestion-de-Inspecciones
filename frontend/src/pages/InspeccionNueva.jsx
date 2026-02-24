@@ -215,6 +215,8 @@ export default function InspeccionNueva() {
             plantilla={def}
             definicion={def.json}
             onSubmit={async (payload) => {
+              console.log("[InspeccionNueva] onSubmit payload:", payload);
+              alert("onSubmit ejecutado");
               const body = {
                 cabecera: {
                   id_plantilla_inspec: Number(def.id_plantilla_inspec),
@@ -230,6 +232,27 @@ export default function InspeccionNueva() {
                 participantes: cabecera.participantes || [],
                 respuestas: payload.respuestas,
               };
+              const faltantes = (body.respuestas || [])
+                .map((r, index) => ({
+                  index,
+                  item_ref: r?.item_ref ?? null,
+                  texto: r?.descripcion ?? r?.texto ?? null,
+                  id_campo: r?.id_campo ?? null,
+                }))
+                .filter((r) => !r.id_campo || Number(r.id_campo) <= 0);
+
+              if (faltantes.length > 0) {
+                if (IS_DEV) {
+                  console.error("Plantilla mal mapeada: items sin id_campo", faltantes);
+                }
+                alert(
+                  `Plantilla mal mapeada: faltan id_campo en ${faltantes.length} items. ` +
+                  `Revisa /api/plantillas/:id/definicion y la tabla SSOMA.INS_PLANTILLA_CAMPO.`
+                );
+                return;
+              }
+              console.log("[InspeccionNueva] online:", online);
+              console.log("[InspeccionNueva] POST body:", body);
 
               try {
                 if (!online) {

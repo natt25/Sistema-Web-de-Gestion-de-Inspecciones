@@ -5,7 +5,7 @@ async function crear(req, res) {
     const result = await service.crearInspeccionCompleta({ user: req.user, body: req.body });
 
     if (!result.ok) {
-      return res.status(result.status).json({ message: result.message });
+      return res.status(result.status).json({ message: result.message, ...(result.data || {}) });
     }
 
     return res.status(201).json(result.data);

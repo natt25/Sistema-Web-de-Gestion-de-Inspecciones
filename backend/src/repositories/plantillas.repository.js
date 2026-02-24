@@ -95,8 +95,8 @@ async function listarCamposPorPlantilla(id_plantilla_inspec) {
     BEGIN
       SELECT
         c.id_campo,
-        CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
-        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
+        LTRIM(RTRIM(COALESCE(CAST(c.item_ref AS NVARCHAR(50)), ''))) AS item_ref,
+        LTRIM(RTRIM(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo, ''))) AS descripcion_item
       FROM SSOMA.INS_PLANTILLA_CAMPO c
       WHERE c.id_plantilla_inspec = @id;
       RETURN;
@@ -108,8 +108,8 @@ async function listarCamposPorPlantilla(id_plantilla_inspec) {
     BEGIN
       SELECT
         c.id_campo,
-        CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
-        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
+        LTRIM(RTRIM(COALESCE(CAST(c.item_ref AS NVARCHAR(50)), ''))) AS item_ref,
+        LTRIM(RTRIM(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo, ''))) AS descripcion_item
       FROM SSOMA.INS_PLANTILLA_CAMPO c
       JOIN SSOMA.INS_PLANTILLA_CATEGORIA cat ON cat.id_categoria = c.id_categoria
       WHERE cat.id_plantilla_inspec = @id;

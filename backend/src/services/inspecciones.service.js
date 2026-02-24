@@ -225,81 +225,49 @@ async function actualizarEstadoAccion({ id_accion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
+function badRequest(message, data) {
+  return { ok: false, status: 400, message, data };
+}
+
 async function crearInspeccionCompleta({ user, body }) {
-  const cabecera = body?.cabecera;
-  const respuestas = body?.respuestas;
-  const participantes = body?.participantes || [];
+  const cab = body?.cabecera;
+  const respuestas = Array.isArray(body?.respuestas) ? body.respuestas : [];
+  const participantes = Array.isArray(body?.participantes) ? body.participantes : [];
 
-  if (!cabecera) return { ok: false, status: 400, message: "Falta cabecera" };
-  if (!Array.isArray(respuestas) || !respuestas.length) {
-    return { ok: false, status: 400, message: "Falta respuestas[]" };
-  }
+  if (!cab?.id_plantilla_inspec) return badRequest("Falta cabecera.id_plantilla_inspec");
+  if (!cab?.id_area) return badRequest("Falta cabecera.id_area");
+  if (!cab?.fecha_inspeccion) return badRequest("Falta cabecera.fecha_inspeccion");
+  if (!respuestas.length) return badRequest("Falta respuestas");
 
-  if (!cabecera.id_plantilla_inspec) {
-    return { ok: false, status: 400, message: "id_plantilla_inspec es obligatorio" };
-  }
-  if (!cabecera.id_estado_inspeccion || !cabecera.id_modo_registro) {
-    return { ok: false, status: 400, message: "id_estado_inspeccion e id_modo_registro son obligatorios" };
-  }
-  if (!cabecera.id_area) {
-    return { ok: false, status: 400, message: "id_area es obligatorio" };
-  }
+  // ✅ OJO: NO VALIDAMOS id_campo aquí.
+  // Solo validamos que exista un item_ref o id para identificar el item.
+  const faltanRefs = respuestas.some((r) => !String(r?.item_ref ?? r?.id ?? r?.item_id ?? "").trim());
+  if (faltanRefs) return badRequest("Falta item_ref en una o más respuestas");
 
-  if (
-    !validarCatalogoVsOtro({
-      id_otro: cabecera.id_otro ?? null,
-      id_cliente: cabecera.id_cliente ?? null,
-      id_servicio: cabecera.id_servicio ?? null,
-    })
-  ) {
-    return {
-      ok: false,
-      status: 400,
-      message: "Regla invalida: usa (id_cliente + id_servicio) o usa id_otro (pero no ambos).",
-    };
-  }
+  const cabeceraToSave = {
+    ...cab,
+    id_usuario: user?.id_usuario ?? null,
+  };
 
-  const fecha = cabecera.fecha_inspeccion ? new Date(cabecera.fecha_inspeccion) : new Date();
-  if (Number.isNaN(fecha.getTime())) {
-    return { ok: false, status: 400, message: "fecha_inspeccion invalida (usa YYYY-MM-DD)" };
-  }
-  cabecera.fecha_inspeccion = fecha;
+  const json_respuestas = JSON.stringify({
+    cabecera: cabeceraToSave,
+    participantes,
+    respuestas,
+    meta: { schema: "v1-json", savedAt: new Date().toISOString() },
+  });
 
-  for (let i = 0; i < respuestas.length; i += 1) {
-    const idCampo = Number(respuestas[i]?.id_campo);
-    if (!idCampo || Number.isNaN(idCampo)) {
-      return {
-        ok: false,
-        status: 400,
-        message: `Falta id_campo en respuestas[${i}]`,
-      };
-    }
-  }
+  // ✅ guarda cabecera + JSON (NO inserta INS_RESPUESTA_ITEM)
+  const created = await repo.crearInspeccionYGuardarJSON({
+    cabecera: cabeceraToSave,
+    json_respuestas,
+    participantes,
+  });
 
-  const vistos = new Set();
-  const repetidos = new Set();
-  for (const r of respuestas) {
-    const idCampo = Number(r.id_campo);
-    if (vistos.has(idCampo)) repetidos.add(idCampo);
-    vistos.add(idCampo);
-  }
-  if (repetidos.size) {
-    return {
-      ok: false,
-      status: 400,
-      message: `id_campo duplicado en respuestas: ${Array.from(repetidos).join(", ")}`,
-    };
-  }
-
-  try {
-    const data = await repo.crearInspeccionCompleta({ user, cabecera, respuestas, participantes });
-    return { ok: true, status: 201, data };
-  } catch (err) {
-    if (err?.status === 400) {
-      return { ok: false, status: 400, message: err.message };
-    }
-    throw err;
-  }
+  return {
+    ok: true,
+    status: 201,
+    data: created, // {id_inspeccion, id_respuesta}
+  };
 }
 
 export default {

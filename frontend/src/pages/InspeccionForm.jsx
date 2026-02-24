@@ -6,6 +6,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import { getDefinicionPlantilla } from "../api/plantillas.api";
 import { getUser } from "../auth/auth.storage";
+import { crearInspeccion } from "../api/inspecciones.api";
 
 const ESTADOS = [
   { v: "BUENO", label: "Bueno" },
@@ -55,10 +56,44 @@ export default function InspeccionForm() {
   }
 
   async function guardar() {
-    // siguiente paso: crear INSPECCION + INSPECCION_RESPUESTA en backend
-    console.log("JSON respuesta:", { ...resp, planes_accion: planes });
-    alert("Listo: ya tienes el JSON. Siguiente paso: guardarlo en BD.");
-    navigate("/inspecciones");
+    try {
+      const payload = {
+        header: resp?.header || {},
+        plantilla: {
+          id_plantilla_inspec: Number(idPlantilla),
+        },
+        // ✅ convertir items del form a array de respuestas
+        respuestas: Object.entries(resp?.items || {}).map(([idItem, v]) => ({
+          // BACKEND te está pidiendo id_campo, así que lo mandamos desde def.items
+          id_item: idItem,
+          id_campo: Number(def?.items?.find((x) => String(x.id) === String(idItem))?.id_campo || 0),
+          item_ref: def?.items?.find((x) => String(x.id) === String(idItem))?.item_ref ?? idItem,
+          estado: v?.estado ?? null,
+          observacion: (v?.obs ?? "").trim(),
+        })),
+        planes_accion: planes,
+        createdAt: new Date().toISOString(),
+      };
+
+      // ✅ validación mínima para evitar 400 "Falta id_campo"
+      const faltanCampos = (payload.respuestas || []).some((r) => !r.id_campo || Number.isNaN(Number(r.id_campo)));
+      if (faltanCampos) {
+        console.error("[guardar] payload con id_campo faltante:", payload);
+        alert("ERROR: Hay items sin id_campo. Revisa la definición de plantilla (id_campo no está mapeado).");
+        return;
+      }
+
+      console.log("[guardar] POST /api/inspecciones payload:", payload);
+
+      await crearInspeccion(payload);
+
+      alert("Inspección guardada ✅");
+      navigate("/inspecciones");
+    } catch (err) {
+      console.error("[guardar] error:", err);
+      const msg = err?.response?.data?.message || err?.message || "Error al guardar";
+      alert(msg);
+    }
   }
 
   return (
@@ -83,15 +118,15 @@ export default function InspeccionForm() {
               {/* Estos 3 son display-only */}
               <div style={{ display: "grid", gap: 6 }}>
                 <div className="label">Realizado por (DNI)</div>
-                <Input value={value.realizado_por ?? ""} disabled />
+                <Input value={resp?.header?.realizado_por ?? ""} disabled />
               </div>
               <div style={{ display: "grid", gap: 6 }}>
                 <div className="label">Cargo</div>
-                <Input value={value.cargo ?? ""} disabled />
+                <Input value={resp?.header?.realizado_por ?? ""} disabled />
               </div>
               <div style={{ display: "grid", gap: 6 }}>
                 <div className="label">Firma (ruta)</div>
-                <Input value={value.firma_ruta ?? ""} disabled />
+                <Input value={resp?.header?.cargo ?? ""} disabled />
               </div>
 
               {/* Estos sí se llenan */}

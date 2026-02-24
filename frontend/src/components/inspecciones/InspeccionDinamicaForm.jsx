@@ -89,12 +89,37 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    if (!isValid) {
+      console.warn("Validacion fallo:", newErrors);
+    }
+    return isValid;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    console.log("[DinamicaForm] handleSubmit triggered");
+    alert("handleSubmit ejecutado");
     if (!validate()) return;
+
+    const faltantes = items
+      .map((it, index) => ({
+        index,
+        id: it?.id ?? null,
+        item_ref: normItemRef(it?.item_ref ?? it?.ref ?? it?.id ?? ""),
+        texto: (it?.texto ?? it?.descripcion ?? "").trim() || null,
+        id_campo: it?.id_campo ? Number(it.id_campo) : null,
+      }))
+      .filter((it) => !Number(it.id_campo));
+
+    if (faltantes.length > 0) {
+      console.error("Items sin id_campo:", faltantes);
+      const detalle = faltantes
+        .map((f) => `#${f.index + 1} ref=${f.item_ref || "?"} id=${f.id ?? "?"} texto=${f.texto || "?"}`)
+        .join("\n");
+      alert(`ERROR: Plantilla sin id_campo mapeado.\n${detalle}\nRevisa consola.`);
+      return;
+    }
 
     const payload = {
       plantilla: {
@@ -106,17 +131,10 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
       respuestas: items.map((it) => {
         const key = getKey(it);
         const ans = answers[key] || null;
-        const idCampo = it?.id_campo != null ? Number(it.id_campo) : null;
-        if (idCampo == null || Number.isNaN(idCampo)) {
-          console.warn("[InspeccionDinamicaForm] item sin id_campo valido", {
-            id: it?.id ?? null,
-            item_ref: it?.item_ref ?? null,
-            texto: it?.texto ?? null,
-          });
-        }
+        const idCampo = it?.id_campo == null || it?.id_campo === "" ? null : Number(it.id_campo);
         return {
           id_campo: idCampo,
-          item_ref: it.item_ref ?? it.id ?? null,
+          item_ref: it.item_ref ?? it.ref ?? it.id ?? null,
           categoria: it.categoria || null,
           descripcion: it.texto || null,
           estado: ans,
@@ -339,4 +357,10 @@ function Option({ name, label, checked, onChange }) {
 
 function formatTitle(s) {
   return String(s).replace(/_/g, " ").toUpperCase();
+}
+
+function normItemRef(v) {
+  return String(v ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
 }

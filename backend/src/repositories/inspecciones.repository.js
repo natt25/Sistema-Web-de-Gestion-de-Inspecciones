@@ -373,15 +373,32 @@ async function listarRespuestasPorInspeccion(id_inspeccion) {
   }));
 }
 
-async function crearInspeccionCompleta({ user, cabecera, respuestas, participantes = [] }) {
+async function crearInspeccionYGuardarJSON({ cabecera, json_respuestas, participantes }) {
   const pool = await getPool();
   const tx = new sql.Transaction(pool);
 
   try {
     await tx.begin();
 
-    // 1) Insert cabecera (reutiliza tu insert pero con transaction)
-    const qCab = `
+    // 1) Insert INS_INSPECCION (según TU crearInspeccionCabecera)
+    const req1 = new sql.Request(tx);
+
+    req1.input("id_usuario", sql.Int, cabecera.id_usuario);
+    req1.input("id_plantilla_inspec", sql.Int, cabecera.id_plantilla_inspec);
+    req1.input("id_area", sql.Int, cabecera.id_area);
+
+    req1.input("id_otro", sql.Int, cabecera.id_otro ?? null);
+    req1.input("id_estado_inspeccion", sql.Int, cabecera.id_estado_inspeccion ?? 1);
+    req1.input("id_modo_registro", sql.Int, cabecera.id_modo_registro ?? 1);
+
+    // 👇 IMPORTANTE: id_cliente es NVARCHAR(10) en tu insert actual
+    req1.input("id_cliente", sql.NVarChar(10), cabecera.id_cliente ?? null);
+    req1.input("id_servicio", sql.Int, cabecera.id_servicio ?? null);
+    req1.input("servicio_detalle", sql.NVarChar(200), cabecera.servicio_detalle ?? null);
+
+    req1.input("fecha_inspeccion", sql.DateTime2, cabecera.fecha_inspeccion);
+
+    const qIns = `
       INSERT INTO SSOMA.INS_INSPECCION
       (
         id_usuario,
@@ -397,7 +414,7 @@ async function crearInspeccionCompleta({ user, cabecera, respuestas, participant
         created_at,
         synced_at
       )
-      OUTPUT INSERTED.*
+      OUTPUT INSERTED.id_inspeccion
       VALUES
       (
         @id_usuario,
@@ -415,168 +432,45 @@ async function crearInspeccionCompleta({ user, cabecera, respuestas, participant
       );
     `;
 
-    const reqCab = new sql.Request(tx);
-    reqCab.input("id_usuario", sql.Int, user.id_usuario);
-    reqCab.input("id_plantilla_inspec", sql.Int, cabecera.id_plantilla_inspec);
-    reqCab.input("id_estado_inspeccion", sql.Int, cabecera.id_estado_inspeccion ?? 1);
-    reqCab.input("id_modo_registro", sql.Int, cabecera.id_modo_registro ?? 1);
+    const rIns = await req1.query(qIns);
+    const id_inspeccion = rIns.recordset?.[0]?.id_inspeccion;
 
-    reqCab.input("id_otro", sql.Int, cabecera.id_otro ?? null);
-    reqCab.input("id_cliente", sql.NVarChar(10), cabecera.id_cliente ?? null);
-    reqCab.input("id_servicio", sql.Int, cabecera.id_servicio ?? null);
-    reqCab.input("servicio_detalle", sql.NVarChar(200), cabecera.servicio_detalle ?? null);
-    reqCab.input("fecha_inspeccion", sql.DateTime2, cabecera.fecha_inspeccion ?? new Date());
-    reqCab.input("id_area", sql.Int, cabecera.id_area);
+    // 2) Insert INS_INSPECCION_RESPUESTA con JSON
+    const req2 = new sql.Request(tx);
+    req2.input("id_inspeccion", sql.Int, Number(id_inspeccion));
+    req2.input("json_respuestas", sql.NVarChar(sql.MAX), json_respuestas);
 
-    const rCab = await reqCab.query(qCab);
-    const inspeccion = rCab.recordset[0];
-    const id_inspeccion = inspeccion.id_inspeccion;
-
-    // 2) Crea contenedor de respuestas (1 fila por inspeccion)
-    const qRespHeader = `
-      INSERT INTO SSOMA.INS_INSPECCION_RESPUESTA
-      (id_inspeccion, created_at)
+    const qResp = `
+      INSERT INTO SSOMA.INS_INSPECCION_RESPUESTA (id_inspeccion, json_respuestas, created_at)
       OUTPUT INSERTED.id_respuesta
-      VALUES
-      (@id_inspeccion, SYSUTCDATETIME());
+      VALUES (@id_inspeccion, @json_respuestas, SYSUTCDATETIME());
     `;
 
-    const reqRespHeader = new sql.Request(tx);
-    reqRespHeader.input("id_inspeccion", sql.Int, id_inspeccion);
-    const rRespHeader = await reqRespHeader.query(qRespHeader);
-    const id_respuesta = rRespHeader.recordset[0].id_respuesta;
+    const rResp = await req2.query(qResp);
+    const id_respuesta = rResp.recordset?.[0]?.id_respuesta;
 
-    const validarCampoPlantillaQuery = `
-      IF OBJECT_ID('SSOMA.INS_PLANTILLA_CAMPO', 'U') IS NULL
-      BEGIN
-        SELECT CAST(0 AS BIT) AS existe, CAST(0 AS BIT) AS pertenece;
-        RETURN;
-      END;
-
-      DECLARE @existe BIT = 0;
-      DECLARE @pertenece BIT = 0;
-
-      IF EXISTS (SELECT 1 FROM SSOMA.INS_PLANTILLA_CAMPO c WHERE c.id_campo = @id_campo)
-        SET @existe = 1;
-
-      IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_inspec') IS NOT NULL
-      BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM SSOMA.INS_PLANTILLA_CAMPO c
-          WHERE c.id_campo = @id_campo
-            AND c.id_plantilla_inspec = @id_plantilla_inspec
-        ) SET @pertenece = 1;
-      END
-      ELSE IF OBJECT_ID('SSOMA.INS_PLANTILLA_CATEGORIA', 'U') IS NOT NULL
-           AND COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_categoria') IS NOT NULL
-           AND COL_LENGTH('SSOMA.INS_PLANTILLA_CATEGORIA', 'id_plantilla_inspec') IS NOT NULL
-      BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM SSOMA.INS_PLANTILLA_CAMPO c
-          JOIN SSOMA.INS_PLANTILLA_CATEGORIA cat ON cat.id_categoria = c.id_categoria
-          WHERE c.id_campo = @id_campo
-            AND cat.id_plantilla_inspec = @id_plantilla_inspec
-        ) SET @pertenece = 1;
-      END
-
-      SELECT @existe AS existe, @pertenece AS pertenece;
-    `;
-
-    // 3) Inserta items de respuesta (valor unico: valor_opcion)
-    const qRespItem = `
-      INSERT INTO SSOMA.INS_RESPUESTA_ITEM
-      (
-        id_respuesta,
-        id_campo,
-        valor_opcion,
-        observacion
-      )
-      VALUES
-      (
-        @id_respuesta,
-        @id_campo,
-        @valor_opcion,
-        @observacion
-      );
-    `;
-
-    for (const it of respuestas) {
-      const idCampo = Number(it.id_campo);
-      const reqValCampo = new sql.Request(tx);
-      reqValCampo.input("id_campo", sql.Int, idCampo);
-      reqValCampo.input("id_plantilla_inspec", sql.Int, Number(cabecera.id_plantilla_inspec));
-      const rVal = await reqValCampo.query(validarCampoPlantillaQuery);
-      const existe = Boolean(rVal.recordset?.[0]?.existe);
-      const pertenece = Boolean(rVal.recordset?.[0]?.pertenece);
-      if (!existe || !pertenece) {
-        const err = new Error(
-          `Campo invalido: id_campo=${idCampo} no existe/no pertenece a plantilla ${Number(cabecera.id_plantilla_inspec)}`
-        );
-        err.status = 400;
-        err.id_campo = idCampo;
-        throw err;
-      }
-
-      const reqR = new sql.Request(tx);
-      reqR.input("id_respuesta", sql.Int, id_respuesta);
-      reqR.input("id_campo", sql.Int, idCampo);
-      reqR.input("valor_opcion", sql.NVarChar(20), it.estado ?? null);
-      // Regla pedida: truncar observacion a 300
-      reqR.input("observacion", sql.NVarChar(300), (it.observacion || "").slice(0, 300) || null);
-      await reqR.query(qRespItem);
-    }
-
-    // 4) Participantes (dni -> id_usuario)
+    // 3) Participantes (si la tabla existe y quieres guardarlos)
     if (Array.isArray(participantes) && participantes.length) {
-      for (let idx = 0; idx < participantes.length; idx += 1) {
-        const p = participantes[idx];
-        const dni = String(p?.dni || "").trim();
-        if (!dni) continue;
+      for (const p of participantes) {
+        const reqP = new sql.Request(tx);
+        reqP.input("id_inspeccion", sql.Int, Number(id_inspeccion));
+        reqP.input("id_usuario", sql.Int, p?.id_usuario ?? null);
+        reqP.input("id_cargo_base", sql.Int, p?.id_cargo_base ?? null);
+        reqP.input("cargo_texto_final", sql.NVarChar(200), p?.cargo_texto_final ?? null);
+        reqP.input("cargo_es_editado", sql.Bit, p?.cargo_es_editado ? 1 : 0);
+        reqP.input("orden_custom", sql.Int, p?.orden_custom ?? null);
 
-        const reqFindUser = new sql.Request(tx);
-        reqFindUser.input("dni", sql.NVarChar(15), dni);
-        const rUser = await reqFindUser.query(`
-          SELECT TOP 1 id_usuario
-          FROM SSOMA.INS_USUARIO
-          WHERE dni = @dni
-        `);
-        const userRow = rUser.recordset?.[0];
-        if (!userRow?.id_usuario) {
-          const err = new Error(`Participante no tiene usuario: ${dni}`);
-          err.status = 400;
-          throw err;
-        }
-
-        const reqPart = new sql.Request(tx);
-        reqPart.input("id_inspeccion", sql.Int, id_inspeccion);
-        reqPart.input("id_usuario", sql.Int, userRow.id_usuario);
-        reqPart.input("orden_custom", sql.Int, idx + 1);
-        await reqPart.query(`
-          IF NOT EXISTS (
-            SELECT 1
-            FROM SSOMA.INS_INSPECCION_PARTICIPANTE
-            WHERE id_inspeccion = @id_inspeccion AND id_usuario = @id_usuario
-          )
-          BEGIN
-            INSERT INTO SSOMA.INS_INSPECCION_PARTICIPANTE
-            (id_inspeccion, id_usuario, orden_custom)
-            VALUES
-            (@id_inspeccion, @id_usuario, @orden_custom)
-          END
+        await reqP.query(`
+          INSERT INTO SSOMA.INS_INSPECCION_PARTICIPANTE
+            (id_inspeccion, id_usuario, id_cargo_base, cargo_texto_final, cargo_es_editado, orden_custom)
+          VALUES
+            (@id_inspeccion, @id_usuario, @id_cargo_base, @cargo_texto_final, @cargo_es_editado, @orden_custom);
         `);
       }
     }
 
     await tx.commit();
-
-    return {
-      id_inspeccion,
-      id_respuesta,
-      total_respuestas: respuestas.length,
-      inspeccion,
-    };
+    return { id_inspeccion, id_respuesta };
   } catch (e) {
     try { await tx.rollback(); } catch {}
     throw e;
@@ -651,5 +545,5 @@ export default {
   actualizarEstadoInspeccion,
   listarParticipantesPorInspeccion,
   listarRespuestasPorInspeccion,
-  crearInspeccionCompleta
+  crearInspeccionYGuardarJSON
 };
