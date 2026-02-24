@@ -10,6 +10,8 @@ import InspeccionHeaderForm from "../components/inspecciones/InspeccionHeaderFor
 import InspeccionDinamicaForm from "../components/inspecciones/InspeccionDinamicaForm.jsx";
 import http from "../api/http.js";
 import { getUser } from "../auth/auth.storage.js";
+import useOnlineStatus from "../hooks/useOnlineStatus";
+import { addInspeccionToQueue } from "../utils/offlineQueue";
 
 const IS_DEV = Boolean(import.meta.env.DEV);
 
@@ -30,6 +32,7 @@ export default function InspeccionNueva() {
   const navigate = useNavigate();
   const plantillaId = Number(q.get("plantilla"));
   const user = getUser(); // debe incluir dni / nombreCompleto / cargo / firma_ruta
+  const online = useOnlineStatus();
 
   // loading separado (def + catalogos)
   const [loadingDef, setLoadingDef] = useState(false);
@@ -235,6 +238,14 @@ export default function InspeccionNueva() {
               };
 
               try {
+                if (!online) {
+                  console.info("[inspecciones.create] offline -> queued (no POST)");
+                  await addInspeccionToQueue(body);
+                  alert("Inspeccion guardada OFFLINE (pendiente de sincronizar)");
+                  navigate("/inspecciones");
+                  return;
+                }
+
                 const r = await http.post("/api/inspecciones", body);
                 alert(`Inspeccion creada ID: ${r.data?.id_inspeccion ?? "?"}`);
                 navigate("/inspecciones");

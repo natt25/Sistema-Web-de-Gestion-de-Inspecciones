@@ -7,11 +7,13 @@ const UPLOADS_STORE = "uploads_queue";
 const MUTATIONS_STORE = "mutations_queue"; // crear OBS/ACC
 const IDMAP_STORE = "id_map"; // tempId -> realId
 const INSPECCION_CACHE = "inspeccion_cache";
+const INSPECCIONES_STORE = "inspecciones_queue";
+let syncInspeccionesRunning = false;
 
 function openDB() {
   return new Promise((resolve, reject) => {
     // ⬅️ subimos a versión 2 para crear stores nuevos
-    const req = indexedDB.open(DB_NAME, 3);
+    const req = indexedDB.open(DB_NAME, 4);
 
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -31,6 +33,9 @@ function openDB() {
       // ✅ cache por inspección
       if (!db.objectStoreNames.contains(INSPECCION_CACHE)) {
         db.createObjectStore(INSPECCION_CACHE, { keyPath: "idInspeccion" });
+      }
+      if (!db.objectStoreNames.contains(INSPECCIONES_STORE)) {
+        db.createObjectStore(INSPECCIONES_STORE, { keyPath: "id", autoIncrement: true });
       }
     };
 
@@ -171,8 +176,13 @@ export async function getIdMap(tempId) {
 /* -------------------- Helpers -------------------- */
 
 export async function getPendingCounts() {
-  const [u, m] = await Promise.all([getAllQueue(), getAllMutationsQueue()]);
-  return { uploads: u.length, mutations: m.length, total: u.length + m.length };
+  const [u, m, i] = await Promise.all([getAllQueue(), getAllMutationsQueue(), getAllInspeccionesQueue()]);
+  return {
+    uploads: u.length,
+    mutations: m.length,
+    inspecciones: i.length,
+    total: u.length + m.length + i.length,
+  };
 }
 
 export async function setInspeccionCache(idInspeccion, data) {
@@ -198,4 +208,79 @@ export async function getInspeccionCache(idInspeccion) {
     req.onsuccess = () => resolve(req.result?.data || null);
     req.onerror = () => resolve(null);
   });
+}
+
+/* -------------------- INSPECCIONES (offline create + sync) -------------------- */
+
+export async function addInspeccionToQueue(body) {
+  const db = await openDB();
+  const tx = db.transaction(INSPECCIONES_STORE, "readwrite");
+  tx.objectStore(INSPECCIONES_STORE).add({
+    type: "INSPECCION_CREATE",
+    tempId: `tmp_ins_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    body,
+    createdAt: new Date().toISOString(),
+  });
+  return new Promise((resolve) => {
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+  });
+}
+
+export async function getAllInspeccionesQueue() {
+  const db = await openDB();
+  const tx = db.transaction(INSPECCIONES_STORE, "readonly");
+  const store = tx.objectStore(INSPECCIONES_STORE);
+  return new Promise((resolve) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => resolve([]);
+  });
+}
+
+export async function removeInspeccionFromQueue(id) {
+  const db = await openDB();
+  const tx = db.transaction(INSPECCIONES_STORE, "readwrite");
+  tx.objectStore(INSPECCIONES_STORE).delete(id);
+  return new Promise((resolve) => {
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+  });
+}
+
+export async function getInspeccionesPendingCount() {
+  const rows = await getAllInspeccionesQueue();
+  return rows.length;
+}
+
+export async function syncInspeccionesQueue(httpInstance) {
+  if (!httpInstance || syncInspeccionesRunning) return { synced: 0, failed: 0, pending: 0 };
+
+  syncInspeccionesRunning = true;
+  try {
+    const rows = await getAllInspeccionesQueue();
+    let synced = 0;
+    let failed = 0;
+
+    for (const row of rows) {
+      try {
+        await httpInstance.post("/api/inspecciones", row.body);
+        await removeInspeccionFromQueue(row.id);
+        synced += 1;
+      } catch (err) {
+        failed += 1;
+        console.warn("[offline.sync.inspecciones] failed", {
+          id: row.id,
+          status: err?.response?.status ?? null,
+          message: err?.response?.data?.message || err?.message || "Error",
+        });
+      }
+    }
+
+    const pending = await getInspeccionesPendingCount();
+    console.info("[offline.sync.inspecciones] done", { synced, failed, pending });
+    return { synced, failed, pending };
+  } finally {
+    syncInspeccionesRunning = false;
+  }
 }

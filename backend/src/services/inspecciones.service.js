@@ -16,7 +16,7 @@ async function crearInspeccionCabecera({ user, body }) {
     id_cliente,
     id_servicio,
     servicio_detalle,
-    fecha_inspeccion
+    fecha_inspeccion,
   } = body;
 
   if (!id_plantilla_inspec) {
@@ -26,22 +26,21 @@ async function crearInspeccionCabecera({ user, body }) {
   if (!id_estado_inspeccion || !id_modo_registro) {
     return { ok: false, status: 400, message: "id_estado_inspeccion e id_modo_registro son obligatorios" };
   }
-  
+
   if (!body.id_area) {
     return { ok: false, status: 400, message: "id_area es obligatorio" };
-}
+  }
 
-  // fecha_inspeccion es NOT NULL en DB → si no viene, usamos ahora
   const fecha = fecha_inspeccion ? new Date(fecha_inspeccion) : new Date();
-  if (isNaN(fecha.getTime())) {
-    return { ok: false, status: 400, message: "fecha_inspeccion inválida" };
+  if (Number.isNaN(fecha.getTime())) {
+    return { ok: false, status: 400, message: "fecha_inspeccion invalida" };
   }
 
   if (!validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio })) {
     return {
       ok: false,
       status: 400,
-      message: "Regla inválida: usa (id_cliente + id_servicio) o usa id_otro (pero no ambos)."
+      message: "Regla invalida: usa (id_cliente + id_servicio) o usa id_otro (pero no ambos).",
     };
   }
 
@@ -62,22 +61,20 @@ async function crearInspeccionCabecera({ user, body }) {
   return { ok: true, status: 201, data: creado };
 }
 
-async function listarInspecciones({ user, query }) {
-  // filtros opcionales (todos son opcionales)
+async function listarInspecciones({ query }) {
   const filtros = {
     id_area: query.id_area ? Number(query.id_area) : null,
     id_estado_inspeccion: query.id_estado_inspeccion ? Number(query.id_estado_inspeccion) : null,
     desde: query.desde ? new Date(query.desde) : null,
     hasta: query.hasta ? new Date(query.hasta) : null,
-    // por defecto: si luego quieres "mis inspecciones", lo activamos acá
-    id_usuario: query.id_usuario ? Number(query.id_usuario) : null
+    id_usuario: query.id_usuario ? Number(query.id_usuario) : null,
   };
 
-  if (filtros.desde && isNaN(filtros.desde.getTime())) {
-    return { ok: false, status: 400, message: "desde inválido (usa ISO: 2026-02-06)" };
+  if (filtros.desde && Number.isNaN(filtros.desde.getTime())) {
+    return { ok: false, status: 400, message: "desde invalido (usa ISO: 2026-02-06)" };
   }
-  if (filtros.hasta && isNaN(filtros.hasta.getTime())) {
-    return { ok: false, status: 400, message: "hasta inválido (usa ISO: 2026-02-06)" };
+  if (filtros.hasta && Number.isNaN(filtros.hasta.getTime())) {
+    return { ok: false, status: 400, message: "hasta invalido (usa ISO: 2026-02-06)" };
   }
 
   const data = await repo.listarInspecciones(filtros);
@@ -87,42 +84,38 @@ async function listarInspecciones({ user, query }) {
 async function obtenerDetalleInspeccion(id_inspeccion) {
   const id = Number(id_inspeccion);
   if (!id || Number.isNaN(id)) {
-    return { ok: false, status: 400, message: "id_inspeccion inválido" };
+    return { ok: false, status: 400, message: "id_inspeccion invalido" };
   }
 
   const cabecera = await repo.obtenerInspeccionPorId(id);
   if (!cabecera) {
-    return { ok: false, status: 404, message: "Inspección no encontrada" };
+    return { ok: false, status: 404, message: "Inspeccion no encontrada" };
   }
 
-  // Reutiliza tu repo de observaciones (mejor) o hazlo en el mismo repo
   const observaciones = await observacionesRepo.listarPorInspeccion(id);
-
   return { ok: true, status: 200, data: { cabecera, observaciones } };
 }
 
 async function obtenerDetalleInspeccionFull(id_inspeccion) {
   const id = Number(id_inspeccion);
   if (!id || Number.isNaN(id)) {
-    return { ok: false, status: 400, message: "id_inspeccion inválido" };
+    return { ok: false, status: 400, message: "id_inspeccion invalido" };
   }
 
   const cabecera = await repo.obtenerInspeccionPorId(id);
   if (!cabecera) {
-    return { ok: false, status: 404, message: "Inspección no encontrada" };
+    return { ok: false, status: 404, message: "Inspeccion no encontrada" };
   }
+
   const participantes = await repo.listarParticipantesPorInspeccion(id);
   const respuestas = await repo.listarRespuestasPorInspeccion(id);
-  // 1) Observaciones base
   const observaciones = await observacionesRepo.listarPorInspeccion(id);
 
-  // 2) Evidencias por observación + acciones + evidencias por acción
   const out = [];
   for (const o of observaciones) {
     const evidObs = await observacionesRepo.listarEvidenciasPorObservacion(o.id_observacion);
     const acciones = await observacionesRepo.listarAccionesPorObservacion(o.id_observacion);
 
-    // Para cada acción, adjuntar evidencias de acción
     const accionesOut = [];
     for (const a of acciones) {
       const evidAcc = await observacionesRepo.listarEvidenciasPorAccion(a.id_accion);
@@ -132,7 +125,7 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
     out.push({
       ...o,
       evidencias: evidObs,
-      acciones: accionesOut
+      acciones: accionesOut,
     });
   }
 
@@ -151,7 +144,7 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
 async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
   const id = Number(id_inspeccion);
   if (!id || Number.isNaN(id)) {
-    return { ok: false, status: 400, message: "id_inspeccion inválido" };
+    return { ok: false, status: 400, message: "id_inspeccion invalido" };
   }
 
   const nuevo = Number(body?.id_estado_inspeccion);
@@ -159,33 +152,25 @@ async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
     return { ok: false, status: 400, message: "id_estado_inspeccion es obligatorio" };
   }
 
-  // Validar que exista inspección y leer su estado actual
   const actual = await repo.obtenerEstadoInspeccion(id);
   if (!actual) {
-    return { ok: false, status: 404, message: "Inspección no encontrada" };
+    return { ok: false, status: 404, message: "Inspeccion no encontrada" };
   }
 
   const estadoActual = actual.id_estado_inspeccion;
-
-  // Reglas mínimas de transición (puedes afinar después)
-  // BORRADOR(1) -> REGISTRADA(2) o ANULADA(5)
-  // REGISTRADA(2) -> ENVIADA(3) o ANULADA(5)
-  // ENVIADA(3) -> CERRADA(4) o ANULADA(5)
-  // CERRADA(4) -> (no cambia)
-  // ANULADA(5) -> (no cambia)
   const permitidas = {
     1: [2, 5],
     2: [3, 5],
     3: [4, 5],
     4: [],
-    5: []
+    5: [],
   };
 
   if (!permitidas[estadoActual]?.includes(nuevo)) {
     return {
       ok: false,
       status: 400,
-      message: `Transición no permitida: ${estadoActual} -> ${nuevo}`
+      message: `Transicion no permitida: ${estadoActual} -> ${nuevo}`,
     };
   }
 
@@ -201,16 +186,15 @@ async function actualizarEstadoObservacion({ id_observacion, body }) {
   }
 
   const actual = await observacionesRepo.obtenerEstadoObservacion(id_observacion);
-  if (!actual) return { ok: false, status: 404, message: "Observación no existe." };
+  if (!actual) return { ok: false, status: 404, message: "Observacion no existe." };
 
-  // Si quieren CERRAR (3): validar acciones pendientes
   if (id_estado_observacion === 3) {
     const pendientes = await observacionesRepo.contarAccionesNoFinalizadas(id_observacion);
     if (pendientes > 0) {
       return {
         ok: false,
         status: 409,
-        message: `No se puede cerrar: hay ${pendientes} acción(es) pendiente(s).`,
+        message: `No se puede cerrar: hay ${pendientes} accion(es) pendiente(s).`,
       };
     }
   }
@@ -231,7 +215,7 @@ async function actualizarEstadoAccion({ id_accion, body }) {
   }
 
   const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
-  if (!actual) return { ok: false, status: 404, message: "Acción no existe." };
+  if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
 
   const updated = await observacionesRepo.actualizarEstadoAccion({
     id_accion,
@@ -247,14 +231,42 @@ async function crearInspeccionCompleta({ user, body }) {
   const participantes = body?.participantes || [];
 
   if (!cabecera) return { ok: false, status: 400, message: "Falta cabecera" };
-  if (!cabecera.id_area) return { ok: false, status: 400, message: "id_area es obligatorio" };
   if (!Array.isArray(respuestas) || !respuestas.length) {
     return { ok: false, status: 400, message: "Falta respuestas[]" };
   }
 
+  if (!cabecera.id_plantilla_inspec) {
+    return { ok: false, status: 400, message: "id_plantilla_inspec es obligatorio" };
+  }
+  if (!cabecera.id_estado_inspeccion || !cabecera.id_modo_registro) {
+    return { ok: false, status: 400, message: "id_estado_inspeccion e id_modo_registro son obligatorios" };
+  }
+  if (!cabecera.id_area) {
+    return { ok: false, status: 400, message: "id_area es obligatorio" };
+  }
+
+  if (
+    !validarCatalogoVsOtro({
+      id_otro: cabecera.id_otro ?? null,
+      id_cliente: cabecera.id_cliente ?? null,
+      id_servicio: cabecera.id_servicio ?? null,
+    })
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Regla invalida: usa (id_cliente + id_servicio) o usa id_otro (pero no ambos).",
+    };
+  }
+
+  const fecha = cabecera.fecha_inspeccion ? new Date(cabecera.fecha_inspeccion) : new Date();
+  if (Number.isNaN(fecha.getTime())) {
+    return { ok: false, status: 400, message: "fecha_inspeccion invalida (usa YYYY-MM-DD)" };
+  }
+  cabecera.fecha_inspeccion = fecha;
+
   for (let i = 0; i < respuestas.length; i += 1) {
-    const r = respuestas[i];
-    const idCampo = Number(r?.id_campo);
+    const idCampo = Number(respuestas[i]?.id_campo);
     if (!idCampo || Number.isNaN(idCampo)) {
       return {
         ok: false,
@@ -264,8 +276,8 @@ async function crearInspeccionCompleta({ user, body }) {
     }
   }
 
-  const repetidos = new Set();
   const vistos = new Set();
+  const repetidos = new Set();
   for (const r of respuestas) {
     const idCampo = Number(r.id_campo);
     if (vistos.has(idCampo)) repetidos.add(idCampo);
@@ -279,21 +291,8 @@ async function crearInspeccionCompleta({ user, body }) {
     };
   }
 
-  try {
-    const data = await repo.crearInspeccionCompleta({
-      user,
-      cabecera,
-      respuestas,
-      participantes
-    });
-
-    return { ok: true, status: 201, data };
-  } catch (err) {
-    if (err?.status === 400) {
-      return { ok: false, status: 400, message: err.message };
-    }
-    throw err;
-  }
+  const data = await repo.crearInspeccionCompleta({ user, cabecera, respuestas, participantes });
+  return { ok: true, status: 201, data };
 }
 
 export default {
@@ -304,5 +303,5 @@ export default {
   crearInspeccionCompleta,
   actualizarEstadoInspeccion,
   actualizarEstadoObservacion,
-  actualizarEstadoAccion
+  actualizarEstadoAccion,
 };

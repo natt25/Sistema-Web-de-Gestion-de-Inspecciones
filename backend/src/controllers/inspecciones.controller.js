@@ -1,4 +1,5 @@
 import service from "../services/inspecciones.service.js";
+
 async function crear(req, res) {
   try {
     const result = await service.crearInspeccionCompleta({ user: req.user, body: req.body });
@@ -9,12 +10,18 @@ async function crear(req, res) {
 
     return res.status(201).json(result.data);
   } catch (err) {
-    console.error("inspecciones.crear:", err);
-    return res.status(500).json({
-        message: "Error interno",
-        error: err.message,
-    });
+    console.error("inspecciones.crear FULL ERROR:", err);
 
+    const sqlMsg =
+      err?.originalError?.info?.message ||
+      err?.originalError?.message ||
+      err?.message ||
+      "Error interno";
+
+    return res.status(500).json({
+      message: sqlMsg,
+      error: sqlMsg,
+    });
   }
 }
 
