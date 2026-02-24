@@ -446,6 +446,44 @@ async function crearInspeccionCompleta({ user, cabecera, respuestas, participant
     const rRespHeader = await reqRespHeader.query(qRespHeader);
     const id_respuesta = rRespHeader.recordset[0].id_respuesta;
 
+    const validarCampoPlantillaQuery = `
+      IF OBJECT_ID('SSOMA.INS_PLANTILLA_CAMPO', 'U') IS NULL
+      BEGIN
+        SELECT CAST(0 AS BIT) AS existe, CAST(0 AS BIT) AS pertenece;
+        RETURN;
+      END;
+
+      DECLARE @existe BIT = 0;
+      DECLARE @pertenece BIT = 0;
+
+      IF EXISTS (SELECT 1 FROM SSOMA.INS_PLANTILLA_CAMPO c WHERE c.id_campo = @id_campo)
+        SET @existe = 1;
+
+      IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_inspec') IS NOT NULL
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM SSOMA.INS_PLANTILLA_CAMPO c
+          WHERE c.id_campo = @id_campo
+            AND c.id_plantilla_inspec = @id_plantilla_inspec
+        ) SET @pertenece = 1;
+      END
+      ELSE IF OBJECT_ID('SSOMA.INS_PLANTILLA_CATEGORIA', 'U') IS NOT NULL
+           AND COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_categoria') IS NOT NULL
+           AND COL_LENGTH('SSOMA.INS_PLANTILLA_CATEGORIA', 'id_plantilla_inspec') IS NOT NULL
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM SSOMA.INS_PLANTILLA_CAMPO c
+          JOIN SSOMA.INS_PLANTILLA_CATEGORIA cat ON cat.id_categoria = c.id_categoria
+          WHERE c.id_campo = @id_campo
+            AND cat.id_plantilla_inspec = @id_plantilla_inspec
+        ) SET @pertenece = 1;
+      END
+
+      SELECT @existe AS existe, @pertenece AS pertenece;
+    `;
+
     // 3) Inserta items de respuesta (valor unico: valor_opcion)
     const qRespItem = `
       INSERT INTO SSOMA.INS_RESPUESTA_ITEM
@@ -465,9 +503,25 @@ async function crearInspeccionCompleta({ user, cabecera, respuestas, participant
     `;
 
     for (const it of respuestas) {
+      const idCampo = Number(it.id_campo);
+      const reqValCampo = new sql.Request(tx);
+      reqValCampo.input("id_campo", sql.Int, idCampo);
+      reqValCampo.input("id_plantilla_inspec", sql.Int, Number(cabecera.id_plantilla_inspec));
+      const rVal = await reqValCampo.query(validarCampoPlantillaQuery);
+      const existe = Boolean(rVal.recordset?.[0]?.existe);
+      const pertenece = Boolean(rVal.recordset?.[0]?.pertenece);
+      if (!existe || !pertenece) {
+        const err = new Error(
+          `Campo invalido: id_campo=${idCampo} no existe/no pertenece a plantilla ${Number(cabecera.id_plantilla_inspec)}`
+        );
+        err.status = 400;
+        err.id_campo = idCampo;
+        throw err;
+      }
+
       const reqR = new sql.Request(tx);
       reqR.input("id_respuesta", sql.Int, id_respuesta);
-      reqR.input("id_campo", sql.Int, Number(it.id_campo));
+      reqR.input("id_campo", sql.Int, idCampo);
       reqR.input("valor_opcion", sql.NVarChar(20), it.estado ?? null);
       // Regla pedida: truncar observacion a 300
       reqR.input("observacion", sql.NVarChar(300), (it.observacion || "").slice(0, 300) || null);

@@ -41,12 +41,21 @@ async function definicion(req, res) {
         : row.json_definicion;
 
       if (parsed && Array.isArray(parsed.items)) {
-        parsed.items = parsed.items.map((it, idx) => {
-          const idCampo = Number(it?.id_campo ?? it?.id ?? (idx + 1));
-          return {
-            ...it,
-            id_campo: Number.isNaN(idCampo) ? (idx + 1) : idCampo,
-          };
+        const campos = await repo.listarCamposPorPlantilla(id);
+        const byItemRef = new Map((campos || []).map((c) => [String(c.item_ref || "").trim(), Number(c.id_campo)]));
+        const byDesc = new Map((campos || []).map((c) => [String(c.descripcion_item || "").trim().toLowerCase(), Number(c.id_campo)]));
+
+        parsed.items = parsed.items.map((it) => {
+          const rawIdCampo = Number(it?.id_campo);
+          const itemRef = String(it?.item_ref ?? it?.id ?? "").trim();
+          const desc = String(it?.descripcion ?? it?.texto ?? "").trim().toLowerCase();
+          const mapped =
+            (!Number.isNaN(rawIdCampo) && rawIdCampo > 0) ? rawIdCampo :
+            (itemRef && byItemRef.get(itemRef)) ? byItemRef.get(itemRef) :
+            (desc && byDesc.get(desc)) ? byDesc.get(desc) :
+            null;
+
+          return { ...it, id_campo: mapped ? Number(mapped) : null };
         });
       }
       jsonDef = parsed;

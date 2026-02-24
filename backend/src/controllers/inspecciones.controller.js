@@ -10,7 +10,11 @@ async function crear(req, res) {
 
     return res.status(201).json(result.data);
   } catch (err) {
-    console.error("inspecciones.crear FULL ERROR:", err);
+    console.error("inspecciones.crear FULL ERROR:", {
+      message: err?.message,
+      id_campo: err?.id_campo ?? null,
+      stack: err?.stack,
+    });
 
     const sqlMsg =
       err?.originalError?.info?.message ||

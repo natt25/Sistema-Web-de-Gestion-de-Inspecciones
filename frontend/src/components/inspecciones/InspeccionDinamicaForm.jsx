@@ -107,7 +107,8 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
         const key = getKey(it);
         const ans = answers[key] || null;
         return {
-          id_campo: Number(it.id_campo ?? it.id),
+          id_campo: Number(it.id_campo),
+          item_ref: it.item_ref ?? it.id ?? null,
           categoria: it.categoria || null,
           descripcion: it.texto || null,
           estado: ans,

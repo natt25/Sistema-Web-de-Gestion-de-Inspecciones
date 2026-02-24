@@ -75,4 +75,55 @@ async function getDefinicionByVersion(id_plantilla_inspec, version) {
   return r.recordset[0] || null;
 }
 
-export default { listPlantillas, getDefinicion, getDefinicionByVersion };
+async function listarCamposPorPlantilla(id_plantilla_inspec) {
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("id", sql.Int, Number(id_plantilla_inspec));
+
+  // Soporta 2 modelos: campo->plantilla directo o campo->categoria->plantilla.
+  const query = `
+    IF OBJECT_ID('SSOMA.INS_PLANTILLA_CAMPO', 'U') IS NULL
+    BEGIN
+      SELECT TOP 0
+        CAST(NULL AS INT) AS id_campo,
+        CAST(NULL AS NVARCHAR(50)) AS item_ref,
+        CAST(NULL AS NVARCHAR(300)) AS descripcion_item;
+      RETURN;
+    END;
+
+    IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_inspec') IS NOT NULL
+    BEGIN
+      SELECT
+        c.id_campo,
+        CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
+        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
+      FROM SSOMA.INS_PLANTILLA_CAMPO c
+      WHERE c.id_plantilla_inspec = @id;
+      RETURN;
+    END;
+
+    IF OBJECT_ID('SSOMA.INS_PLANTILLA_CATEGORIA', 'U') IS NOT NULL
+      AND COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_categoria') IS NOT NULL
+      AND COL_LENGTH('SSOMA.INS_PLANTILLA_CATEGORIA', 'id_plantilla_inspec') IS NOT NULL
+    BEGIN
+      SELECT
+        c.id_campo,
+        CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
+        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
+      FROM SSOMA.INS_PLANTILLA_CAMPO c
+      JOIN SSOMA.INS_PLANTILLA_CATEGORIA cat ON cat.id_categoria = c.id_categoria
+      WHERE cat.id_plantilla_inspec = @id;
+      RETURN;
+    END;
+
+    SELECT TOP 0
+      CAST(NULL AS INT) AS id_campo,
+      CAST(NULL AS NVARCHAR(50)) AS item_ref,
+      CAST(NULL AS NVARCHAR(300)) AS descripcion_item;
+  `;
+
+  const r = await req.query(query);
+  return r.recordset || [];
+}
+
+export default { listPlantillas, getDefinicion, getDefinicionByVersion, listarCamposPorPlantilla };

@@ -37,8 +37,7 @@ export default function Sidebar({ onNavigate }) {
       <div className="sidebar-brand">
         <div className="sidebar-logo">SI</div>
         <div>
-          <div className="sidebar-title">SSOMA</div>
-          <div className="sidebar-sub">Inspecciones</div>
+          <div className="sidebar-title">SISTEMA DE GESTIÓN DE INSPECCIONES</div>
         </div>
       </div>
 
@@ -67,7 +66,7 @@ export default function Sidebar({ onNavigate }) {
         </button>
 
         <div className="sidebar-meta">
-          <div>Sistema Web de Gestión</div>
+          <div>AQP INDUSTRIAL SERVICE</div>
           <div>Versión 1.0</div>
         </div>
       </div>

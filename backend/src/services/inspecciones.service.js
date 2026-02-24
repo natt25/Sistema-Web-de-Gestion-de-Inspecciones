@@ -291,8 +291,15 @@ async function crearInspeccionCompleta({ user, body }) {
     };
   }
 
-  const data = await repo.crearInspeccionCompleta({ user, cabecera, respuestas, participantes });
-  return { ok: true, status: 201, data };
+  try {
+    const data = await repo.crearInspeccionCompleta({ user, cabecera, respuestas, participantes });
+    return { ok: true, status: 201, data };
+  } catch (err) {
+    if (err?.status === 400) {
+      return { ok: false, status: 400, message: err.message };
+    }
+    throw err;
+  }
 }
 
 export default {
