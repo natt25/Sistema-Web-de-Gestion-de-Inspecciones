@@ -64,10 +64,12 @@ export default function DashboardLayout({ title, actions, children }) {
   }
 
   useEffect(() => {
-    if (!online || pending.total <= 0) return;
+    if (!online) return;
+    if (pending.total <= 0) return;
+    if (syncing) return;
     handleSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online]);
+  }, [online, pending.total, syncing]);
 
   const headerActions = (
     <div className="topbar-global-actions">

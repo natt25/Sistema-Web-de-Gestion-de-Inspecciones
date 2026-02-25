@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
 import Badge from "../ui/Badge";
@@ -79,28 +79,55 @@ export default function InspeccionHeaderForm({
   const canArea = Boolean(value?.id_servicio);
   const canLugar = Boolean(value?.id_area);
 
-  useEffect(() => {
-    if (autoFecha && !value?.fecha_inspeccion) {
-      setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
-    }
+  const didInitRef = useRef(false);
 
-    // Inspector principal autollenado desde usuario logueado (readonly en UI).
-    if (user) {
-      if (!value?.realizado_por) setField("realizado_por", userDefaults.realizadoPor);
-      if (!value?.cargo) setField("cargo", userDefaults.cargo);
-      if (!value?.firma_ruta) setField("firma_ruta", userDefaults.firmaRuta);
+useEffect(() => {
+  // Este effect solo debe “autollenar” una vez.
+  if (didInitRef.current) return;
+
+  let touched = false;
+
+  // Fecha auto hoy
+  if (autoFecha && !value?.fecha_inspeccion) {
+    setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
+    touched = true;
+  }
+
+  // Defaults del usuario
+  if (userDefaults.realizadoPor && !value?.realizado_por) {
+    setField("realizado_por", userDefaults.realizadoPor);
+    touched = true;
+  }
+  if (userDefaults.cargo && !value?.cargo) {
+    setField("cargo", userDefaults.cargo);
+    touched = true;
+  }
+  if (userDefaults.firmaRuta && !value?.firma_ruta) {
+    setField("firma_ruta", userDefaults.firmaRuta);
+    touched = true;
+  }
+
+  // Marcamos init solo si intentamos setear algo o si ya estaba seteado.
+  // (Evita que quede “falso” para siempre si al inicio faltaba data.)
+  if (
+      touched ||
+      value?.fecha_inspeccion ||
+      value?.realizado_por ||
+      value?.cargo ||
+      value?.firma_ruta
+    ) {
+      didInitRef.current = true;
     }
   }, [
     autoFecha,
     setField,
-    user,
+    userDefaults.realizadoPor,
     userDefaults.cargo,
     userDefaults.firmaRuta,
-    userDefaults.realizadoPor,
-    value?.cargo,
     value?.fecha_inspeccion,
-    value?.firma_ruta,
     value?.realizado_por,
+    value?.cargo,
+    value?.firma_ruta,
   ]);
 
   useEffect(() => {
@@ -581,7 +608,7 @@ export default function InspeccionHeaderForm({
             {(value?.participantes || []).length ? (
               <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                 {value.participantes.map((p, idx) => (
-                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div key={`${p.dni || p.nombre || "p"}-${idx}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <div>
                       <b>{p.nombre}</b> {p.cargo ? <span className="help">• {p.cargo}</span> : null}
                     </div>

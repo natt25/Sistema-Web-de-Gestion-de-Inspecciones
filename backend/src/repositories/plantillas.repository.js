@@ -105,56 +105,44 @@ async function listarCamposPorPlantilla(id_plantilla_inspec, id_plantilla_def = 
       RETURN;
     END;
 
-    -- ✅ Si la tabla usa id_plantilla_def (tu caso, según SSMS)
-    IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_def') IS NOT NULL
-    BEGIN
-      IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'etiqueta') IS NOT NULL
-      BEGIN
-        SELECT
-          c.id_campo,
-          CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
-          CAST(COALESCE(c.etiqueta, c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
-        FROM SSOMA.INS_PLANTILLA_CAMPO c
-        WHERE c.id_plantilla_def = @id_def;
-        RETURN;
-      END;
+    DECLARE @hasDef BIT = CASE WHEN COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_def') IS NOT NULL THEN 1 ELSE 0 END;
+    DECLARE @hasInspec BIT = CASE WHEN COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_inspec') IS NOT NULL THEN 1 ELSE 0 END;
 
-      SELECT
-        c.id_campo,
-        CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
-        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
-      FROM SSOMA.INS_PLANTILLA_CAMPO c
-      WHERE c.id_plantilla_def = @id_def;
+    DECLARE @labelCol SYSNAME = NULL;
+    IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'etiqueta') IS NOT NULL SET @labelCol = 'etiqueta';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'descripcion_item') IS NOT NULL SET @labelCol = 'descripcion_item';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'titulo_campo') IS NOT NULL SET @labelCol = 'titulo_campo';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'nombre_campo') IS NOT NULL SET @labelCol = 'nombre_campo';
+
+    IF @labelCol IS NULL
+    BEGIN
+      SELECT TOP 0
+        CAST(NULL AS INT) AS id_campo,
+        CAST(NULL AS NVARCHAR(50)) AS item_ref,
+        CAST(NULL AS NVARCHAR(300)) AS descripcion_item;
       RETURN;
     END;
 
-    -- (fallback antiguo) si tuviera id_plantilla_inspec
-    IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'id_plantilla_inspec') IS NOT NULL
-    BEGIN
-      IF COL_LENGTH('SSOMA.INS_PLANTILLA_CAMPO', 'etiqueta') IS NOT NULL
-      BEGIN
-        SELECT
-          c.id_campo,
-          CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
-          CAST(COALESCE(c.etiqueta, c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
-        FROM SSOMA.INS_PLANTILLA_CAMPO c
-        WHERE c.id_plantilla_inspec = @id_inspec;
-        RETURN;
-      END;
-
+    DECLARE @sql NVARCHAR(MAX) = N'
       SELECT
         c.id_campo,
         CAST(c.item_ref AS NVARCHAR(50)) AS item_ref,
-        CAST(COALESCE(c.descripcion_item, c.titulo_campo, c.nombre_campo) AS NVARCHAR(300)) AS descripcion_item
+        CAST(c.' + QUOTENAME(@labelCol) + N' AS NVARCHAR(300)) AS descripcion_item
       FROM SSOMA.INS_PLANTILLA_CAMPO c
-      WHERE c.id_plantilla_inspec = @id_inspec;
-      RETURN;
-    END;
+      WHERE ';
 
-    SELECT TOP 0
-      CAST(NULL AS INT) AS id_campo,
-      CAST(NULL AS NVARCHAR(50)) AS item_ref,
-      CAST(NULL AS NVARCHAR(300)) AS descripcion_item;
+    IF @hasDef = 1
+      SET @sql += N'c.id_plantilla_def = @id_def;';
+    ELSE IF @hasInspec = 1
+      SET @sql += N'c.id_plantilla_inspec = @id_inspec;';
+    ELSE
+      SET @sql = N'SELECT TOP 0 CAST(NULL AS INT) AS id_campo, CAST(NULL AS NVARCHAR(50)) AS item_ref, CAST(NULL AS NVARCHAR(300)) AS descripcion_item;';
+
+    EXEC sp_executesql
+      @sql,
+      N'@id_def INT, @id_inspec INT',
+      @id_def=@id_def,
+      @id_inspec=@id_inspec;
   `;
 
   const r = await req.query(query);

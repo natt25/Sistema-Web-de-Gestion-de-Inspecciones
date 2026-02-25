@@ -227,6 +227,9 @@ async function actualizarEstadoInspeccion({ id_inspeccion, id_estado_inspeccion 
 async function listarParticipantesPorInspeccion(id_inspeccion) {
   const pool = await getPool();
   const request = pool.request();
+  const participantesTable = await getParticipantesTable();
+  if (!participantesTable) return []; // no hay tabla
+  
   request.input("id_inspeccion", sql.Int, Number(id_inspeccion));
 
   const cols = await getColumns("SSOMA", "V_EMPLEADO");
@@ -278,7 +281,7 @@ async function listarParticipantesPorInspeccion(id_inspeccion) {
         u2.dni,
         CAST('INSPECTOR' AS NVARCHAR(20)) AS tipo,
         ISNULL(p.orden_custom, 9999) AS orden_custom
-      FROM SSOMA.INS_INSPECCION_PARTICIPANTE p
+      FROM ${participantesTable} p
       JOIN SSOMA.INS_INSPECCION i2 ON i2.id_inspeccion = p.id_inspeccion
       LEFT JOIN SSOMA.INS_USUARIO u2 ON u2.id_usuario = p.id_usuario
       WHERE p.id_inspeccion = @id_inspeccion
@@ -449,27 +452,45 @@ async function crearInspeccionYGuardarJSON({ cabecera, json_respuestas, particip
     const rResp = await req2.query(qResp);
     const id_respuesta = rResp.recordset?.[0]?.id_respuesta;
 
-    // 3) Participantes (si la tabla existe y quieres guardarlos)
+    // 3) Participantes (tabla real: SSOMA.INS_PARTICIPANTE_CARGO)
     if (Array.isArray(participantes) && participantes.length) {
       for (const p of participantes) {
+        const dni = p?.dni ? String(p.dni).trim() : null;
+        const cargo = p?.cargo ? String(p.cargo).trim() : null;
+
+        // resolver id_usuario por dni
+        let idUsuario = null;
+        if (dni) {
+          const rU = await new sql.Request(tx)
+            .input("dni", sql.NVarChar(20), dni)
+            .query(`
+              SELECT TOP 1 id_usuario
+              FROM SSOMA.INS_USUARIO
+              WHERE LTRIM(RTRIM(dni)) = LTRIM(RTRIM(@dni));
+            `);
+          idUsuario = rU.recordset?.[0]?.id_usuario ?? null;
+        }
+
+        // si no encontró usuario, NO insertes (o decide tu regla)
+        if (!idUsuario) continue;
+
         const reqP = new sql.Request(tx);
-        reqP.input("id_inspeccion", sql.Int, Number(id_inspeccion));
-        reqP.input("id_usuario", sql.Int, p?.id_usuario ?? null);
-        reqP.input("id_cargo_base", sql.Int, p?.id_cargo_base ?? null);
-        reqP.input("cargo_texto_final", sql.NVarChar(200), p?.cargo_texto_final ?? null);
-        reqP.input("cargo_es_editado", sql.Bit, p?.cargo_es_editado ? 1 : 0);
-        reqP.input("orden_custom", sql.Int, p?.orden_custom ?? null);
+        reqP.input("id_usuario", sql.Int, idUsuario);
+
+        // OJO: id_cargo_base es NVARCHAR en tu DB (aunque el nombre parezca ID)
+        reqP.input("id_cargo_base", sql.NVarChar(50), null);
+
+        reqP.input("cargo_texto_final", sql.NVarChar(200), cargo);
+        reqP.input("cargo_es_editado", sql.Bit, 0);
 
         await reqP.query(`
-          INSERT INTO SSOMA.INS_INSPECCION_PARTICIPANTE
-            (id_inspeccion, id_usuario, id_cargo_base, cargo_texto_final, cargo_es_editado, orden_custom)
+          INSERT INTO SSOMA.INS_PARTICIPANTE_CARGO
+            (id_usuario, id_cargo_base, cargo_texto_final, cargo_es_editado)
           VALUES
-            (@id_inspeccion, @id_usuario, @id_cargo_base, @cargo_texto_final, @cargo_es_editado, @orden_custom);
+            (@id_usuario, @id_cargo_base, @cargo_texto_final, @cargo_es_editado);
         `);
       }
     }
-
-    await tx.commit();
     return { id_inspeccion, id_respuesta };
   } catch (e) {
     try { await tx.rollback(); } catch {}

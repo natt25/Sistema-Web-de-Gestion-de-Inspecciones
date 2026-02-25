@@ -31,7 +31,7 @@ export default function InspeccionNueva() {
   const q = useQuery();
   const navigate = useNavigate();
   const plantillaId = Number(q.get("plantilla"));
-  const user = getUser(); // debe incluir dni / nombreCompleto / cargo / firma_ruta
+  const user = useMemo(() => getUser(), []); // debe incluir dni / nombreCompleto / cargo / firma_ruta
   const online = useOnlineStatus();
 
   // loading separado (def + catalogos)

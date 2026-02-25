@@ -40,7 +40,7 @@ export default function useOnlineStatus() {
     };
 
     const handleOnline = () => {
-      setOnline(true);
+      //setOnline(true);
       check();
     };
 

@@ -193,6 +193,27 @@ async function getColumns(schema, tableOrView) {
   }
 }
 
+async function tableExists(schema, name) {
+  const pool = await getPool();
+  const r = await pool.request()
+    .input("schema", sql.NVarChar, schema)
+    .input("name", sql.NVarChar, name)
+    .query(`
+      SELECT 1 AS ok
+      FROM sys.tables t
+      JOIN sys.schemas s ON s.schema_id = t.schema_id
+      WHERE s.name = @schema AND t.name = @name;
+    `);
+  return (r.recordset?.length || 0) > 0;
+}
+
+async function getParticipantesTable() {
+  // orden de preferencia: la real que tienes en DB
+  if (await tableExists("SSOMA", "INS_PARTICIPANTE_CARGO")) return "SSOMA.INS_PARTICIPANTE_CARGO";
+  if (await tableExists("SSOMA", "INS_INSPECCION_PARTICIPANTE")) return "SSOMA.INS_INSPECCION_PARTICIPANTE";
+  return null;
+}
+
 async function buscarEmpleados(q) {
   const pool = await getPool();
   const cols = await getColumns("SSOMA", "V_EMPLEADO");

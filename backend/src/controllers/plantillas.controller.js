@@ -58,10 +58,14 @@ async function definicion(req, res) {
     let jsonDef = row.json_definicion;
     let unmappedItems = [];
     try {
-      const parsed = typeof row.json_definicion === "string"
-        ? JSON.parse(row.json_definicion)
-        : row.json_definicion;
+      const parsed =
+        typeof row.json_definicion === "string"
+          ? JSON.parse(row.json_definicion)
+          : row.json_definicion;
 
+      // Sembrar campos si aún no existen
+      await repo.ensureCamposFromJsonDefinicion(row.id_plantilla_def, parsed);
+      
       if (parsed && Array.isArray(parsed.items)) {
         const campos = await repo.listarCamposPorPlantilla(id, row.id_plantilla_def);
         const camposLimpios = (campos || []).map((c, idx) => ({
