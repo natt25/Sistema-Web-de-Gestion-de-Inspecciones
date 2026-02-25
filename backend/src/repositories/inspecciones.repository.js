@@ -72,6 +72,7 @@ async function crearInspeccionCabecera(payload) {
 }
 
 async function listarInspecciones(filtros) {
+  const fechaExpr = "COALESCE(i.fecha_inspeccion, i.created_at)";
   const where = [];
   const pool = await getPool();
   const request = pool.request();
@@ -93,12 +94,12 @@ async function listarInspecciones(filtros) {
   }
 
   if (filtros.desde) {
-    where.push("i.fecha_inspeccion >= @desde");
+    where.push(`${fechaExpr} >= @desde`);
     request.input("desde", sql.DateTime2, filtros.desde);
   }
 
   if (filtros.hasta) {
-    where.push("i.fecha_inspeccion < DATEADD(day, 1, @hasta)");
+    where.push(`${fechaExpr} < DATEADD(day, 1, @hasta)`);
     request.input("hasta", sql.DateTime2, filtros.hasta);
   }
 
@@ -137,7 +138,7 @@ async function listarInspecciones(filtros) {
     LEFT JOIN SSOMA.V_CLIENTE c ON LTRIM(RTRIM(c.id_cliente)) = LTRIM(RTRIM(i.id_cliente))
     LEFT JOIN SSOMA.V_SERVICIO s ON s.id_servicio = i.id_servicio
     ${whereSql}
-    ORDER BY i.fecha_inspeccion DESC, i.id_inspeccion DESC;
+    ORDER BY ${fechaExpr} DESC, i.id_inspeccion DESC;
   `;
 
   const result = await request.query(query);
@@ -491,6 +492,7 @@ async function crearInspeccionYGuardarJSON({ cabecera, json_respuestas, particip
         `);
       }
     }
+    await tx.commit();
     return { id_inspeccion, id_respuesta };
   } catch (e) {
     try { await tx.rollback(); } catch {}

@@ -25,12 +25,13 @@ const IS_DEV = process.env.NODE_ENV !== "production";
 const app = express();
 
 // Middlewares globales
+// Middlewares globales
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
 
-app.use(cors({
+const corsOptions = {
   origin(origin, callback) {
     // Permite requests sin Origin (curl/postman/server-to-server)
     if (!origin) return callback(null, true);
@@ -38,8 +39,19 @@ app.use(cors({
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Client-Mode"],
-}));
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Client-Mode",
+    "Cache-Control",
+    "Pragma",
+  ],
+  // opcional pero útil si algún día necesitas leer headers
+  exposedHeaders: ["Cache-Control", "Pragma"],
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors());
 app.use(express.json());
 app.use((req, res, next) => {
   const started = Date.now();
@@ -75,6 +87,18 @@ if (IS_DEV) {
     next();
   });
 }
+
+// DESACTIVA ETAG GLOBAL (evita 304 en API)
+app.set("etag", false);
+
+// NO-CACHE para toda la API
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
+  next();
+});
 
 // =======================
 // Rutas de la API

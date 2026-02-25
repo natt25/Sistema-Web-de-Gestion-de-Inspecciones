@@ -62,12 +62,29 @@ async function crearInspeccionCabecera({ user, body }) {
   return { ok: true, status: 201, data: creado };
 }
 
+function parseDateOnlyLocal(s, endOfDay = false) {
+  if (!s) return null;
+  const str = String(s).trim();
+
+  // Si viene yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split("-").map(Number);
+    const dt = new Date(y, m - 1, d, 0, 0, 0, 0); // LOCAL
+    if (endOfDay) dt.setHours(23, 59, 59, 999);
+    return dt;
+  }
+
+  // Si viene ISO completo, úsalo normal
+  const dt = new Date(str);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
 async function listarInspecciones({ query }) {
   const filtros = {
     id_area: query.id_area ? Number(query.id_area) : null,
     id_estado_inspeccion: query.id_estado_inspeccion ? Number(query.id_estado_inspeccion) : null,
-    desde: query.desde ? new Date(query.desde) : null,
-    hasta: query.hasta ? new Date(query.hasta) : null,
+    desde: query.desde ? parseDateOnlyLocal(query.desde, false) : null,
+    hasta: query.hasta ? parseDateOnlyLocal(query.hasta, true) : null,
     id_usuario: query.id_usuario ? Number(query.id_usuario) : null,
   };
 
@@ -244,8 +261,17 @@ async function crearInspeccionCompleta({ user, body }) {
   const faltanRefs = respuestas.some((r) => !String(r?.item_ref ?? r?.id ?? r?.item_id ?? "").trim());
   if (faltanRefs) return badRequest("Falta item_ref en una o más respuestas");
 
+  // Normaliza fecha_inspeccion (viene como string ISO o yyyy-mm-dd)
+  const fechaRaw = cab?.fecha_inspeccion;
+  const fecha = fechaRaw ? new Date(fechaRaw) : new Date();
+
+  if (Number.isNaN(fecha.getTime())) {
+    return badRequest("cabecera.fecha_inspeccion invalida (usa ISO o yyyy-mm-dd)");
+  }
+
   const cabeceraToSave = {
     ...cab,
+    fecha_inspeccion: fecha,
     id_usuario: user?.id_usuario ?? null,
   };
 

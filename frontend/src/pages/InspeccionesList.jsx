@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { listarInspecciones } from "../api/inspecciones.api";
 import { clearToken } from "../auth/auth.storage";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -10,10 +10,21 @@ import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
 import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
-function normalizeArray(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.rows)) return data.rows;
+function normalizeArray(payload) {
+  if (Array.isArray(payload)) return payload;
+
+  // si backend devuelve { data: [...] }
+  if (Array.isArray(payload?.data)) return payload.data;
+
+  // si backend devuelve { ok:true, data:[...] }
+  if (payload?.ok === true && Array.isArray(payload?.data)) return payload.data;
+
+  // si backend devuelve { rows: [...] }
+  if (Array.isArray(payload?.rows)) return payload.rows;
+
+  // si backend devuelve { recordset: [...] }
+  if (Array.isArray(payload?.recordset)) return payload.recordset;
+
   return [];
 }
 
@@ -47,6 +58,7 @@ function getRangeDates(range, customDesde, customHasta) {
 
 export default function InspeccionesList() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [filters, setFilters] = useState({
     id_area: "",
@@ -104,7 +116,7 @@ export default function InspeccionesList() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [location.key]);
 
   function onChange(e) {
     const { name, value } = e.target;
@@ -112,11 +124,11 @@ export default function InspeccionesList() {
   }
 
   const columns = [
-    { key: "id", label: "ID", render: (it) => it.id_inspeccion ?? it.id ?? "-" },
-    { key: "fecha", label: "Fecha", render: (it) => it.fecha ?? it.fecha_inspeccion ?? it.created_at ?? "-" },
-    { key: "area", label: "Area", render: (it) => it.area ?? it.nom_area ?? it.id_area ?? "-" },
-    { key: "estado", label: "Estado", render: (it) => it.estado ?? it.nom_estado ?? it.id_estado_inspeccion ?? it.id_estado ?? "-" },
-    { key: "usuario", label: "Usuario", render: (it) => it.usuario ?? it.nom_usuario ?? it.id_usuario ?? "-" },
+    { key: "id", label: "ID", render: (it) => it.id_inspeccion ?? "-" },
+    { key: "fecha", label: "Fecha", render: (it) => it.fecha_inspeccion ?? it.created_at ?? "-" },
+    { key: "area", label: "Area", render: (it) => it.desc_area ?? it.id_area ?? "-" },
+    { key: "estado", label: "Estado", render: (it) => it.estado_inspeccion ?? it.id_estado_inspeccion ?? "-" },
+    { key: "usuario", label: "Usuario", render: (it) => it.id_usuario ?? "-" }, // si no estás trayendo nombre aún
   ];
 
   const actions = (
