@@ -147,8 +147,8 @@ async function definicion(req, res) {
         });
       }
       jsonDef = parsed;
-    } catch {
-      // si json_definicion no parsea, se devuelve tal cual
+    } catch (e) {
+      console.error("[plantillas.controller] definicion parse/seed error:", e);
     }
 
     return res.json({
