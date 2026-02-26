@@ -1026,6 +1026,17 @@ export default function InspeccionDetail() {
   const hideObsUI = String(cab?.codigo_formato || "").toUpperCase() === "AQP-SSOMA-FOR-013";
   const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
   const observaciones = data?.observaciones || [];
+  const accionesPorItemRef = useMemo(() => {
+    const map = new Map();
+    for (const obs of observaciones) {
+      const key = String(obs?.item_ref ?? "").trim();
+      if (!key) continue;
+      const acciones = Array.isArray(obs?.acciones) ? obs.acciones : [];
+      if (!map.has(key)) map.set(key, []);
+      map.set(key, [...map.get(key), ...acciones]);
+    }
+    return map;
+  }, [observaciones]);
   const realizadoPor = participantes.find((p) => String(p?.tipo || "").toUpperCase() === "REALIZADO_POR");
   const inspectores = participantes.filter((p) => String(p?.tipo || "").toUpperCase() === "INSPECTOR");
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
@@ -1139,10 +1150,10 @@ export default function InspeccionDetail() {
     }
   }
 
-  async function onDownloadXlsx() {
+  async function downloadExcel(downloadId) {
     try {
       setPageError("");
-      const res = await descargarInspeccionXlsx(id);
+      const res = await descargarInspeccionXlsx(downloadId);
       const blob = new Blob([res.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
@@ -1150,7 +1161,7 @@ export default function InspeccionDetail() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `AQP-SSOMA-FOR-013_Inspeccion_${id}.xlsx`;
+      a.download = `AQP-SSOMA-FOR-013_Inspeccion_${downloadId}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1198,23 +1209,11 @@ export default function InspeccionDetail() {
             <Button variant="ghost">Volver</Button>
           </Link>
 
-          <Button variant="outline" onClick={onDownloadXlsx}>
+          <Button variant="outline" onClick={() => downloadExcel(id)}>
             Descargar Excel
           </Button>
         </div>
       </Card>
-
-      {syncMsg && (
-        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", background: "#f7f7f7" }}>
-          {syncMsg}
-        </div>
-      )}
-
-      {infoMsg && (
-        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", background: "#fafafa" }}>
-          {infoMsg}
-        </div>
-      )}
 
       <h2 style={{ margin: 0 }}>Inspeccion #{id}</h2>
 
@@ -1295,6 +1294,7 @@ export default function InspeccionDetail() {
                   {(respuestasPorCategoria.get(categoria) || []).map((r, idx) => {
                     const estado = String(r?.estado || "NA").toUpperCase();
                     const accion = parseAccionJson(r?.accion_json);
+                    const accionesRegistradas = accionesPorItemRef.get(normItemRef(r?.item_id)) || [];
                     return (
                       <div key={`${r?.item_id || "item"}-${idx}`} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1309,7 +1309,11 @@ export default function InspeccionDetail() {
                               <b>Accion:</b>{" "}
                               {accion
                                 ? `${accion.que || "-"} | ${accion.quien || "-"} | ${accion.cuando || "-"}`
-                                : "-"}
+                                : accionesRegistradas.length
+                                  ? accionesRegistradas
+                                      .map((a) => `${a?.desc_accion || "-"} | ${a?.dni || a?.externo_responsable_nombre || "-"} | ${a?.fecha_compromiso || "-"}`)
+                                      .join(" || ")
+                                  : "-"}
                             </div>
                           </div>
                         )}
