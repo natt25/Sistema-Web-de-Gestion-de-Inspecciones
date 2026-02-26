@@ -18,5 +18,7 @@ export async function crearInspeccion(payload) {
 }
 
 export function descargarInspeccionXlsx(id) {
-  return http.get(`/inspecciones/${id}/export/xlsx`, { responseType: "blob" });
+  return http.get(`/api/inspecciones/${id}/export/xlsx`, {
+    responseType: "blob",
+  });
 }

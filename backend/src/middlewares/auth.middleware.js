@@ -13,8 +13,8 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ message: "Token no proporcionado" });
   }
 
-  const parts = authHeader.split(" ");
-  if (parts.length !== 2 || parts[0] !== "Bearer") {
+  const parts = String(authHeader).trim().split(/\s+/);
+  if (parts.length !== 2 || !/^Bearer$/i.test(parts[0])) {
     console.warn("[auth.middleware] invalid bearer format");
     return res.status(401).json({ message: "Formato de token invalido" });
   }

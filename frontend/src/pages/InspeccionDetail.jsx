@@ -18,27 +18,11 @@ import {
   getInspeccionCache, setInspeccionCache,
 } from "../utils/offlineQueue";
 import { obtenerDefinicionPlantilla } from "../api/plantillas.api";
+import { descargarInspeccionXlsx } from "../api/inspecciones.api";
+
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
-
-const API = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
-
-function downloadExcel(id) {
-  const token = localStorage.getItem("token"); // o tu getToken()
-  fetch(`${API}/api/inspecciones/${id}/export/xlsx`, {
-    headers: { Authorization: `Bearer ${token}` },
-  }).then(async (r) => {
-    if (!r.ok) throw new Error("No se pudo descargar");
-    const blob = await r.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Inspeccion_${id}.xlsx`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  });
-}
 
 function fileUrl(archivo_ruta) {
   if (!archivo_ruta || archivo_ruta.startsWith("PENDING_UPLOAD/")) return null;
@@ -1155,20 +1139,46 @@ export default function InspeccionDetail() {
     }
   }
 
-  async function onDownloadXlsx(id) {
-    const res = await descargarInspeccionXlsx(id);
-    const blob = new Blob([res.data], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
+  async function onDownloadXlsx() {
+    try {
+      setPageError("");
+      const res = await descargarInspeccionXlsx(id);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
 
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `AQP-SSOMA-FOR-013_Inspeccion_${id}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `AQP-SSOMA-FOR-013_Inspeccion_${id}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const status = err?.response?.status;
+      let body = err?.response?.data;
+
+      if (body instanceof Blob) {
+        try {
+          const text = await body.text();
+          try {
+            body = JSON.parse(text);
+          } catch {
+            body = text;
+          }
+        } catch {
+          body = null;
+        }
+      }
+
+      console.error("inspeccion.detail.download.xlsx:", {
+        status,
+        body,
+        message: err?.message,
+      });
+      setPageError("No se pudo descargar");
+    }
   }
 
   return (
@@ -1188,7 +1198,7 @@ export default function InspeccionDetail() {
             <Button variant="ghost">Volver</Button>
           </Link>
 
-          <Button variant="outline" onClick={() => downloadExcel(id)}>
+          <Button variant="outline" onClick={onDownloadXlsx}>
             Descargar Excel
           </Button>
         </div>
@@ -1312,7 +1322,7 @@ export default function InspeccionDetail() {
           </div>
         )}
       </Card>
-      
+
       {!hideObsUI && (
       <Card title="Crear observacion">
 
