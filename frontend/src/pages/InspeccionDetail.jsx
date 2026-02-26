@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion, actualizarEstadoObservacion } from "../api/observaciones.api";
@@ -17,6 +17,7 @@ import {
   setIdMap, getIdMap, getPendingCounts,
   getInspeccionCache, setInspeccionCache,
 } from "../utils/offlineQueue";
+import { obtenerDefinicionPlantilla } from "../api/plantillas.api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
@@ -195,6 +196,13 @@ function parseAccionJson(value) {
   }
 }
 
+function getItemNumber(itemId) {
+  const s = String(itemId || "").toLowerCase().trim();
+  // captura el primer número que aparezca: i08 -> 8, 1.2 -> 1, etc
+  const m = s.match(/\d+/);
+  return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
+}
+
 function EvidenceGrid({ evidencias }) {
   if (!evidencias || evidencias.length === 0) {
     return <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin evidencias.</p>;
@@ -261,6 +269,7 @@ function EvidenceGrid({ evidencias }) {
     </div>
   );
 }
+
 function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, online }) {
   const [form, setForm] = useState({
     desc_accion: "",
@@ -580,7 +589,7 @@ export default function InspeccionDetail() {
   const [obsMsgByObs, setObsMsgByObs] = useState({});
   const obsTimersRef = useRef({});
   const accionTimersRef = useRef({});
-
+  const [definicion, setDefinicion] = useState(null);
   const [form, setForm] = useState({
     item_ref: "",
     desc_observacion: "",
@@ -838,7 +847,17 @@ export default function InspeccionDetail() {
       const uploads = await getAllQueue();
       const merged = applyPendingToData(payload, mutations, uploads);
       await setDataAndCache(merged);
+      
+      const plantillaId = payload?.cabecera?.id_plantilla_inspec;
+      if (plantillaId) {
+        const defRes = await obtenerDefinicionPlantilla(plantillaId);
+        const def = defRes?.data ?? defRes ?? null;
+        setDefinicion(def);
+      } else {
+        setDefinicion(null);
+      }
     } catch (err) {
+      setDefinicion(null);
       const isNetwork = !err?.response;
       if (isNetwork && cached) {
         let mutations = [];
@@ -1021,18 +1040,84 @@ export default function InspeccionDetail() {
 
   const cab = data?.cabecera;
   const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
-  const respuestas = Array.isArray(data?.respuestas) ? data.respuestas : [];
   const observaciones = data?.observaciones || [];
   const realizadoPor = participantes.find((p) => String(p?.tipo || "").toUpperCase() === "REALIZADO_POR");
   const inspectores = participantes.filter((p) => String(p?.tipo || "").toUpperCase() === "INSPECTOR");
-  const respuestasPorCategoria = respuestas.reduce((acc, r) => {
-    const categoria = r?.categoria || "SIN CATEGORIA";
-    if (!acc[categoria]) acc[categoria] = [];
-    acc[categoria].push(r);
-    return acc;
-  }, {});
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
   const visiblePageError = online ? pageError : "";
+  const respuestas = Array.isArray(data?.respuestas) ? data.respuestas : [];
+  const respuestasOrdenadas = [...respuestas].sort((a, b) => {
+    // 1) primero por número de item
+    const na = getItemNumber(a?.item_id);
+    const nb = getItemNumber(b?.item_id);
+    if (na !== nb) return na - nb;
+    // 2) desempate: por item_id completo (i08 vs i8)
+    return String(a?.item_id || "").localeCompare(String(b?.item_id || ""), "es", { numeric: true });
+  });
+  // 1) mapa item_ref -> orden segun definicion.items
+  const orderByRef = useMemo(() => {
+    const map = new Map();
+    const items = Array.isArray(definicion?.items) ? definicion.items : [];
+    items.forEach((it, idx) => {
+      const ref = normItemRef(it.item_ref ?? it.ref ?? it.id);
+      if (ref) map.set(ref, idx);
+    });
+    return map;
+  }, [definicion]);
+
+  // 2) agrupar + ordenar items dentro de cada categoria
+  const respuestasPorCategoria = useMemo(() => {
+    const map = new Map();
+
+    for (const r of (Array.isArray(respuestas) ? respuestas : [])) {
+      const cat = r?.categoria || "SIN CATEGORIA";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat).push(r);
+    }
+
+    // ordenar items en cada categoria segun plantilla, fallback por numero
+    for (const [cat, list] of map.entries()) {
+      list.sort((a, b) => {
+        const aKey = normItemRef(a?.item_id);
+        const bKey = normItemRef(b?.item_id);
+        const aOrd = orderByRef.has(aKey) ? orderByRef.get(aKey) : getNumFromItemId(a?.item_id);
+        const bOrd = orderByRef.has(bKey) ? orderByRef.get(bKey) : getNumFromItemId(b?.item_id);
+        return aOrd - bOrd;
+      });
+    }
+
+    return map;
+  }, [respuestas, orderByRef]);
+
+  // 3) orden de categorias segun el primer item que aparece en plantilla
+  const categoriasOrdenadas = useMemo(() => {
+    const entries = Array.from(respuestasPorCategoria.entries());
+    entries.sort(([catA, listA], [catB, listB]) => {
+      const aFirst = listA?.[0]?.item_id;
+      const bFirst = listB?.[0]?.item_id;
+
+      const aKey = normItemRef(aFirst);
+      const bKey = normItemRef(bFirst);
+
+      const aOrd = orderByRef.has(aKey) ? orderByRef.get(aKey) : getNumFromItemId(aFirst);
+      const bOrd = orderByRef.has(bKey) ? orderByRef.get(bKey) : getNumFromItemId(bFirst);
+
+      return aOrd - bOrd;
+    });
+    return entries.map(([cat]) => cat);
+  }, [respuestasPorCategoria, orderByRef]);
+
+  function normItemRef(v) {
+    return String(v ?? "").trim().replace(/\s+/g, " ");
+  }
+
+  function getNumFromItemId(v) {
+    // i08 -> 8, 08 -> 8, "1.2" -> 12 aprox (fallback)
+    const s = String(v ?? "");
+    const m = s.match(/\d+/g);
+    if (!m) return 999999;
+    return parseInt(m.join(""), 10) || 999999;
+  }
 
   async function removePendingPlaceholdersFromState(pendingPaths) {
     const removeAllPending = !pendingPaths || pendingPaths.size === 0;
@@ -1206,11 +1291,11 @@ export default function InspeccionDetail() {
           <p style={{ opacity: 0.7 }}>Sin datos.</p>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
-            {Object.keys(respuestasPorCategoria).sort().map((categoria) => (
+            {categoriasOrdenadas.map((categoria) => (
               <div key={categoria}>
                 <h4 style={{ margin: "0 0 8px 0" }}>{categoria}</h4>
                 <div style={{ display: "grid", gap: 8 }}>
-                  {respuestasPorCategoria[categoria].map((r, idx) => {
+                  {(respuestasPorCategoria.get(categoria) || []).map((r, idx) => {
                     const estado = String(r?.estado || "NA").toUpperCase();
                     const accion = parseAccionJson(r?.accion_json);
                     return (
