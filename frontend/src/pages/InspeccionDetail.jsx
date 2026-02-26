@@ -21,6 +21,24 @@ import {
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
 
+const API = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+
+function downloadExcel(id) {
+  const token = localStorage.getItem("token"); // o tu getToken()
+  fetch(`${API}/api/inspecciones/${id}/export/xlsx`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then(async (r) => {
+    if (!r.ok) throw new Error("No se pudo descargar");
+    const blob = await r.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Inspeccion_${id}.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  });
+}
+
 function fileUrl(archivo_ruta) {
   if (!archivo_ruta || archivo_ruta.startsWith("PENDING_UPLOAD/")) return null;
   return `${API_BASE}/${archivo_ruta}`;
@@ -1050,6 +1068,23 @@ export default function InspeccionDetail() {
       await setInspeccionCache(id, updatedData);
     }
   }
+
+  async function onDownloadXlsx(id) {
+    const res = await descargarInspeccionXlsx(id);
+    const blob = new Blob([res.data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `AQP-SSOMA-FOR-013_Inspeccion_${id}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
   return (
     <DashboardLayout title={`Inspeccion #${id}`}>
       <div style={{ display: "grid", gap: 12 }}>
@@ -1066,6 +1101,10 @@ export default function InspeccionDetail() {
           <Link to="/inspecciones">
             <Button variant="ghost">Volver</Button>
           </Link>
+
+          <Button variant="outline" onClick={() => onDownloadXlsx(idInspeccion)}>
+            Descargar Excel
+          </Button>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <Badge>{online ? "Conectado" : "Sin conexion"}</Badge>

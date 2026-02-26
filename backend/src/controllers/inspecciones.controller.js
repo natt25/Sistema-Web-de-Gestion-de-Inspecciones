@@ -1,4 +1,6 @@
 import service from "../services/inspecciones.service.js";
+import ExcelJS from "exceljs";
+import { exportXlsx } from "../controllers/inspecciones.export.controller.js";
 
 async function crear(req, res) {
   try {
@@ -141,6 +143,7 @@ async function actualizarEstadoAccion(req, res) {
     return res.status(500).json({ message: "Error interno", error: err.message });
   }
 }
+
 export default {
   crear,
   listar,
@@ -148,5 +151,5 @@ export default {
   obtenerDetalleFull,
   actualizarEstado,
   actualizarEstadoObservacion,
-  actualizarEstadoAccion,
+  actualizarEstadoAccion
 };

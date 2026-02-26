@@ -125,9 +125,19 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
     return { ok: false, status: 404, message: "Inspeccion no encontrada" };
   }
 
-  const participantes = await repo.listarParticipantesPorInspeccion(id);
-  const respuestas = await repo.listarRespuestasPorInspeccion(id);
-  const observaciones = await observacionesRepo.listarPorInspeccion(id);
+    let participantes = [];
+    let respuestas = [];
+    let observaciones = [];
+
+    try { participantes = await repo.listarParticipantesPorInspeccion(id); } catch (e) {
+      console.warn("[full] participantes fallo -> []", e?.message);
+    }
+    try { respuestas = await repo.listarRespuestasPorInspeccion(id); } catch (e) {
+      console.warn("[full] respuestas fallo -> []", e?.message);
+    }
+    try { observaciones = await observacionesRepo.listarPorInspeccion(id); } catch (e) {
+      console.warn("[full] observaciones fallo -> []", e?.message);
+    }
 
   const out = [];
   for (const o of observaciones) {

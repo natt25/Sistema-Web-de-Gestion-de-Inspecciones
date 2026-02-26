@@ -1,8 +1,10 @@
 import express from "express";
-const router = express.Router();
-
+import { exportXlsx } from "../controllers/inspecciones.export.controller.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
 import controller from "../controllers/inspecciones.controller.js";
+
+const router = express.Router();
+
 // POST /api/inspecciones
 router.post("/", authMiddleware, controller.crear);
 
@@ -31,5 +33,7 @@ router.patch(
   authMiddleware,
   controller.actualizarEstadoAccion
 );
+
+router.get("/:id/export/xlsx", authMiddleware, exportXlsx);
 
 export default router;
