@@ -1191,20 +1191,6 @@ export default function InspeccionDetail() {
           <Button variant="outline" onClick={() => downloadExcel(id)}>
             Descargar Excel
           </Button>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <Badge>{online ? "Conectado" : "Sin conexion"}</Badge>
-            <Badge>Pendientes: {pending.total}</Badge>
-            {pending.total > 0 && <Badge>Pendiente por sincronizar</Badge>}
-
-            <Button variant="outline" onClick={() => syncNow()} disabled={!online || pending.total === 0}>
-              Sincronizar ahora
-            </Button>
-
-            <Button variant="outline" onClick={load} disabled={loading}>
-              {loading ? "Recargando..." : "Recargar"}
-            </Button>
-          </div>
         </div>
       </Card>
 
