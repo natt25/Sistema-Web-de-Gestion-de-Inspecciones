@@ -1039,6 +1039,7 @@ export default function InspeccionDetail() {
   }
 
   const cab = data?.cabecera;
+  const hideObsUI = String(cab?.codigo_formato || "").toUpperCase() === "AQP-SSOMA-FOR-013";
   const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
   const observaciones = data?.observaciones || [];
   const realizadoPor = participantes.find((p) => String(p?.tipo || "").toUpperCase() === "REALIZADO_POR");
@@ -1187,7 +1188,7 @@ export default function InspeccionDetail() {
             <Button variant="ghost">Volver</Button>
           </Link>
 
-          <Button variant="outline" onClick={() => onDownloadXlsx(idInspeccion)}>
+          <Button variant="outline" onClick={() => downloadExcel(id)}>
             Descargar Excel
           </Button>
 
@@ -1325,7 +1326,8 @@ export default function InspeccionDetail() {
           </div>
         )}
       </Card>
-
+      
+      {!hideObsUI && (
       <Card title="Crear observacion">
 
         <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
@@ -1381,7 +1383,9 @@ export default function InspeccionDetail() {
           </Button>
         </form>
       </Card>
+      )}
 
+      {!hideObsUI && (
       <Card title={`Observaciones (${observaciones.length})`}>
 
         {loading && <p>Cargando...</p>}
@@ -1557,6 +1561,7 @@ export default function InspeccionDetail() {
             );
           })}
       </Card>
+      )}
       </div>
     </DashboardLayout>
   );

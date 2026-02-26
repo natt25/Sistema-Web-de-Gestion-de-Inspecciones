@@ -174,40 +174,6 @@ async function ensureCamposFromJsonDefinicion(id_plantilla_def, jsonDef) {
 
 const existingOrdenes = new Set((existing.recordset||[]).map(r => Number(r.orden)));
 
-for (let i = 0; i < jsonDef.items.length; i++) {
-  const orden = i + 1;
-  const it = jsonDef.items[i];
-  try {
-    if (existingOrdenes.has(orden)) continue; // ya existe -> saltar
-
-    const it = jsonDef.items[i];
-    const itemRef = String(it?.item_ref ?? it?.id ?? "").trim().slice(0, 50);
-    const etiqueta = String(it?.texto ?? it?.descripcion ?? "").trim().slice(0, 300);
-    const seccion = String(it?.categoria ?? "GENERAL").trim().slice(0, 120);
-    if (!itemRef) continue;
-
-    await pool.request()
-      .input("id_def", sql.Int, Number(id_plantilla_def))
-      .input("id_tipo_control", sql.Int, 1)
-      .input("item_ref", sql.NVarChar(50), itemRef)
-      .input("etiqueta", sql.NVarChar(300), etiqueta || itemRef)
-      .input("requerido", sql.Bit, 0)
-      .input("orden", sql.Int, orden)
-      .input("seccion", sql.NVarChar(120), seccion)
-      .input("ayuda", sql.NVarChar(300), null)
-      .query(`
-        INSERT INTO SSOMA.INS_PLANTILLA_CAMPO
-          (id_plantilla_def, id_tipo_control, item_ref, etiqueta, requerido, orden, seccion, ayuda_texto)
-        VALUES
-          (@id_def, @id_tipo_control, @item_ref, @etiqueta, @requerido, @orden, @seccion, @ayuda);
-      `);
-``} catch (e) {
-    console.error("[seed campos] fallo en item", { i: i+1, id: it?.id, categoria: it?.categoria }, e);
-    throw e;
-  }
-}
-
-
   // Insertar un campo por ítem del JSON
   // Ajusta valores por defecto si luego quieres "requerido" real, tipo_control real, etc.
   for (let i = 0; i < jsonDef.items.length; i++) {
@@ -236,10 +202,23 @@ for (let i = 0; i < jsonDef.items.length; i++) {
   }
 }
 
+async function countCamposPorDef(id_plantilla_def) {
+  const pool = await getPool();
+  const r = await pool.request()
+    .input("id", sql.Int, Number(id_plantilla_def))
+    .query(`
+      SELECT COUNT(1) AS n
+      FROM SSOMA.INS_PLANTILLA_CAMPO
+      WHERE id_plantilla_def = @id;
+    `);
+  return Number(r.recordset?.[0]?.n || 0);
+}
+
 export default {
   listPlantillas,
   getDefinicion,
   getDefinicionByVersion,
   listarCamposPorPlantilla,
   ensureCamposFromJsonDefinicion,
-};
+  countCamposPorDef
+}

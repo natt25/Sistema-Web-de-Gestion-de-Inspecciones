@@ -63,8 +63,17 @@ async function definicion(req, res) {
           ? JSON.parse(row.json_definicion)
           : row.json_definicion;
 
-      // Sembrar campos si aún no existen
-      await repo.ensureCamposFromJsonDefinicion(row.id_plantilla_def, parsed);
+      // Sembrar campos SOLO si no hay registros aún (idempotente)
+      const nCampos = await repo.countCamposPorDef(row.id_plantilla_def);
+      if (nCampos === 0) {
+        try {
+          await repo.ensureCamposFromJsonDefinicion(row.id_plantilla_def, parsed);
+        } catch (e) {
+          const num = e?.originalError?.number || e?.number;
+          if (num !== 2627) throw e; // 2627 = duplicate key
+          console.warn("[plantillas.controller] seed duplicado (2627) ignorado");
+        }
+      }
       
       if (parsed && Array.isArray(parsed.items)) {
         const campos = await repo.listarCamposPorPlantilla(id, row.id_plantilla_def);

@@ -522,7 +522,7 @@ async function listarRespuestasPorInspeccion(id_inspeccion) {
           descripcion: String(r?.descripcion ?? r?.texto ?? ""),
           estado: String(r?.valor ?? r?.estado ?? r?.valor_opcion ?? "NA").toUpperCase(),
           observacion: String(r?.observacion ?? ""),
-          accion_json: null,
+          accion_json: (r?.accion != null ? JSON.stringify(r.accion) : (r?.accion_json != null ? JSON.stringify(r.accion_json) : null)),
         }));
 
         // Si hay data en JSON, devolvemos esto y listo
