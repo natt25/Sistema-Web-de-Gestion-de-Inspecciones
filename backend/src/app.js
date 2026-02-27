@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
 
 // Carga y valida variables de entorno al inicio
 import "./config/env.js";
@@ -17,12 +16,8 @@ import usuariosRoutes from "./routes/usuarios.routes.js";
 import auditoriaRoutes from "./routes/auditoria.routes.js";
 import accionesRoutes from "./routes/acciones.routes.js";
 import plantillasRoutes from "./routes/plantillas.routes.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const IS_DEV = process.env.NODE_ENV !== "production";
-
 const app = express();
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 // Middlewares globales
 // Middlewares globales
@@ -53,6 +48,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options(/.*/, cors());
 app.use(express.json());
+app.use("/storage", express.static(path.resolve("src/storage")));
 app.use((req, res, next) => {
   const started = Date.now();
   res.on("finish", () => {
@@ -111,7 +107,6 @@ app.use("/api/inspecciones", observacionesRoutes);
 app.use("/api/uploads", uploadsRoutes);
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/auditoria", auditoriaRoutes);
-app.use("/storage", express.static(path.join(__dirname, "./storage")));
 app.use("/api/inspecciones", accionesRoutes);
 app.use("/api/plantillas", (req, _res, next) => {
   console.log("[app] mount /api/plantillas", { method: req.method, path: req.path });
@@ -134,7 +129,5 @@ app.use((req, res) => {
     message: "Ruta no encontrada",
   });
 });
-
-
 
 export default app;

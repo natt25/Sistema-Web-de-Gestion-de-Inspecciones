@@ -101,29 +101,62 @@ export function deserializeTableRowsFromRespuestas(respuestas, tipo) {
   return parsed;
 }
 
+function onlyFileNames(arr) {
+  // soporta: ["a.jpg"] o [{name:"a.jpg",...}]
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((x) => (typeof x === "string" ? x : x?.name))
+    .filter(Boolean);
+}
+
 export function serializeObservacionesAccionesRows(rows) {
-  return (Array.isArray(rows) ? rows : []).map((row, idx) => ({
-    id: `row_${idx + 1}`,
-    id_campo: null,
-    item_ref: `row_${idx + 1}`,
-    categoria: "OBSERVACIONES_ACCIONES",
-    descripcion: row?.observacion?.trim() || `Fila ${idx + 1}`,
-    estado: row?.riesgo || null,
-    observacion: row?.observacion?.trim() || "",
-    accion: {
-      accion_correctiva: row?.accion_correctiva?.trim() || "",
-      fecha_ejecucion: row?.fecha_ejecucion || null,
-      porcentaje: Number.isFinite(Number(row?.porcentaje)) ? Number(row.porcentaje) : null,
-      responsable: typeof row?.responsable === "string" ? row.responsable.trim() : "",
-      evidencia_obs: Array.isArray(row?.evidencia_obs) ? row.evidencia_obs : [],
-      evidencia_lev: Array.isArray(row?.evidencia_lev) ? row.evidencia_lev : [],
-    },
-    row_data: {
-      __tipo: "observaciones_acciones",
-      rowIndex: idx + 1,
-      ...row,
-    },
-  }));
+  return (Array.isArray(rows) ? rows : []).map((row, idx) => {
+    const evidenciaObsNames = onlyFileNames(row?.evidencia_obs);
+    const evidenciaLevNames = onlyFileNames(row?.evidencia_lev);
+
+    const canPorcentaje = evidenciaLevNames.length > 0;
+    const porcentajeNum = Number(row?.porcentaje);
+    const porcentaje = canPorcentaje && Number.isFinite(porcentajeNum) ? porcentajeNum : null;
+
+    return {
+      id: `row_${idx + 1}`,
+      id_campo: null,
+      item_ref: `row_${idx + 1}`,
+      categoria: "OBSERVACIONES_ACCIONES",
+      descripcion: row?.observacion?.trim() || `Fila ${idx + 1}`,
+
+      // ESTADO = riesgo (lo sigues usando así)
+      estado: row?.riesgo || null,
+
+      // observacion (texto)
+      observacion: row?.observacion?.trim() || "",
+
+      // acción (tu forma actual)
+      accion: {
+        accion_correctiva: row?.accion_correctiva?.trim() || "",
+        fecha_ejecucion: row?.fecha_ejecucion || null,
+        porcentaje,
+        responsable: typeof row?.responsable === "string" ? row.responsable.trim() : "",
+        evidencia_obs: evidenciaObsNames,
+        evidencia_lev: evidenciaLevNames,
+      },
+
+      // row_data SOLO “safe” (sin File/URL)
+      row_data: {
+        __tipo: "observaciones_acciones",
+        rowIndex: idx + 1,
+        observacion: row?.observacion?.trim() || "",
+        riesgo: row?.riesgo || "",
+        accion_correctiva: row?.accion_correctiva?.trim() || "",
+        fecha_ejecucion: row?.fecha_ejecucion || null,
+        responsable: typeof row?.responsable === "string" ? row.responsable.trim() : "",
+        responsable_data: row?.responsable_data ?? null,
+        evidencia_obs: evidenciaObsNames,
+        evidencia_lev: evidenciaLevNames,
+        porcentaje,
+      },
+    };
+  });
 }
 
 export function serializeTablaExtintoresRows(rows) {

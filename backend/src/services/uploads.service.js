@@ -15,30 +15,25 @@ const ACC_DIR = path.join(__dirname, "../storage/acciones");
 fs.mkdirSync(OBS_DIR, { recursive: true });
 fs.mkdirSync(ACC_DIR, { recursive: true });
 
-function safeFileName(originalname) {
-  return originalname
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9._-]/g, ""); // limpia caracteres raros
-}
-
 function sha256File(filePath) {
   const buffer = fs.readFileSync(filePath);
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
-function crearStorage(destDir) {
+function crearStorageEvidencia(destDir, prefix) {
   return multer.diskStorage({
     destination: (req, file, cb) => cb(null, destDir),
     filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || "").toLowerCase() || ".png";
-      const id = req.user?.id_usuario || "user";
-      cb(null, `firma_${id}${ext}`);
-    }
+      const ext = path.extname(file.originalname || "").toLowerCase() || ".jpg";
+      const stamp = Date.now();
+      const rand = crypto.randomBytes(6).toString("hex");
+      cb(null, `${prefix}_${stamp}_${rand}${ext}`);
+    },
   });
 }
 
-const uploadObsMiddleware = multer({ storage: crearStorage(OBS_DIR) }).single("file");
-const uploadAccMiddleware = multer({ storage: crearStorage(ACC_DIR) }).single("file");
+const uploadObsMiddleware = multer({ storage: crearStorageEvidencia(OBS_DIR, "obs") }).single("file");
+const uploadAccMiddleware = multer({ storage: crearStorageEvidencia(ACC_DIR, "acc") }).single("file");
 
 async function subirEvidenciaObservacion({ id_observacion, file }) {
   const id = Number(id_observacion);

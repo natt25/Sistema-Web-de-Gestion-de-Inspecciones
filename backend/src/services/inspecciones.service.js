@@ -292,12 +292,23 @@ async function crearInspeccionCompleta({ user, body }) {
     meta: { schema: "v1-json", savedAt: new Date().toISOString() },
   });
 
-  // ✅ guarda cabecera + JSON (NO inserta INS_RESPUESTA_ITEM)
   const created = await repo.crearInspeccionYGuardarJSON({
     cabecera: cabeceraToSave,
     json_respuestas,
     participantes,
   });
+
+  const id_inspeccion = Number(created?.id_inspeccion);
+  let obsAcc = { observaciones: [], acciones: [] };
+  const plantillaId = Number(cabeceraToSave?.id_plantilla_inspec);
+
+  // ✅ si es plantilla 4 (observaciones), crea OBS/ACC y devuelve ids
+  if (id_inspeccion && plantillaId === 4) {
+    obsAcc = await crearObsAccDesdeRespuestas({
+      id_inspeccion,
+      respuestas,
+    });
+  }
 
   if (Array.isArray(body?.respuestas) && body?.cabecera?.id_plantilla_inspec) {
     const mapped = await mapearIdCampoEnRespuestas({
@@ -315,7 +326,10 @@ async function crearInspeccionCompleta({ user, body }) {
   return {
     ok: true,
     status: 201,
-    data: created, // {id_inspeccion, id_respuesta}
+    data: {
+      ...created, // {id_inspeccion, id_respuesta}
+      ...obsAcc,  // {observaciones:[{id_observacion,item_ref}], acciones:[{id_accion,item_ref}]}
+    },
   };
 }
 
@@ -410,6 +424,82 @@ async function mapearIdCampoEnRespuestas({ id_plantilla_inspec, respuestas }) {
 
   return { respuestas: out, faltantes: aunFaltan };
 }
+async function crearObsAccDesdeRespuestas({ id_inspeccion, respuestas }) {
+  const observaciones = [];
+  const acciones = [];
+
+  for (const r of (respuestas || [])) {
+    const rowData = (r?.row_data && typeof r.row_data === "object") ? r.row_data : {};
+    const accionObj = (r?.accion && typeof r.accion === "object") ? r.accion : {};
+    const item_ref = String(r?.item_ref ?? r?.id ?? r?.item_id ?? "").trim();
+    if (!item_ref) continue;
+
+    const desc_observacion = String(
+      r?.observacion ?? rowData?.observacion ?? r?.descripcion ?? ""
+    ).trim();
+
+    const riesgoValue = r?.riesgo ?? rowData?.riesgo ?? r?.estado ?? null;
+    const id_nivel_riesgo = mapRiesgoToId(riesgoValue);
+
+    const desc_accion = String(
+      r?.accion_correctiva ?? rowData?.accion_correctiva ?? accionObj?.accion_correctiva ?? ""
+    ).trim();
+
+    const fechaRaw = String(
+      r?.fecha_ejecucion ?? rowData?.fecha_ejecucion ?? accionObj?.fecha_ejecucion ?? ""
+    ).trim();
+    const fecha_compromiso = fechaRaw ? new Date(fechaRaw) : null;
+
+    const respData = r?.responsable_data || rowData?.responsable_data || {};
+    const dni = String(respData?.dni ?? "").trim();
+    const responsableTexto = String(
+      r?.responsable ?? rowData?.responsable ?? accionObj?.responsable ?? ""
+    ).trim();
+
+    const responsable = {
+      dni: dni || null,
+      externo_nombre: dni ? null : String(respData?.nombre ?? responsableTexto ?? "").trim() || null,
+      externo_cargo: dni ? null : String(respData?.cargo ?? "").trim() || null,
+    };
+
+    // 1) OBSERVACION
+    const obsCreada = await observacionesRepo.crearObservacion({
+      id_inspeccion,
+      id_nivel_riesgo: id_nivel_riesgo ?? 1,   // fallback BAJO
+      id_estado_observacion: 1,                // estado inicial
+      item_ref,
+      desc_observacion,
+    });
+
+    const id_observacion = Number(obsCreada?.id_observacion);
+    observaciones.push({ id_observacion, item_ref });
+
+    // 2) ACCION + RESPONSABLE (tu repo lo hace todo)
+    const accCreada = await observacionesRepo.crearAccionObservacion({
+      id_observacion,
+      id_estado_accion: 1,                     // estado inicial
+      desc_accion,
+      fecha_compromiso: fecha_compromiso && !Number.isNaN(fecha_compromiso.getTime()) ? fecha_compromiso : null,
+      item_ref,
+      responsable,
+    });
+
+    const id_accion = Number(accCreada?.id_accion);
+    acciones.push({ id_accion, item_ref });
+  }
+
+  return { observaciones, acciones };
+}
+
+function mapRiesgoToId(riesgo) {
+  const r = String(riesgo || "").trim().toUpperCase();
+  // AJUSTA si tus IDs en INS_CAT_NIVEL_RIESGO son diferentes:
+  // BAJO=1, MEDIO=2, ALTO=3 (asumo)
+  if (r === "BAJO") return 1;
+  if (r === "MEDIO") return 2;
+  if (r === "ALTO") return 3;
+  return null;
+}
 
 export default {
   crearInspeccionCabecera,
@@ -421,3 +511,4 @@ export default {
   actualizarEstadoObservacion,
   actualizarEstadoAccion,
 };
+

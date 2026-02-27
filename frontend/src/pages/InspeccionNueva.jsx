@@ -1,4 +1,3 @@
-// frontend/src/pages/InspeccionNueva.jsx
 import { useEffect, useMemo, useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearToken, getUser } from "../auth/auth.storage.js";
@@ -19,6 +18,7 @@ import {
   deserializeTableRowsFromRespuestas,
   normalizePlantillaDef,
 } from "../utils/plantillaRenderer.js";
+import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
 
 function useQuery() {
   const { search } = useLocation();
@@ -51,6 +51,11 @@ const CABECERA_EMPTY = {
   cargo: "",
   firma_ruta: "",
   participantes: [],
+  // (estos textos los usa tu header)
+  cliente_text: "",
+  servicio_text: "",
+  area_text: "",
+  lugar_text: "",
 };
 
 export default function InspeccionNueva() {
@@ -78,16 +83,13 @@ export default function InspeccionNueva() {
   const [cabecera, setCabecera] = useState(CABECERA_EMPTY);
   const [uiNotice, setUiNotice] = useState("");
 
-  // --- si cambias de plantilla, resetea cabecera y avisos (evita arrastrar datos)
   useEffect(() => {
     setCabecera(CABECERA_EMPTY);
     setUiNotice("");
     setError("");
     setWarning("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plantillaId]);
 
-  // --- cargar definición
   useEffect(() => {
     let alive = true;
     const controller = new AbortController();
@@ -109,13 +111,11 @@ export default function InspeccionNueva() {
         });
 
         if (!alive) return;
-        const normalized = normalizePlantillaDef(data);
-        setDef(normalized);
+        setDef(normalizePlantillaDef(data));
       } catch (e) {
         if (!alive) return;
         const status = e?.response?.status;
         setError(getApiErrorMessage(e));
-
         if (status === 401 || status === 403) {
           clearToken();
           navigate("/login", { replace: true });
@@ -131,7 +131,6 @@ export default function InspeccionNueva() {
     };
   }, [plantillaId, navigate]);
 
-  // --- cargar catálogos
   useEffect(() => {
     let alive = true;
 
@@ -147,7 +146,6 @@ export default function InspeccionNueva() {
         if (!alive) return;
         const status = e?.response?.status;
         setWarning(getApiErrorMessage(e));
-
         if (status === 401 || status === 403) {
           clearToken();
           navigate("/login", { replace: true });
@@ -185,7 +183,6 @@ export default function InspeccionNueva() {
     }
   }, []);
 
-  // ✅ FIX: handler correcto (no duplicados) + sin re-render loop
   const handleAddParticipante = useCallback((p) => {
     setCabecera((prev) => {
       const dni = String(p?.dni ?? "").trim();
@@ -210,72 +207,100 @@ export default function InspeccionNueva() {
     }));
   }, []);
 
-  const handleSubmit = useCallback(async (payload) => {
-    setUiNotice("");
+  const handleSubmit = useCallback(
+    async (payload) => {
+      setUiNotice("");
 
-    const cabeceraPayload = {
-      ...cabecera,
-      id_plantilla_inspec: Number(plantillaId),
-      id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
-      id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
-      id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
-      id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
-      id_otro: cabecera.id_otro ? Number(cabecera.id_otro) : null,
-      servicio_detalle: cabecera.servicio_detalle || null,
-      fecha_inspeccion: cabecera.fecha_inspeccion || "",
-      id_estado_inspeccion: 1,
-      id_modo_registro: 1,
-    };
+      const cabeceraPayload = {
+        ...cabecera,
+        id_plantilla_inspec: Number(plantillaId),
+        id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
+        id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
+        id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
+        id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
+        id_otro: cabecera.id_otro ? Number(cabecera.id_otro) : null,
+        servicio_detalle: cabecera.servicio_detalle || null,
+        fecha_inspeccion: cabecera.fecha_inspeccion || "",
+        id_estado_inspeccion: 1,
+        id_modo_registro: 1,
+      };
 
-    // --- validaciones básicas
-    if (!cabeceraPayload.id_area) {
-      const msg = "Debes completar la cabecera: falta Area (id_area).";
-      setError(msg);
-      alert(msg);
-      return;
-    }
-
-    const hasCatalogo = Boolean(cabeceraPayload.id_cliente && cabeceraPayload.id_servicio);
-    const hasOtro = Boolean(cabeceraPayload.id_otro);
-    if ((hasCatalogo && hasOtro) || (!hasCatalogo && !hasOtro)) {
-      const msg = "Completa cabecera usando (Cliente + Servicio) o id_otro, pero no ambos.";
-      setError(msg);
-      alert(msg);
-      return;
-    }
-
-    const body = {
-      cabecera: cabeceraPayload,
-      participantes: cabecera.participantes || [],
-      respuestas: Array.isArray(payload?.respuestas) ? payload.respuestas : [],
-    };
-
-    console.log("[InspeccionNueva] online:", online);
-    console.log("[InspeccionNueva] POST body:", body);
-
-    try {
-      if (!online) {
-        console.info("[inspecciones.create] offline -> queued (no POST)");
-        await addInspeccionToQueue(body);
-        alert("Inspeccion guardada OFFLINE (pendiente de sincronizar)");
-        navigate("/inspecciones");
+      if (!cabeceraPayload.id_area) {
+        const msg = "Debes completar la cabecera: falta Area (id_area).";
+        setError(msg);
+        alert(msg);
         return;
       }
 
-      const r = await http.post("/api/inspecciones", body);
-      alert(
-        `GUARDADO EN SQL: ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`
-      );
-      navigate("/inspecciones");
-    } catch (e) {
-      const status = e?.response?.status;
-      setError(getApiErrorMessage(e));
-      if (status === 401 || status === 403) {
-        clearToken();
-        navigate("/login", { replace: true });
+      const hasCatalogo = Boolean(cabeceraPayload.id_cliente && cabeceraPayload.id_servicio);
+      const hasOtro = Boolean(cabeceraPayload.id_otro);
+      if ((hasCatalogo && hasOtro) || (!hasCatalogo && !hasOtro)) {
+        const msg = "Completa cabecera usando (Cliente + Servicio) o id_otro, pero no ambos.";
+        setError(msg);
+        alert(msg);
+        return;
       }
-    }
-  }, [cabecera, plantillaId, online, navigate]);
+
+      const body = {
+        cabecera: cabeceraPayload,
+        participantes: cabecera.participantes || [],
+        respuestas: Array.isArray(payload?.respuestas) ? payload.respuestas : [],
+      };
+
+      try {
+        if (!online) {
+          await addInspeccionToQueue(body);
+          alert("Inspeccion guardada OFFLINE (pendiente de sincronizar)");
+          navigate("/inspecciones");
+          return;
+        }
+
+        const r = await http.post("/api/inspecciones", body);
+        const created = r.data;
+
+        // created.observaciones = [{id_observacion, item_ref}, ...]
+        // created.acciones = [{id_accion, item_ref}, ...]
+
+        const obsMap = new Map((created.observaciones || []).map(o => [String(o.item_ref), Number(o.id_observacion)]));
+        const accMap = new Map((created.acciones || []).map(a => [String(a.item_ref), Number(a.id_accion)]));
+
+        // payload.respuestas debe incluir item_ref por cada fila para empatar:
+        const filas = (payload?.rowsWithRef || payload?.rows || []); // como lo manejes tú
+
+        for (const row of filas) {
+          const ref = String(row.item_ref || "").trim();
+          const idObs = obsMap.get(ref);
+          const idAcc = accMap.get(ref);
+
+          // subir evidencia de OBSERVACIÓN
+          if (idObs && Array.isArray(row.evidencia_obs_files)) {
+            for (const file of row.evidencia_obs_files) {
+              await uploadEvidenciaObs(idObs, file);
+            }
+          }
+
+          // subir evidencia de LEVANTAMIENTO (lo estás tratando como evidencia de ACCIÓN)
+          if (idAcc && Array.isArray(row.evidencia_lev_files)) {
+            for (const file of row.evidencia_lev_files) {
+              await uploadEvidenciaAcc(idAcc, file);
+            }
+          }
+        }
+        alert(
+          `GUARDADO EN SQL: ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`
+        );
+        navigate("/inspecciones");
+      } catch (e) {
+        const status = e?.response?.status;
+        setError(getApiErrorMessage(e));
+        if (status === 401 || status === 403) {
+          clearToken();
+          navigate("/login", { replace: true });
+        }
+      }
+    },
+    [cabecera, plantillaId, online, navigate]
+  );
 
   const renderFormByTipo = useCallback(() => {
     if (!def) return null;
@@ -324,7 +349,6 @@ export default function InspeccionNueva() {
       <div style={{ display: "grid", gap: 16 }}>
         <Card title="Plantilla seleccionada">
           {loading && <div>Cargando...</div>}
-
           {error ? <div style={{ color: "#b91c1c", fontWeight: 800 }}>{error}</div> : null}
 
           {!loadingDef && !error && def ? (
@@ -365,7 +389,6 @@ export default function InspeccionNueva() {
           </Card>
         ) : null}
 
-        {/* CABECERA SIEMPRE VA */}
         {!loadingDef && !error && def ? (
           <InspeccionHeaderForm
             headerDef={def?.json?.header || {}}

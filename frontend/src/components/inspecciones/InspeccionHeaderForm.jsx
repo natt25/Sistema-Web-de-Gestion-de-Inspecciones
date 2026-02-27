@@ -46,25 +46,31 @@ export default function InspeccionHeaderForm({
   const [tArea, setTArea] = useState(false);
   const [tLugar, setTLugar] = useState(false);
   const [tColab, setTColab] = useState(false);
+
+  // ✅ solo 1 vez, dentro del componente
   const [dupMsg, setDupMsg] = useState("");
 
-  // Guard de no-op: evita rerender/loop si el valor no cambia.
-  const setField = useCallback((k, v) => {
-    onChange((prev) => {
-      const base = prev || {};
-      if (base[k] === v) return base;
-      return { ...base, [k]: v };
-    });
-  }, [onChange]);
+  const setField = useCallback(
+    (k, v) => {
+      onChange((prev) => {
+        const base = prev || {};
+        if (base[k] === v) return base;
+        return { ...base, [k]: v };
+      });
+    },
+    [onChange]
+  );
 
-  // Wrapper estable para updates compuestos con comparación previa.
-  const applyHeaderUpdate = useCallback((updater) => {
-    onChange((prev) => {
-      const base = prev || {};
-      const next = updater(base);
-      return next === base ? base : next;
-    });
-  }, [onChange]);
+  const applyHeaderUpdate = useCallback(
+    (updater) => {
+      onChange((prev) => {
+        const base = prev || {};
+        const next = updater(base);
+        return next === base ? base : next;
+      });
+    },
+    [onChange]
+  );
 
   const autoFecha = headerDef?.fecha_inspeccion === "auto_today";
   const userDefaults = useMemo(
@@ -73,44 +79,40 @@ export default function InspeccionHeaderForm({
       cargo: user?.cargo || "",
       firmaRuta: user?.firma_ruta || "",
     }),
-    [user?.nombreCompleto, user?.nombre, user?.dni, user?.cargo, user?.firma_ruta],
+    [user?.nombreCompleto, user?.nombre, user?.dni, user?.cargo, user?.firma_ruta]
   );
 
-  const canServicio = Boolean(value?.id_cliente || (value?.cliente_text || "").trim());
-  const canArea = Boolean(value?.id_servicio || (value?.servicio_text || "").trim());
-  const canLugar = Boolean(value?.id_area || (value?.area_text || "").trim());
+  // ✅ mejor usar IDs (si no hay id, no habilites cascada)
+  const canServicio = Boolean(value?.id_cliente);
+  const canArea = Boolean(value?.id_servicio);
+  const canLugar = Boolean(value?.id_area);
 
   const didInitRef = useRef(false);
 
-useEffect(() => {
-  // Este effect solo debe “autollenar” una vez.
-  if (didInitRef.current) return;
+  useEffect(() => {
+    if (didInitRef.current) return;
 
-  let touched = false;
+    let touched = false;
 
-  // Fecha auto hoy
-  if (autoFecha && !value?.fecha_inspeccion) {
-    setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
-    touched = true;
-  }
+    if (autoFecha && !value?.fecha_inspeccion) {
+      setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
+      touched = true;
+    }
 
-  // Defaults del usuario
-  if (userDefaults.realizadoPor && !value?.realizado_por) {
-    setField("realizado_por", userDefaults.realizadoPor);
-    touched = true;
-  }
-  if (userDefaults.cargo && !value?.cargo) {
-    setField("cargo", userDefaults.cargo);
-    touched = true;
-  }
-  if (userDefaults.firmaRuta && !value?.firma_ruta) {
-    setField("firma_ruta", userDefaults.firmaRuta);
-    touched = true;
-  }
+    if (userDefaults.realizadoPor && !value?.realizado_por) {
+      setField("realizado_por", userDefaults.realizadoPor);
+      touched = true;
+    }
+    if (userDefaults.cargo && !value?.cargo) {
+      setField("cargo", userDefaults.cargo);
+      touched = true;
+    }
+    if (userDefaults.firmaRuta && !value?.firma_ruta) {
+      setField("firma_ruta", userDefaults.firmaRuta);
+      touched = true;
+    }
 
-  // Marcamos init solo si intentamos setear algo o si ya estaba seteado.
-  // (Evita que quede “falso” para siempre si al inicio faltaba data.)
-  if (
+    if (
       touched ||
       value?.fecha_inspeccion ||
       value?.realizado_por ||
@@ -168,11 +170,7 @@ useEffect(() => {
     const timer = setTimeout(async () => {
       try {
         setLoadingArea(true);
-        const rows = await buscarAreas({
-          q: qArea.trim(),
-          id_servicio: value?.id_servicio,
-          id_cliente: value?.id_cliente,
-        });
+        const rows = await buscarAreas(qArea.trim());
         setOptAreas(Array.isArray(rows) ? rows : []);
       } catch {
         setOptAreas([]);
@@ -279,7 +277,7 @@ useEffect(() => {
   }
 
   return (
-    <Card title="Datos generales (FOR-013)">
+    <Card title="Datos generales (FOR-014 / FOR-013)">
       <div style={{ display: "grid", gap: 14 }}>
         <div className="ins-grid">
           <Field label="Cliente / Unidad Minera">
@@ -322,33 +320,17 @@ useEffect(() => {
                 }));
               }}
               onSelect={(c) => {
-                applyHeaderUpdate((prev) => {
-                  const nextId = Number(c.id_cliente);
-                  const nextText = c.raz_social ?? "";
-                  if (
-                    prev.id_cliente === nextId
-                    && (prev.cliente_text ?? "") === nextText
-                    && prev.id_servicio == null
-                    && prev.id_area == null
-                    && prev.id_lugar == null
-                    && (prev.servicio_text ?? "") === ""
-                    && (prev.area_text ?? "") === ""
-                    && (prev.lugar_text ?? "") === ""
-                  ) {
-                    return prev;
-                  }
-                  return {
-                    ...prev,
-                    id_cliente: nextId,
-                    cliente_text: nextText,
-                    id_servicio: null,
-                    id_area: null,
-                    id_lugar: null,
-                    servicio_text: "",
-                    area_text: "",
-                    lugar_text: "",
-                  };
-                });
+                applyHeaderUpdate((prev) => ({
+                  ...prev,
+                  id_cliente: Number(c.id_cliente),
+                  cliente_text: c.raz_social ?? "",
+                  id_servicio: null,
+                  id_area: null,
+                  id_lugar: null,
+                  servicio_text: "",
+                  area_text: "",
+                  lugar_text: "",
+                }));
               }}
             />
           </Field>
@@ -390,29 +372,15 @@ useEffect(() => {
                 }));
               }}
               onSelect={(s) => {
-                applyHeaderUpdate((prev) => {
-                  const nextId = Number(s.id_servicio);
-                  const nextText = s.nombre_servicio ?? "";
-                  if (
-                    prev.id_servicio === nextId
-                    && (prev.servicio_text ?? "") === nextText
-                    && prev.id_area == null
-                    && prev.id_lugar == null
-                    && (prev.area_text ?? "") === ""
-                    && (prev.lugar_text ?? "") === ""
-                  ) {
-                    return prev;
-                  }
-                  return {
-                    ...prev,
-                    id_servicio: nextId,
-                    servicio_text: nextText,
-                    id_area: null,
-                    id_lugar: null,
-                    area_text: "",
-                    lugar_text: "",
-                  };
-                });
+                applyHeaderUpdate((prev) => ({
+                  ...prev,
+                  id_servicio: Number(s.id_servicio),
+                  servicio_text: s.nombre_servicio ?? "",
+                  id_area: null,
+                  id_lugar: null,
+                  area_text: "",
+                  lugar_text: "",
+                }));
               }}
             />
 
@@ -460,30 +428,16 @@ useEffect(() => {
                     id_lugar: null,
                     lugar_text: "",
                   }));
-                } catch {
-                  // mantiene texto escrito si falla crear
-                }
+                } catch {}
               }}
               onSelect={(a) => {
-                applyHeaderUpdate((prev) => {
-                  const nextId = Number(a.id_area);
-                  const nextText = a.desc_area ?? "";
-                  if (
-                    prev.id_area === nextId
-                    && (prev.area_text ?? "") === nextText
-                    && prev.id_lugar == null
-                    && (prev.lugar_text ?? "") === ""
-                  ) {
-                    return prev;
-                  }
-                  return {
-                    ...prev,
-                    id_area: nextId,
-                    area_text: nextText,
-                    id_lugar: null,
-                    lugar_text: "",
-                  };
-                });
+                applyHeaderUpdate((prev) => ({
+                  ...prev,
+                  id_area: Number(a.id_area),
+                  area_text: a.desc_area ?? "",
+                  id_lugar: null,
+                  lugar_text: "",
+                }));
               }}
             />
           </Field>
@@ -512,29 +466,23 @@ useEffect(() => {
               onCreateCustom={async (text) => {
                 if (!value?.id_area) return;
                 try {
-                  const created = await crearLugar({ id_area: Number(value.id_area), desc_lugar: text });
+                  const created = await crearLugar({
+                    id_area: Number(value.id_area),
+                    desc_lugar: text,
+                  });
                   onChange((prev) => ({
                     ...(prev || {}),
                     id_lugar: Number(created.id_lugar),
                     lugar_text: created.desc_lugar ?? text,
                   }));
-                } catch {
-                  // mantiene texto escrito si falla crear
-                }
+                } catch {}
               }}
               onSelect={(l) => {
-                applyHeaderUpdate((prev) => {
-                  const nextId = Number(l.id_lugar);
-                  const nextText = l.desc_lugar ?? "";
-                  if (prev.id_lugar === nextId && (prev.lugar_text ?? "") === nextText) {
-                    return prev;
-                  }
-                  return {
-                    ...prev,
-                    id_lugar: nextId,
-                    lugar_text: nextText,
-                  };
-                });
+                applyHeaderUpdate((prev) => ({
+                  ...prev,
+                  id_lugar: Number(l.id_lugar),
+                  lugar_text: l.desc_lugar ?? "",
+                }));
               }}
             />
           </Field>
@@ -549,33 +497,29 @@ useEffect(() => {
           </Field>
         </div>
 
-        {/* REALIZADO POR */}
+        {/* REALIZADO POR (Creador + Participantes) */}
         <div style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <b>Realizado por (Inspectores)</b>
             <span className="help">Incluye al creador + inspectores agregados.</span>
           </div>
 
-          {/* Datos del creador (solo nombre + cargo) */}
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
             <div className="ins-grid">
               <Field label="Nombre">
                 <Input value={value?.realizado_por ?? ""} disabled />
               </Field>
-
               <Field label="Cargo">
                 <Input value={value?.cargo ?? ""} disabled />
               </Field>
             </div>
           </div>
 
-          {/* INSPECTORES / COLABORADORES */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
             <Badge>{(value?.participantes?.length || 0) + 1} total</Badge>
-            <span className="help">Incluye al realizado por + inspectores agregados.</span>
+            <span className="help">Creador + inspectores agregados.</span>
           </div>
 
-          {/* Agregar inspector */}
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>Agregar inspector</div>
 
@@ -606,11 +550,12 @@ useEffect(() => {
                     const nombre = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
                     const cargo = e.cargo ?? "";
 
-                    const ya = (value?.participantes || []).some((x) => String(x?.dni ?? "").trim() === dni);
+                    const ya = (value?.participantes || []).some(
+                      (x) => String(x?.dni ?? "").trim() === dni
+                    );
 
                     if (dni && ya) {
-                      // opcional: alert simple (o usa setWarning si tienes)
-                      alert("Ese inspector ya fue agregado. No se puede repetir.");
+                      setDupMsg("Ese inspector ya fue agregado. No se puede repetir.");
                       setQColab("");
                       setOptColabs([]);
                       return;
@@ -628,7 +573,10 @@ useEffect(() => {
             {(value?.participantes || []).length ? (
               <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                 {value.participantes.map((p, idx) => (
-                  <div key={`${p.dni || p.nombre || "p"}-${idx}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div
+                    key={`${p.dni || p.nombre || "p"}-${idx}`}
+                    style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
+                  >
                     <div>
                       <b>{p.nombre}</b> {p.cargo ? <span className="help">• {p.cargo}</span> : null}
                     </div>
@@ -645,6 +593,7 @@ useEffect(() => {
               </div>
             ) : null}
           </div>
+
           {dupMsg ? (
             <div style={{ marginTop: 8, color: "#b91c1c", fontWeight: 700 }}>
               {dupMsg}
