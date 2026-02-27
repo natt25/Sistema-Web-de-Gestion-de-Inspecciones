@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion, actualizarEstadoObservacion } from "../api/observaciones.api";
-import { crearAccion, actualizarEstadoAccion } from "../api/acciones.api";
+import { crearAccion, actualizarEstadoAccion, actualizarPorcentajeAccion } from "../api/acciones.api";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
@@ -1045,20 +1045,25 @@ export default function InspeccionDetail() {
   }
 
   const cab = data?.cabecera;
-  const hideObsUI = String(cab?.codigo_formato || "").toUpperCase() === "AQP-SSOMA-FOR-013";
+  const plantillaId = Number(cab?.id_plantilla_inspec ?? 0);
+  const hideObsUI = Number(data?.cabecera?.id_plantilla_inspec ?? 0) === 4;
+  const codigoFormato = String(cab?.codigo_formato || "").toUpperCase();
+  const isFOR014 = plantillaId === 4 || codigoFormato === "AQP-SSOMA-FOR-014";
   const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
   const observaciones = data?.observaciones || [];
-  const accionesPorItemRef = useMemo(() => {
+  const accionByItemRef = useMemo(() => {
     const map = new Map();
-    for (const obs of observaciones) {
-      const key = String(obs?.item_ref ?? "").trim();
-      if (!key) continue;
-      const acciones = Array.isArray(obs?.acciones) ? obs.acciones : [];
-      if (!map.has(key)) map.set(key, []);
-      map.set(key, [...map.get(key), ...acciones]);
+    const obs = Array.isArray(data?.observaciones) ? data.observaciones : [];
+    for (const o of obs) {
+      const acciones = Array.isArray(o?.acciones) ? o.acciones : [];
+      for (const a of acciones) {
+        const key = String(a?.item_ref || o?.item_ref || "").trim();
+        if (!key) continue;
+        if (!map.has(key)) map.set(key, a);
+      }
     }
     return map;
-  }, [observaciones]);
+  }, [data?.observaciones]);
   const realizadoPor = participantes.find((p) => String(p?.tipo || "").toUpperCase() === "REALIZADO_POR");
   const inspectores = participantes.filter((p) => String(p?.tipo || "").toUpperCase() === "INSPECTOR");
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
@@ -1322,31 +1327,95 @@ export default function InspeccionDetail() {
                 <h4 style={{ margin: "0 0 8px 0" }}>{categoria}</h4>
                 <div style={{ display: "grid", gap: 8 }}>
                   {(respuestasPorCategoria.get(categoria) || []).map((r, idx) => {
-                    const estado = String(r?.estado || "NA").toUpperCase();
-                    const accion = parseAccionJson(r?.accion_json);
-                    const accionesRegistradas = accionesPorItemRef.get(normItemRef(r?.item_id)) || [];
+                    const isObsAcc = String(categoria).toUpperCase() === "OBSERVACIONES_ACCIONES";
+                    const row = (r?.row_data && typeof r.row_data === "object") ? r.row_data : null;
+
+                    if (isObsAcc && row) {
+                      const itemRef = normItemRef(r?.item_id || r?.item_ref || "");
+                      const accionDb = accionByItemRef.get(itemRef);
+                      const evidLev = Array.isArray(accionDb?.evidencias) ? accionDb.evidencias : [];
+                      const hasLev = evidLev.length > 0;
+
+                      return (
+                        <div
+                          key={`${itemRef || "row"}-${idx}`}
+                          style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}
+                        >
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <b>{itemRef}</b>
+                            <Badge>{String(row?.riesgo || r?.estado || "NA").toUpperCase()}</Badge>
+                            {accionDb?.id_accion ? <Badge>Acc #{accionDb.id_accion}</Badge> : <Badge>Acc: -</Badge>}
+                          </div>
+
+                          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                            <div><b>Observación:</b> {row?.observacion || "-"}</div>
+                            <div><b>Acción correctiva:</b> {row?.accion_correctiva || "-"}</div>
+                            <div><b>Fecha ejecución:</b> {row?.fecha_ejecucion || "-"}</div>
+                            <div><b>Responsable:</b> {row?.responsable || row?.responsable_data?.nombre || "-"}</div>
+                          </div>
+
+                          {/* SOLO lo que quieres que quede: evidencia levantamiento + % */}
+                          <div style={{ marginTop: 10 }}>
+                            <b>Evidencia de levantamiento (Acción)</b>
+                            {accionDb?.id_accion ? (
+                              <>
+                                <EvidenceGrid evidencias={evidLev} />
+                                <UploadEvidence
+                                  kind="ACC"
+                                  idTarget={accionDb.id_accion}
+                                  onUploaded={handleEvidenceUploaded}
+                                  disabled={false}
+                                  inspeccionCerrada={inspeccionCerrada}
+                                  online={online}
+                                />
+                              </>
+                            ) : (
+                              <p style={{ margin: "6px 0", opacity: 0.7 }}>
+                                No se encontró acción creada para {itemRef}.
+                              </p>
+                            )}
+                          </div>
+
+                          <div style={{ marginTop: 10, maxWidth: 220 }}>
+                            <b>% cumplimiento</b>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              className="ins-input"
+                              value={accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? ""}
+                              onChange={(e) => {
+                                // solo UI local mientras escribe: no guardes aquí, se guarda en blur
+                                const val = e.target.value;
+                                // hack simple: permite escribir sin romper (si te molesta, te lo hago con estado local)
+                                e.target.value = val;
+                              }}
+                              disabled={!hasLev}
+                              placeholder={hasLev ? "0 - 100" : "Sube evidencia para habilitar"}
+                              onBlur={async (e) => {
+                                if (!accionDb?.id_accion) return;
+                                if (!online) return; // por ahora solo online (si quieres, lo metemos a mutations offline)
+
+                                const vRaw = e.target.value;
+                                const v = vRaw === "" ? null : Number(vRaw);
+
+                                try {
+                                  await actualizarPorcentajeAccion(accionDb.id_accion, v);
+                                  await load();
+                                } catch (err) {
+                                  alert(getErrorMessage(err));
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // fallback normal para otras categorías:
                     return (
                       <div key={`${r?.item_id || "item"}-${idx}`} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                          <b>{r?.item_id || "-"}</b>
-                          <span>{r?.descripcion || "-"}</span>
-                          <Badge>{estado}</Badge>
-                        </div>
-                        {estado === "MALO" && (
-                          <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
-                            <div><b>Observacion:</b> {r?.observacion || "-"}</div>
-                            <div>
-                              <b>Accion:</b>{" "}
-                              {accion
-                                ? `${accion.que || "-"} | ${accion.quien || "-"} | ${accion.cuando || "-"}`
-                                : accionesRegistradas.length
-                                  ? accionesRegistradas
-                                      .map((a) => `${a?.desc_accion || "-"} | ${a?.dni || a?.externo_responsable_nombre || "-"} | ${a?.fecha_compromiso || "-"}`)
-                                      .join(" || ")
-                                  : "-"}
-                            </div>
-                          </div>
-                        )}
+                        ...
                       </div>
                     );
                   })}
@@ -1443,7 +1512,99 @@ export default function InspeccionDetail() {
                 <div style={{ marginTop: 6 }}>
                   <b>Descripcion:</b> {o.desc_observacion}
                 </div>
+                
+                {isFOR014 && (
+                  (() => {
+                    const acciones = Array.isArray(o.acciones) ? o.acciones : [];
+                    const acc = acciones[0] || null; // FOR-014 normalmente 1 acción por observación
+                    const evidAcc = Array.isArray(acc?.evidencias) ? acc.evidencias : [];
+                    const tieneEvidAcc = evidAcc.length > 0;
 
+                    const pctValue = acc?.porcentaje_cumplimiento ?? "";
+
+                    const disabledPct =
+                      inspeccionCerrada ||
+                      !acc ||
+                      !tieneEvidAcc ||
+                      [3, 4].includes(Number(acc?.id_estado_accion)); // si ya cumplida/final, bloquea
+
+                    return (
+                      <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #eee", background: "#fafafa" }}>
+                        <b>Levantamiento / Accion Correctiva</b>
+
+                        {!acc ? (
+                          <div style={{ marginTop: 8, opacity: 0.75 }}>
+                            Sin accion asociada a esta observacion.
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                              <div><b>Acc #{acc.id_accion}</b> — {acc.desc_accion || "-"}</div>
+                              <div style={{ opacity: 0.8 }}>
+                                <b>Compromiso:</b> {fmtDate(acc.fecha_compromiso)}{" "}
+                                <span style={{ marginLeft: 8 }}><b>Estado:</b> {acc.estado_accion}</span>
+                              </div>
+                            </div>
+
+                            <div style={{ marginTop: 10 }}>
+                              <b>Evidencias (Acc)</b>
+                              <EvidenceGrid evidencias={evidAcc} />
+                            </div>
+
+                            <UploadEvidence
+                              kind="ACC"
+                              idTarget={acc.id_accion}
+                              onUploaded={handleEvidenceUploaded}
+                              disabled={[3, 4].includes(Number(acc.id_estado_accion))}
+                              inspeccionCerrada={inspeccionCerrada}
+                              online={online}
+                            />
+
+                            <div style={{ marginTop: 12, display: "grid", gap: 6, maxWidth: 280 }}>
+                              <b>% Cumplimiento</b>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="1"
+                                value={pctValue}
+                                disabled={disabledPct}
+                                placeholder={tieneEvidAcc ? "0 - 100" : "Sube evidencia para habilitar"}
+                                onChange={async (e) => {
+                                  const nextPct = e.target.value;
+
+                                  // Guardado local en state + cache (no backend aún)
+                                  const base = dataRef.current;
+                                  if (!base) return;
+
+                                  const next = {
+                                    ...base,
+                                    observaciones: (base.observaciones || []).map((obs) => {
+                                      if (String(obs.id_observacion) !== String(o.id_observacion)) return obs;
+                                      const accs = Array.isArray(obs.acciones) ? obs.acciones : [];
+                                      if (!accs.length) return obs;
+
+                                      const updatedAcc0 = { ...accs[0], porcentaje_cumplimiento: nextPct };
+                                      return { ...obs, acciones: [updatedAcc0, ...accs.slice(1)] };
+                                    }),
+                                  };
+
+                                  await setDataAndCache(next);
+                                }}
+                              />
+                              {!tieneEvidAcc && (
+                                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                  * El % se habilita cuando exista evidencia de levantamiento.
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()
+                )}
+                
                 <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {o.id_estado_observacion !== 3 && (
                     <>
@@ -1491,27 +1652,33 @@ export default function InspeccionDetail() {
                   </div>
                 )}
 
-                <div style={{ marginTop: 10 }}>
-                  <b>Evidencias (Obs)</b>
-                  <EvidenceGrid evidencias={o.evidencias} />
-                </div>
+                {!isFOR014 && (
+                  <>
+                    <div style={{ marginTop: 10 }}>
+                      <b>Evidencias (Obs)</b>
+                      <EvidenceGrid evidencias={o.evidencias} />
+                    </div>
 
-                <UploadEvidence
-                  kind="OBS"
-                  idTarget={o.id_observacion}
-                  onUploaded={handleEvidenceUploaded}
-                  disabled={o.id_estado_observacion === 3}
-                  inspeccionCerrada={inspeccionCerrada}
-                  online={online}
-                />
+                    <UploadEvidence
+                      kind="OBS"
+                      idTarget={o.id_observacion}
+                      onUploaded={handleEvidenceUploaded}
+                      disabled={o.id_estado_observacion === 3}
+                      inspeccionCerrada={inspeccionCerrada}
+                      online={online}
+                    />
+                  </>
+                )}
 
-                <CrearAccionForm
-                  idObservacion={o.id_observacion}
-                  onCreated={handleAccionCreated}
-                  onMsg={showAccionMsg}
-                  inspeccionCerrada={inspeccionCerrada || o.id_estado_observacion === 3}
-                  online={online}
-                />
+                {!isFOR014 && (
+                  <CrearAccionForm
+                    idObservacion={o.id_observacion}
+                    onCreated={handleAccionCreated}
+                    onMsg={showAccionMsg}
+                    inspeccionCerrada={inspeccionCerrada || o.id_estado_observacion === 3}
+                    online={online}
+                  />
+                )}
 
                 {accionMsgByObs[o.id_observacion]?.msg && (
                   <div
