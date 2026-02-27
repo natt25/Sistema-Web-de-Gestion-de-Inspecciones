@@ -18,11 +18,32 @@ import {
   getInspeccionCache, setInspeccionCache,
 } from "../utils/offlineQueue";
 import { obtenerDefinicionPlantilla } from "../api/plantillas.api";
-import { descargarInspeccionXlsx } from "../api/inspecciones.api";
-
+import { getToken } from "../auth/auth.storage";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
+
+async function descargarExcelSeguridad(idInspeccion) {
+  const token = getToken(); // como ya lo usas en otras llamadas
+
+  const r = await fetch(`${import.meta.env.VITE_API_URL}/api/inspecciones/${idInspeccion}/export/seguridad-xlsx`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!r.ok) throw new Error("No se pudo descargar");
+
+  const blob = await r.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `FOR-014_InspeccionSeguridad_${idInspeccion}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  window.URL.revokeObjectURL(url);
+}
 
 function fileUrl(archivo_ruta) {
   if (!archivo_ruta || archivo_ruta.startsWith("PENDING_UPLOAD/")) return null;
@@ -1150,45 +1171,64 @@ export default function InspeccionDetail() {
     }
   }
 
-  async function downloadExcel(downloadId) {
+  async function handleDownloadExcel() {
+    const routeId = typeof id === "string" ? id.trim() : "";
+    const stateId = String(data?.cabecera?.id_inspeccion ?? "").trim();
+    const inspeccionId = routeId || stateId;
+
+    if (!inspeccionId) {
+      alert("No se encontro el ID de inspeccion para descargar el Excel.");
+      return;
+    }
+
+    const token = getToken();
+    const base = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+    const url = `${base}/api/inspecciones/${inspeccionId}/export/xlsx`;
+    const codigoFormato = String(data?.cabecera?.codigo_formato || "").trim();
+    const fallbackFilename = `${codigoFormato || "Inspeccion"}_${inspeccionId}.xlsx`;
+
     try {
-      setPageError("");
-      const res = await descargarInspeccionXlsx(downloadId);
-      const blob = new Blob([res.data], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      const resp = await fetch(url, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const url = window.URL.createObjectURL(blob);
+      if (!resp.ok) {
+        const contentType = resp.headers.get("content-type") || "";
+        let message = "No se pudo descargar el Excel.";
+
+        if (contentType.includes("application/json")) {
+          const body = await resp.json();
+          message = body?.message || message;
+        } else {
+          const text = await resp.text();
+          message = text || message;
+        }
+
+        const error = new Error(`[${resp.status}] ${message}`);
+        console.error("inspeccion.detail.download.xlsx:", error);
+        alert(message);
+        return;
+      }
+
+      const contentDisposition = resp.headers.get("content-disposition") || "";
+      const match = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+      const decodedName = match?.[1] ? decodeURIComponent(match[1].replace(/"/g, "").trim()) : "";
+      const filename = decodedName || fallbackFilename;
+
+      const blob = await resp.blob();
+      const href = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `AQP-SSOMA-FOR-013_Inspeccion_${downloadId}.xlsx`;
+      a.href = href;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(href);
     } catch (err) {
-      const status = err?.response?.status;
-      let body = err?.response?.data;
-
-      if (body instanceof Blob) {
-        try {
-          const text = await body.text();
-          try {
-            body = JSON.parse(text);
-          } catch {
-            body = text;
-          }
-        } catch {
-          body = null;
-        }
-      }
-
-      console.error("inspeccion.detail.download.xlsx:", {
-        status,
-        body,
-        message: err?.message,
-      });
-      setPageError("No se pudo descargar");
+      const message = err?.message || "No se pudo descargar el Excel.";
+      console.error("inspeccion.detail.download.xlsx:", err);
+      alert(message);
     }
   }
 
@@ -1209,7 +1249,7 @@ export default function InspeccionDetail() {
             <Button variant="ghost">Volver</Button>
           </Link>
 
-          <Button variant="outline" onClick={() => downloadExcel(id)}>
+          <Button variant="outline" onClick={handleDownloadExcel}>
             Descargar Excel
           </Button>
         </div>

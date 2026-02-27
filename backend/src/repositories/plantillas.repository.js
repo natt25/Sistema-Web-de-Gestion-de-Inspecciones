@@ -1,5 +1,27 @@
 import { sql, getPool } from "../config/database.js";
 
+async function obtenerDefinicionPlantilla(id_plantilla_inspec) {
+  const pool = await getPool();
+  const r = await pool.request()
+    .input("id", sql.Int, Number(id_plantilla_inspec))
+    .query(`
+      SELECT TOP 1
+        d.*,
+        p.codigo_formato,
+        p.nombre_formato,
+        p.version_actual
+      FROM SSOMA.INS_PLANTILLA_DEFINICION d
+      JOIN SSOMA.INS_PLANTILLA_INSPECCION p
+        ON p.id_plantilla_inspec = d.id_plantilla_inspec
+      WHERE d.id_plantilla_inspec = @id
+      ORDER BY
+        CASE WHEN d.version = p.version_actual THEN 0 ELSE 1 END,
+        d.version DESC,
+        d.id_plantilla_def DESC;
+    `);
+  return r.recordset?.[0] || null;
+}
+
 async function listPlantillas() {
   const started = Date.now();
   const q = `
@@ -32,10 +54,18 @@ async function getDefinicion(id_plantilla_inspec) {
       d.version,
       d.json_definicion,
       d.checksum,
-      d.fecha_creacion
+      d.fecha_creacion,
+      p.codigo_formato,
+      p.nombre_formato,
+      p.version_actual
     FROM SSOMA.INS_PLANTILLA_DEFINICION d
+    JOIN SSOMA.INS_PLANTILLA_INSPECCION p
+      ON p.id_plantilla_inspec = d.id_plantilla_inspec
     WHERE d.id_plantilla_inspec = @id
-    ORDER BY d.version DESC;
+    ORDER BY
+      CASE WHEN d.version = p.version_actual THEN 0 ELSE 1 END,
+      d.version DESC,
+      d.id_plantilla_def DESC;
   `;
   console.log("[plantillas.repo] getDefinicion:start", { id_plantilla_inspec });
   const pool = await getPool();
@@ -58,8 +88,13 @@ async function getDefinicionByVersion(id_plantilla_inspec, version) {
       d.version,
       d.json_definicion,
       d.checksum,
-      d.fecha_creacion
+      d.fecha_creacion,
+      p.codigo_formato,
+      p.nombre_formato,
+      p.version_actual
     FROM SSOMA.INS_PLANTILLA_DEFINICION d
+    JOIN SSOMA.INS_PLANTILLA_INSPECCION p
+      ON p.id_plantilla_inspec = d.id_plantilla_inspec
     WHERE d.id_plantilla_inspec = @id AND d.version = @version;
   `;
   console.log("[plantillas.repo] getDefinicionByVersion:start", { id_plantilla_inspec, version });
@@ -83,10 +118,15 @@ async function listarCamposPorPlantilla(id_plantilla_inspec, id_plantilla_def = 
   let idDef = id_plantilla_def ? Number(id_plantilla_def) : null;
   if (!idDef) {
     const rDef = await reqDef.query(`
-      SELECT TOP 1 id_plantilla_def
-      FROM SSOMA.INS_PLANTILLA_DEFINICION
-      WHERE id_plantilla_inspec = @id_inspec
-      ORDER BY version DESC;
+      SELECT TOP 1 d.id_plantilla_def
+      FROM SSOMA.INS_PLANTILLA_DEFINICION d
+      JOIN SSOMA.INS_PLANTILLA_INSPECCION p
+        ON p.id_plantilla_inspec = d.id_plantilla_inspec
+      WHERE d.id_plantilla_inspec = @id_inspec
+      ORDER BY
+        CASE WHEN d.version = p.version_actual THEN 0 ELSE 1 END,
+        d.version DESC,
+        d.id_plantilla_def DESC;
     `);
     idDef = Number(rDef.recordset?.[0]?.id_plantilla_def || 0) || null;
   }
@@ -149,12 +189,27 @@ async function listarCamposPorPlantilla(id_plantilla_inspec, id_plantilla_def = 
   return r.recordset || [];
 }
 
+function extractItemsFromDef(jsonDef) {
+  if (Array.isArray(jsonDef?.items)) return jsonDef.items;
+  if (!Array.isArray(jsonDef?.secciones)) return [];
+
+  return jsonDef.secciones.flatMap((sec) => {
+    const secItems = Array.isArray(sec?.items) ? sec.items : [];
+    const secTitle = String(sec?.titulo ?? sec?.key_seccion ?? sec?.key ?? "GENERAL").trim();
+    return secItems.map((it) => ({
+      ...it,
+      categoria: it?.categoria ?? secTitle,
+    }));
+  });
+}
+
 async function ensureCamposFromJsonDefinicion(id_plantilla_def, jsonDef) {
-  if (!id_plantilla_def || !jsonDef || !Array.isArray(jsonDef.items)) return;
+  if (!id_plantilla_def || !jsonDef) return;
+  const items = extractItemsFromDef(jsonDef);
+  if (!items.length) return;
 
   const pool = await getPool();
 
-  // ¿Ya existen campos para esa definición?
   const exists = await pool.request()
     .input("id_def", sql.Int, Number(id_plantilla_def))
     .query(`
@@ -164,20 +219,10 @@ async function ensureCamposFromJsonDefinicion(id_plantilla_def, jsonDef) {
     `);
 
   const n = Number(exists.recordset?.[0]?.n || 0);
-  const existing = await pool.request()
-  .input("id_def", sql.Int, Number(id_plantilla_def))
-  .query(`
-    SELECT orden
-    FROM SSOMA.INS_PLANTILLA_CAMPO
-    WHERE id_plantilla_def = @id_def;
-  `);
+  if (n > 0) return;
 
-const existingOrdenes = new Set((existing.recordset||[]).map(r => Number(r.orden)));
-
-  // Insertar un campo por ítem del JSON
-  // Ajusta valores por defecto si luego quieres "requerido" real, tipo_control real, etc.
-  for (let i = 0; i < jsonDef.items.length; i++) {
-    const it = jsonDef.items[i];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
     const itemRef = String(it?.item_ref ?? it?.id ?? "").trim().slice(0, 50);
     const etiqueta = String(it?.texto ?? it?.descripcion ?? "").trim().slice(0, 300);
     const seccion = String(it?.categoria ?? "GENERAL").trim().slice(0, 120);
@@ -186,7 +231,7 @@ const existingOrdenes = new Set((existing.recordset||[]).map(r => Number(r.orden
 
     await pool.request()
       .input("id_def", sql.Int, Number(id_plantilla_def))
-      .input("id_tipo_control", sql.Int, 1) // 1 = default (ajusta si tienes catálogo)
+      .input("id_tipo_control", sql.Int, 1)
       .input("item_ref", sql.NVarChar(50), itemRef)
       .input("etiqueta", sql.NVarChar(300), etiqueta || itemRef)
       .input("requerido", sql.Bit, 0)
@@ -220,5 +265,6 @@ export default {
   getDefinicionByVersion,
   listarCamposPorPlantilla,
   ensureCamposFromJsonDefinicion,
-  countCamposPorDef
-}
+  countCamposPorDef,
+  obtenerDefinicionPlantilla,
+};

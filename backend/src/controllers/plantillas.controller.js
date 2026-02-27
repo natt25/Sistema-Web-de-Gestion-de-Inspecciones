@@ -1,4 +1,5 @@
 import repo from "../repositories/plantillas.repository.js";
+import service from "../services/plantillas.service.js";
 
 function normalizeText(v) {
   return String(v || "")
@@ -75,7 +76,25 @@ async function definicion(req, res) {
         }
       }
       
+      const itemsRefs = [];
       if (parsed && Array.isArray(parsed.items)) {
+        parsed.items.forEach((it, idx) => {
+          itemsRefs.push({ idx, read: () => it, write: (next) => { parsed.items[idx] = next; } });
+        });
+      } else if (parsed && Array.isArray(parsed.secciones)) {
+        parsed.secciones.forEach((sec, secIdx) => {
+          const secItems = Array.isArray(sec?.items) ? sec.items : [];
+          secItems.forEach((it, itemIdx) => {
+            itemsRefs.push({
+              idx: itemsRefs.length,
+              read: () => it,
+              write: (next) => { parsed.secciones[secIdx].items[itemIdx] = next; },
+            });
+          });
+        });
+      }
+
+      if (itemsRefs.length > 0) {
         const campos = await repo.listarCamposPorPlantilla(id, row.id_plantilla_def);
         const camposLimpios = (campos || []).map((c, idx) => ({
           idx,
@@ -96,7 +115,9 @@ async function definicion(req, res) {
 
         const missingItems = [];
         let mappedCount = 0;
-        parsed.items = parsed.items.map((it, idx) => {
+        for (const itemRef of itemsRefs) {
+          const it = itemRef.read();
+          const idx = itemRef.idx;
           const rawIdCampo = Number(it?.id_campo);
           const refCandidates = [it?.item_ref, it?.ref, it?.id, it?.codigo, it?.numero];
           const refKey = refCandidates
@@ -132,15 +153,15 @@ async function definicion(req, res) {
             mappedCount += 1;
           }
 
-          return { ...it, id_campo: mapped ? Number(mapped) : null };
-        });
+          itemRef.write({ ...it, id_campo: mapped ? Number(mapped) : null });
+        }
 
         if (missingItems.length > 0) {
           console.warn("[plantillas.controller] item sin id_campo mapeado", {
             plantilla: id,
             firstMissing: missingItems[0],
             totalMissing: missingItems.length,
-            totalItems: parsed.items.length,
+            totalItems: itemsRefs.length,
             totalCampos: camposLimpios.length,
           });
         }
@@ -149,7 +170,7 @@ async function definicion(req, res) {
         const sample = missingItems.slice(0, 10);
         console.log("[plantillas.controller] definicion mapping", {
           plantilla: id,
-          totalItems: parsed.items.length,
+          totalItems: itemsRefs.length,
           mapped: mappedCount,
           unmapped: missingItems.length,
           sampleUnmapped: sample,
@@ -163,6 +184,9 @@ async function definicion(req, res) {
     return res.json({
       id_plantilla_def: row.id_plantilla_def,
       id_plantilla_inspec: row.id_plantilla_inspec,
+      codigo_formato: row.codigo_formato ?? null,
+      nombre_formato: row.nombre_formato ?? null,
+      version_actual: row.version_actual ?? null,
       version: row.version,
       checksum: row.checksum,
       fecha_creacion: row.fecha_creacion,
@@ -179,4 +203,11 @@ async function definicion(req, res) {
   }
 }
 
-export default { list, definicion };
+export async function obtenerDefinicion(req, res) {
+  const { id } = req.params;
+  const r = await service.obtenerDefinicionPlantilla(Number(id));
+  if (!r.ok) return res.status(r.status).json({ message: r.message });
+  return res.json(r.data);
+}
+
+export default { list, definicion, obtenerDefinicion };

@@ -11,29 +11,20 @@ router.post("/", authMiddleware, controller.crear);
 // GET /api/inspecciones
 router.get("/", authMiddleware, controller.listar);
 
-// GET /api/inspecciones/:id
-router.get("/:id", authMiddleware, controller.obtenerDetalle);
+// ✅ EXPORT DEBE IR ANTES QUE "/:id"
+router.get("/:id/export/xlsx", authMiddleware, exportXlsx);
 
 // GET /api/inspecciones/:id/full
 router.get("/:id/full", authMiddleware, controller.obtenerDetalleFull);
 
+// GET /api/inspecciones/:id
+router.get("/:id", authMiddleware, controller.obtenerDetalle);
+
 // PATCH /api/inspecciones/:id/estado
 router.patch("/:id/estado", authMiddleware, controller.actualizarEstado);
 
-// --- OBSERVACIONES: cambiar estado (ej: cerrar) ---
-router.patch(
-  "/observaciones/:idObservacion/estado",
-  authMiddleware,
-  controller.actualizarEstadoObservacion
-);
-
-// --- ACCIONES: cambiar estado (ej: cumplir) ---
-router.patch(
-  "/acciones/:idAccion/estado",
-  authMiddleware,
-  controller.actualizarEstadoAccion
-);
-
-router.get("/:id/export/xlsx", authMiddleware, exportXlsx);
+// OBSERVACIONES / ACCIONES...
+router.patch("/observaciones/:idObservacion/estado", authMiddleware, controller.actualizarEstadoObservacion);
+router.patch("/acciones/:idAccion/estado", authMiddleware, controller.actualizarEstadoAccion);
 
 export default router;

@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { clearToken } from "../auth/auth.storage.js";
+import { clearToken, getUser } from "../auth/auth.storage.js";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { obtenerDefinicionPlantilla } from "../api/plantillas.api.js";
 import { listarCatalogosInspeccion } from "../api/catalogos.api.js";
 import InspeccionHeaderForm from "../components/inspecciones/InspeccionHeaderForm.jsx";
-import InspeccionDinamicaForm from "../components/inspecciones/InspeccionDinamicaForm.jsx";
+import ChecklistForm from "../components/forms/ChecklistForm.jsx";
+import TablaObservacionesForm from "../components/forms/TablaObservacionesForm.jsx";
+import TablaExtintoresForm from "../components/forms/TablaExtintoresForm.jsx";
 import http from "../api/http.js";
-import { getUser } from "../auth/auth.storage.js";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import { addInspeccionToQueue } from "../utils/offlineQueue";
-
-const IS_DEV = Boolean(import.meta.env.DEV);
+import {
+  deserializeTableRowsFromRespuestas,
+  normalizePlantillaDef,
+} from "../utils/plantillaRenderer.js";
 
 function useQuery() {
   const { search } = useLocation();
@@ -31,13 +34,11 @@ export default function InspeccionNueva() {
   const q = useQuery();
   const navigate = useNavigate();
   const plantillaId = Number(q.get("plantilla"));
-  const user = useMemo(() => getUser(), []); // debe incluir dni / nombreCompleto / cargo / firma_ruta
+  const user = useMemo(() => getUser(), []);
   const online = useOnlineStatus();
 
-  // loading separado (def + catalogos)
   const [loadingDef, setLoadingDef] = useState(false);
   const [loadingCats, setLoadingCats] = useState(false);
-
   const loading = loadingDef || loadingCats;
 
   const [def, setDef] = useState(null);
@@ -64,7 +65,6 @@ export default function InspeccionNueva() {
     participantes: [],
   });
 
-  // 1) Cargar definición (UNA SOLA VEZ por plantillaId)
   useEffect(() => {
     let alive = true;
     const controller = new AbortController();
@@ -74,7 +74,7 @@ export default function InspeccionNueva() {
       setDef(null);
 
       if (!plantillaId || Number.isNaN(plantillaId)) {
-        setError("Plantilla inválida: falta ?plantilla=ID en la URL.");
+        setError("Plantilla invalida: falta ?plantilla=ID en la URL.");
         return;
       }
 
@@ -84,12 +84,11 @@ export default function InspeccionNueva() {
         const data = await obtenerDefinicionPlantilla(plantillaId, undefined, {
           signal: controller.signal,
         });
-
         if (!alive) return;
-        setDef({ ...data, json: data?.json ?? data?.json_definicion ?? null });
+        const normalized = normalizePlantillaDef(data);
+        setDef(normalized);
       } catch (e) {
         if (!alive) return;
-
         const status = e?.response?.status;
         setError(getApiErrorMessage(e));
 
@@ -108,7 +107,6 @@ export default function InspeccionNueva() {
     };
   }, [plantillaId, navigate]);
 
-  // 2) Cargar catálogos (UNA SOLA VEZ al entrar a la página)
   useEffect(() => {
     let alive = true;
 
@@ -122,7 +120,6 @@ export default function InspeccionNueva() {
         setCatalogos(data);
       } catch (e) {
         if (!alive) return;
-
         const status = e?.response?.status;
         setWarning(getApiErrorMessage(e));
 
@@ -140,10 +137,94 @@ export default function InspeccionNueva() {
     };
   }, [navigate]);
 
+  const rendererType = def?.tipo || "checklist";
+  const hasChecklistItems = Boolean(def?.items?.length || def?.json?.secciones?.length);
+
+  const initialObsAccRows = useMemo(
+    () => deserializeTableRowsFromRespuestas(def?.json?.respuestas, "observaciones_acciones"),
+    [def]
+  );
+  const initialExtintoresRows = useMemo(
+    () => deserializeTableRowsFromRespuestas(def?.json?.respuestas, "tabla_extintores"),
+    [def]
+  );
+
+  async function handleSubmit(payload) {
+    const body = {
+      cabecera: {
+        id_plantilla_inspec: Number(def.id_plantilla_inspec),
+        id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
+        id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
+        servicio_detalle: cabecera.servicio_detalle || null,
+        id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
+        id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
+        fecha_inspeccion: cabecera.fecha_inspeccion,
+        id_estado_inspeccion: 1,
+        id_modo_registro: 1,
+      },
+      participantes: cabecera.participantes || [],
+      respuestas: Array.isArray(payload?.respuestas) ? payload.respuestas : [],
+    };
+
+    console.log("[InspeccionNueva] online:", online);
+    console.log("[InspeccionNueva] POST body:", body);
+
+    try {
+      if (!online) {
+        console.info("[inspecciones.create] offline -> queued (no POST)");
+        await addInspeccionToQueue(body);
+        alert("Inspeccion guardada OFFLINE (pendiente de sincronizar)");
+        navigate("/inspecciones");
+        return;
+      }
+
+      const r = await http.post("/api/inspecciones", body);
+      alert(`GUARDADO EN SQL: ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`);
+      navigate("/inspecciones");
+    } catch (e) {
+      const status = e?.response?.status;
+      setError(getApiErrorMessage(e));
+      if (status === 401 || status === 403) {
+        clearToken();
+        navigate("/login", { replace: true });
+      }
+    }
+  }
+
+  function renderFormByTipo() {
+    if (!def) return null;
+
+    if (rendererType === "observaciones_acciones") {
+      return <TablaObservacionesForm initialRows={initialObsAccRows} onSubmit={handleSubmit} />;
+    }
+
+    if (rendererType === "tabla_extintores") {
+      return (
+        <TablaExtintoresForm
+          definicion={def.json}
+          initialRows={initialExtintoresRows}
+          onSubmit={handleSubmit}
+        />
+      );
+    }
+
+    if (rendererType !== "checklist") {
+      console.warn("[InspeccionNueva] tipo no soportado, se usa checklist", {
+        tipo: rendererType,
+        plantilla: def?.id_plantilla_inspec,
+      });
+    }
+
+    if (!hasChecklistItems) {
+      return <Card title="Sin items">Esta plantilla no tiene items.</Card>;
+    }
+
+    return <ChecklistForm plantilla={def} definicion={def.json} onSubmit={handleSubmit} />;
+  }
+
   return (
     <DashboardLayout title="Nueva inspeccion">
       <div style={{ display: "grid", gap: 16 }}>
-        {/* Card plantilla seleccionada (tu UI) */}
         <Card title="Plantilla seleccionada">
           {loading && <div>Cargando...</div>}
 
@@ -154,22 +235,18 @@ export default function InspeccionNueva() {
           {!loadingDef && !error && def ? (
             <div style={{ display: "grid", gap: 8 }}>
               <div>
-                <b>Codigo:</b> {def.json?.codigo_formato ?? "-"}
+                <b>Codigo:</b> {def.codigo_formato ?? def.json?.codigo_formato ?? "-"}
               </div>
               <div>
-                <b>Nombre:</b> {def.json?.nombre_formato ?? "-"}
+                <b>Nombre:</b> {def.nombre_formato ?? def.json?.nombre_formato ?? "-"}
               </div>
               <div>
                 <b>Version:</b> {def.version ?? "-"}
               </div>
 
               <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button onClick={() => navigate("/inspecciones/plantillas")}>
-                  Cambiar plantilla
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/inspecciones")}>
-                  Volver al listado
-                </Button>
+                <Button onClick={() => navigate("/inspecciones/plantillas")}>Cambiar plantilla</Button>
+                <Button variant="outline" onClick={() => navigate("/inspecciones")}>Volver al listado</Button>
               </div>
             </div>
           ) : null}
@@ -177,7 +254,6 @@ export default function InspeccionNueva() {
           {!loadingDef && !error && !def ? (
             <div style={{ color: "var(--muted)" }}>No se encontro la definicion.</div>
           ) : null}
-
         </Card>
 
         {warning ? (
@@ -186,7 +262,6 @@ export default function InspeccionNueva() {
           </Card>
         ) : null}
 
-        {/* Cabecera */}
         {def?.json?.header ? (
           <InspeccionHeaderForm
             headerDef={def.json.header}
@@ -209,62 +284,7 @@ export default function InspeccionNueva() {
           />
         ) : null}
 
-        {/* Items */}
-        {def?.json?.items?.length ? (
-          <InspeccionDinamicaForm
-            plantilla={def}
-            definicion={def.json}
-            onSubmit={async (payload) => {
-              console.log("[InspeccionNueva] onSubmit payload:", payload);
-              alert("onSubmit ejecutado");
-              const body = {
-                cabecera: {
-                  id_plantilla_inspec: Number(def.id_plantilla_inspec),
-                  id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
-                  id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
-                  servicio_detalle: cabecera.servicio_detalle || null,
-                  id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
-                  id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
-                  fecha_inspeccion: cabecera.fecha_inspeccion,
-                  id_estado_inspeccion: 1,
-                  id_modo_registro: 1,
-                },
-                participantes: cabecera.participantes || [],
-                respuestas: payload.respuestas,
-              };
-              console.log("[InspeccionNueva] online:", online);
-              console.log("[InspeccionNueva] POST body:", body);
-
-              try {
-                console.log("[SAVE] online?", online, "API:", import.meta.env.VITE_API_URL);
-                if (!online) {
-                  alert("Estas OFFLINE: se guardó en COLA local (IndexedDB), NO en SQL Server.");
-                }
-                if (!online) {
-                  console.info("[inspecciones.create] offline -> queued (no POST)");
-                  await addInspeccionToQueue(body);
-                  alert("Inspeccion guardada OFFLINE (pendiente de sincronizar)");
-                  navigate("/inspecciones");
-                  return;
-                }
-
-                const r = await http.post("/api/inspecciones", body);
-                console.log("[SAVE] response:", r.data);
-                alert(`GUARDADO EN SQL ✅ ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`);
-                navigate("/inspecciones");
-              } catch (e) {
-                const status = e?.response?.status;
-                setError(getApiErrorMessage(e));
-                if (status === 401 || status === 403) {
-                  clearToken();
-                  navigate("/login", { replace: true });
-                }
-              }
-            }}
-          />
-        ) : (
-          !loadingDef && !error && <Card title="Sin items">Esta plantilla no tiene items.</Card>
-        )}
+        {!loadingDef && !error && renderFormByTipo()}
       </div>
     </DashboardLayout>
   );

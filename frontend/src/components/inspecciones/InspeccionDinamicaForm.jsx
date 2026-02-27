@@ -5,30 +5,65 @@ import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
 
 export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit }) {
-  const items = useMemo(() => (Array.isArray(definicion?.items) ? definicion.items : []), [definicion]);
+  const sections = useMemo(() => {
+    if (Array.isArray(definicion?.secciones) && definicion.secciones.length) {
+      return definicion.secciones
+        .map((sec, idx) => {
+          const key = String(sec?.key ?? sec?.key_seccion ?? `SECCION_${idx + 1}`).trim() || `SECCION_${idx + 1}`;
+          const titulo = String(sec?.titulo ?? sec?.nombre ?? key).trim() || key;
+          const secItems = Array.isArray(sec?.items) ? sec.items : [];
+          return {
+            key,
+            titulo,
+            items: secItems.map((it, itemIdx) => ({
+              ...it,
+              categoria: it?.categoria ?? titulo,
+              id: it?.id ?? it?.item_ref ?? it?.ref ?? `${idx + 1}.${itemIdx + 1}`,
+            })),
+          };
+        })
+        .filter((sec) => sec.items.length > 0);
+    }
+
+    const baseItems = Array.isArray(definicion?.items) ? definicion.items : [];
+    const grouped = new Map();
+
+    for (const it of baseItems) {
+      const sec = String(it?.categoria || "GENERAL");
+      if (!grouped.has(sec)) grouped.set(sec, []);
+      grouped.get(sec).push(it);
+    }
+
+    return Array.from(grouped.entries()).map(([titulo, arr], idx) => ({
+      key: `SECCION_${idx + 1}`,
+      titulo,
+      items: arr.map((it, itemIdx) => ({
+        ...it,
+        categoria: it?.categoria ?? titulo,
+        id: it?.id ?? it?.item_ref ?? it?.ref ?? `${idx + 1}.${itemIdx + 1}`,
+      })),
+    }));
+  }, [definicion]);
+
+  const items = useMemo(() => sections.flatMap((sec) => sec.items), [sections]);
   const [answers, setAnswers] = useState({});
   const [notes, setNotes] = useState({});
   const [actions, setActions] = useState({});
   const [errors, setErrors] = useState({});
   const [respOptions, setRespOptions] = useState({});
 
-  const grouped = useMemo(() => {
-    const map = new Map();
-    for (const it of items) {
-      const sec = String(it.categoria || "GENERAL");
-      if (!map.has(sec)) map.set(sec, []);
-      map.get(sec).push(it);
-    }
-    for (const [k, arr] of map.entries()) {
-      arr.sort((a, b) => {
-        const na = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
-        const nb = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
-        return na - nb;
-      });
-      map.set(k, arr);
-    }
-    return Array.from(map.entries());
-  }, [items]);
+  const grouped = useMemo(
+    () =>
+      sections.map((sec) => ({
+        ...sec,
+        items: [...sec.items].sort((a, b) => {
+          const na = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+          const nb = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+          return na - nb;
+        }),
+      })),
+    [sections]
+  );
 
   const total = items.length;
   const filled = Object.keys(answers).length;
@@ -109,7 +144,6 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("[DinamicaForm] handleSubmit triggered");
-    alert("handleSubmit ejecutado");
     if (!validate()) return;
 
     const payload = {
@@ -156,15 +190,15 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
         </div>
       </div>
 
-      {grouped.map(([seccion, arr]) => (
-        <section key={seccion} className="ins-section">
-          <div className="ins-section-title">{formatTitle(seccion)}</div>
+      {grouped.map((sec) => (
+        <section key={sec.key} className="ins-section">
+          <div className="ins-section-title">{formatTitle(sec.titulo)}</div>
 
           <div className="ins-grid">
-            {arr.map((it) => {
+            {sec.items.map((it) => {
               const key = getKey(it);
               const value = answers[key] || "";
-              const desc = it.texto || "";
+              const desc = it.texto || it.descripcion || "";
               const err = errors[key] || {};
               const act = actions[key] || { que: "", quien: "", cuando: "" };
 
@@ -172,7 +206,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                 <div key={key} className="card ins-item">
                   <div className="ins-item-top">
                     <div className="ins-item-title">
-                      <span className="ins-item-ref">{String(it.id).padStart(2, "0")}</span>
+                      <span className="ins-item-ref">{String(it.item_ref ?? it.ref ?? it.id ?? "-")}</span>
                       {desc || "Sin descripcion"}
                     </div>
                     <div className="ins-item-badge">
