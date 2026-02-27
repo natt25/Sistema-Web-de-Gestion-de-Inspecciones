@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+// frontend/src/pages/InspeccionNueva.jsx
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearToken, getUser } from "../auth/auth.storage.js";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -38,6 +39,20 @@ function pickRendererType(def, plantillaId) {
   return def?.tipo || "checklist";
 }
 
+const CABECERA_EMPTY = {
+  id_otro: null,
+  id_cliente: null,
+  id_servicio: null,
+  servicio_detalle: "",
+  id_area: null,
+  id_lugar: null,
+  fecha_inspeccion: "",
+  realizado_por: "",
+  cargo: "",
+  firma_ruta: "",
+  participantes: [],
+};
+
 export default function InspeccionNueva() {
   const q = useQuery();
   const navigate = useNavigate();
@@ -60,20 +75,19 @@ export default function InspeccionNueva() {
     lugares: [],
   });
 
-  const [cabecera, setCabecera] = useState({
-    id_otro: null,
-    id_cliente: null,
-    id_servicio: null,
-    servicio_detalle: "",
-    id_area: null,
-    id_lugar: null,
-    fecha_inspeccion: "",
-    realizado_por: "",
-    cargo: "",
-    firma_ruta: "",
-    participantes: [],
-  });
+  const [cabecera, setCabecera] = useState(CABECERA_EMPTY);
+  const [uiNotice, setUiNotice] = useState("");
 
+  // --- si cambias de plantilla, resetea cabecera y avisos (evita arrastrar datos)
+  useEffect(() => {
+    setCabecera(CABECERA_EMPTY);
+    setUiNotice("");
+    setError("");
+    setWarning("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantillaId]);
+
+  // --- cargar definición
   useEffect(() => {
     let alive = true;
     const controller = new AbortController();
@@ -117,6 +131,7 @@ export default function InspeccionNueva() {
     };
   }, [plantillaId, navigate]);
 
+  // --- cargar catálogos
   useEffect(() => {
     let alive = true;
 
@@ -160,7 +175,44 @@ export default function InspeccionNueva() {
     [def]
   );
 
-  async function handleSubmit(payload) {
+  const buscarEmpleadosForAutocomplete = useCallback(async (text) => {
+    try {
+      const rows = await buscarEmpleados(String(text || "").trim());
+      return Array.isArray(rows) ? rows : [];
+    } catch (err) {
+      console.error("[InspeccionNueva] buscarEmpleados error", err);
+      return [];
+    }
+  }, []);
+
+  // ✅ FIX: handler correcto (no duplicados) + sin re-render loop
+  const handleAddParticipante = useCallback((p) => {
+    setCabecera((prev) => {
+      const dni = String(p?.dni ?? "").trim();
+      const prevList = Array.isArray(prev?.participantes) ? prev.participantes : [];
+      const exists = dni && prevList.some((x) => String(x?.dni ?? "").trim() === dni);
+
+      if (exists) {
+        queueMicrotask(() => setUiNotice("Ese inspector ya fue agregado. No se puede repetir."));
+        return prev;
+      }
+
+      queueMicrotask(() => setUiNotice(""));
+      return { ...prev, participantes: [...prevList, p] };
+    });
+  }, []);
+
+  const handleRemoveParticipante = useCallback((idx) => {
+    setUiNotice("");
+    setCabecera((prev) => ({
+      ...prev,
+      participantes: (prev.participantes || []).filter((_, i) => i !== idx),
+    }));
+  }, []);
+
+  const handleSubmit = useCallback(async (payload) => {
+    setUiNotice("");
+
     const cabeceraPayload = {
       ...cabecera,
       id_plantilla_inspec: Number(plantillaId),
@@ -175,6 +227,7 @@ export default function InspeccionNueva() {
       id_modo_registro: 1,
     };
 
+    // --- validaciones básicas
     if (!cabeceraPayload.id_area) {
       const msg = "Debes completar la cabecera: falta Area (id_area).";
       setError(msg);
@@ -210,7 +263,9 @@ export default function InspeccionNueva() {
       }
 
       const r = await http.post("/api/inspecciones", body);
-      alert(`GUARDADO EN SQL: ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`);
+      alert(
+        `GUARDADO EN SQL: ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`
+      );
       navigate("/inspecciones");
     } catch (e) {
       const status = e?.response?.status;
@@ -220,19 +275,9 @@ export default function InspeccionNueva() {
         navigate("/login", { replace: true });
       }
     }
-  }
+  }, [cabecera, plantillaId, online, navigate]);
 
-  async function buscarEmpleadosForAutocomplete(text) {
-    try {
-      const rows = await buscarEmpleados(String(text || "").trim());
-      return Array.isArray(rows) ? rows : [];
-    } catch (err) {
-      console.error("[InspeccionNueva] buscarEmpleados error", err);
-      return [];
-    }
-  }
-
-  function renderFormByTipo() {
+  const renderFormByTipo = useCallback(() => {
     if (!def) return null;
 
     if (rendererType === "observaciones_seguridad" || rendererType === "observaciones_acciones") {
@@ -255,13 +300,6 @@ export default function InspeccionNueva() {
       );
     }
 
-    if (rendererType !== "checklist") {
-      console.warn("[InspeccionNueva] tipo no soportado, se usa checklist", {
-        tipo: rendererType,
-        plantilla: def?.id_plantilla_inspec,
-      });
-    }
-
     if (!hasChecklistItems) {
       const msg = isPlantilla45
         ? "Plantilla sin campos en BD (INS_PLANTILLA_CAMPO) o sin definicion de items."
@@ -270,7 +308,16 @@ export default function InspeccionNueva() {
     }
 
     return <ChecklistForm plantilla={def} definicion={def.json} onSubmit={handleSubmit} />;
-  }
+  }, [
+    def,
+    rendererType,
+    initialObsAccRows,
+    buscarEmpleadosForAutocomplete,
+    handleSubmit,
+    initialExtintoresRows,
+    hasChecklistItems,
+    isPlantilla45,
+  ]);
 
   return (
     <DashboardLayout title="Nueva inspeccion">
@@ -278,9 +325,7 @@ export default function InspeccionNueva() {
         <Card title="Plantilla seleccionada">
           {loading && <div>Cargando...</div>}
 
-          {error ? (
-            <div style={{ color: "#b91c1c", fontWeight: 800 }}>{error}</div>
-          ) : null}
+          {error ? <div style={{ color: "#b91c1c", fontWeight: 800 }}>{error}</div> : null}
 
           {!loadingDef && !error && def ? (
             <div style={{ display: "grid", gap: 8 }}>
@@ -296,7 +341,9 @@ export default function InspeccionNueva() {
 
               <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <Button onClick={() => navigate("/inspecciones/plantillas")}>Cambiar plantilla</Button>
-                <Button variant="outline" onClick={() => navigate("/inspecciones")}>Volver al listado</Button>
+                <Button variant="outline" onClick={() => navigate("/inspecciones")}>
+                  Volver al listado
+                </Button>
               </div>
             </div>
           ) : null}
@@ -306,12 +353,19 @@ export default function InspeccionNueva() {
           ) : null}
         </Card>
 
+        {uiNotice ? (
+          <Card title="Aviso">
+            <div style={{ color: "#b91c1c", fontWeight: 800 }}>{uiNotice}</div>
+          </Card>
+        ) : null}
+
         {warning ? (
           <Card title="Aviso">
             <div style={{ color: "#92400e", fontWeight: 700 }}>{warning}</div>
           </Card>
         ) : null}
 
+        {/* CABECERA SIEMPRE VA */}
         {!loadingDef && !error && def ? (
           <InspeccionHeaderForm
             headerDef={def?.json?.header || {}}
@@ -319,18 +373,8 @@ export default function InspeccionNueva() {
             user={user}
             value={cabecera}
             onChange={setCabecera}
-            onAddParticipante={(p) =>
-              setCabecera((prev) => ({
-                ...prev,
-                participantes: [...(prev.participantes || []), p],
-              }))
-            }
-            onRemoveParticipante={(idx) =>
-              setCabecera((prev) => ({
-                ...prev,
-                participantes: (prev.participantes || []).filter((_, i) => i !== idx),
-              }))
-            }
+            onAddParticipante={handleAddParticipante}
+            onRemoveParticipante={handleRemoveParticipante}
           />
         ) : null}
 

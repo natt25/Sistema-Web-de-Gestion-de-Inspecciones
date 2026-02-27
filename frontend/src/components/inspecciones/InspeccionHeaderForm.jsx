@@ -46,6 +46,7 @@ export default function InspeccionHeaderForm({
   const [tArea, setTArea] = useState(false);
   const [tLugar, setTLugar] = useState(false);
   const [tColab, setTColab] = useState(false);
+  const [dupMsg, setDupMsg] = useState("");
 
   // Guard de no-op: evita rerender/loop si el valor no cambia.
   const setField = useCallback((k, v) => {
@@ -75,9 +76,9 @@ export default function InspeccionHeaderForm({
     [user?.nombreCompleto, user?.nombre, user?.dni, user?.cargo, user?.firma_ruta],
   );
 
-  const canServicio = Boolean(value?.id_cliente);
-  const canArea = Boolean(value?.id_servicio);
-  const canLugar = Boolean(value?.id_area);
+  const canServicio = Boolean(value?.id_cliente || (value?.cliente_text || "").trim());
+  const canArea = Boolean(value?.id_servicio || (value?.servicio_text || "").trim());
+  const canLugar = Boolean(value?.id_area || (value?.area_text || "").trim());
 
   const didInitRef = useRef(false);
 
@@ -167,7 +168,11 @@ useEffect(() => {
     const timer = setTimeout(async () => {
       try {
         setLoadingArea(true);
-        const rows = await buscarAreas(qArea.trim());
+        const rows = await buscarAreas({
+          q: qArea.trim(),
+          id_servicio: value?.id_servicio,
+          id_cliente: value?.id_cliente,
+        });
         setOptAreas(Array.isArray(rows) ? rows : []);
       } catch {
         setOptAreas([]);
@@ -547,8 +552,8 @@ useEffect(() => {
         {/* REALIZADO POR */}
         <div style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <b>Realizado por</b>
-            <span className="help">Datos del usuario que está creando la inspección.</span>
+            <b>Realizado por (Inspectores)</b>
+            <span className="help">Incluye al creador + inspectores agregados.</span>
           </div>
 
           {/* Datos del creador (solo nombre + cargo) */}
@@ -579,8 +584,12 @@ useEffect(() => {
                 <Autocomplete
                   placeholder="Escribe para buscar..."
                   displayValue={qColab}
-                  onInputChange={setQColab}
+                  onInputChange={(txt) => {
+                    setDupMsg("");
+                    setQColab(txt);
+                  }}
                   onFocus={() => {
+                    setDupMsg("");
                     setTColab(true);
                     if (!qColab.trim()) loadDefaultsColabs();
                   }}
@@ -593,11 +602,22 @@ useEffect(() => {
                     return `${nom} ${dni} ${cargo}`.trim();
                   }}
                   onSelect={(e) => {
-                    onAddParticipante?.({
-                      dni: e.dni,
-                      nombre: `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim(),
-                      cargo: e.cargo ?? "",
-                    });
+                    const dni = String(e.dni ?? "").trim();
+                    const nombre = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
+                    const cargo = e.cargo ?? "";
+
+                    const ya = (value?.participantes || []).some((x) => String(x?.dni ?? "").trim() === dni);
+
+                    if (dni && ya) {
+                      // opcional: alert simple (o usa setWarning si tienes)
+                      alert("Ese inspector ya fue agregado. No se puede repetir.");
+                      setQColab("");
+                      setOptColabs([]);
+                      return;
+                    }
+
+                    setDupMsg("");
+                    onAddParticipante?.({ dni, nombre, cargo });
                     setQColab("");
                     setOptColabs([]);
                   }}
@@ -625,6 +645,11 @@ useEffect(() => {
               </div>
             ) : null}
           </div>
+          {dupMsg ? (
+            <div style={{ marginTop: 8, color: "#b91c1c", fontWeight: 700 }}>
+              {dupMsg}
+            </div>
+          ) : null}
         </div>
       </div>
     </Card>
