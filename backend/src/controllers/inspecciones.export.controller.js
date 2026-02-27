@@ -10,8 +10,8 @@ const templatesDir = path.resolve(__dirname, "..", "templates");
 
 const TEMPLATE_HINTS_BY_PLANTILLA = {
   1: [/FOR[-_ ]?013/i, /INSPECCION GENERAL/i],
-  2: [/FOR[-_ ]?014/i, /SEGURIDAD/i],
-  3: [/FOR[-_ ]?034/i],
+  4: [/FOR[-_ ]?014/i, /SEGURIDAD/i],
+  5: [/FOR[-_ ]?034/i, /EXTINTOR/i],
 };
 
 function normalizeToken(value) {
@@ -93,6 +93,13 @@ function getRespuestaDescripcion(r) {
   return String(r?.descripcion ?? r?.texto ?? "").trim();
 }
 
+function getStructuredRows(respuestas, tipo) {
+  const rows = (Array.isArray(respuestas) ? respuestas : [])
+    .map((r) => r?.row_data)
+    .filter((row) => row && typeof row === "object");
+  return rows.filter((row) => String(row.__tipo || "").trim().toLowerCase() === tipo);
+}
+
 function addCabeceraRows(ws, cabecera, participantes) {
   const realizadoPor = findRealizadoPor(participantes);
 
@@ -126,6 +133,57 @@ function addRespuestasTable(ws, respuestas) {
     ]);
   });
   ws.addRow([]);
+}
+
+function addSeguridadRowsTable(ws, respuestas) {
+  const rows = getStructuredRows(respuestas, "observaciones_acciones");
+  if (!rows.length) return false;
+
+  ws.addRow(["Observaciones y Acciones (Seguridad)"]);
+  ws.addRow(["N°", "Observacion", "Riesgo", "Accion", "Fecha", "Responsable", "%", "Evidencia Obs", "Evidencia Lev"]);
+
+  rows.forEach((row, idx) => {
+    ws.addRow([
+      idx + 1,
+      row?.observacion ?? "",
+      row?.riesgo ?? "",
+      row?.accion_correctiva ?? "",
+      row?.fecha_ejecucion ?? "",
+      row?.responsable ?? "",
+      row?.porcentaje ?? "",
+      Array.isArray(row?.evidencia_obs) ? row.evidencia_obs.join(", ") : "",
+      Array.isArray(row?.evidencia_lev) ? row.evidencia_lev.join(", ") : "",
+    ]);
+  });
+  ws.addRow([]);
+  return true;
+}
+
+function addExtintoresRowsTable(ws, respuestas) {
+  const rows = getStructuredRows(respuestas, "tabla_extintores");
+  if (!rows.length) return false;
+
+  ws.addRow(["Inspeccion de Extintores"]);
+  ws.addRow(["N°", "Codigo", "Ubicacion", "Tipo", "Capacidad", "Fecha Prueba", "Presion", "Manometro", "Manguera", "Senializacion", "Observaciones", "Evidencias"]);
+
+  rows.forEach((row, idx) => {
+    ws.addRow([
+      idx + 1,
+      row?.codigo ?? "",
+      row?.ubicacion ?? "",
+      row?.tipo ?? "",
+      row?.capacidad ?? "",
+      row?.fecha_prueba ?? "",
+      row?.presion ?? "",
+      row?.manometro ?? "",
+      row?.manguera ?? "",
+      row?.senializacion ?? "",
+      row?.observaciones ?? "",
+      Array.isArray(row?.evidencia_fotos) ? row.evidencia_fotos.join(", ") : "",
+    ]);
+  });
+  ws.addRow([]);
+  return true;
 }
 
 function addObservacionesTable(ws, observaciones) {
@@ -204,7 +262,11 @@ async function buildWorkbook(data) {
 
   const ws = wb.addWorksheet("Inspección");
   addCabeceraRows(ws, cabecera, data?.participantes);
-  addRespuestasTable(ws, data?.respuestas);
+  const usedSeguridad = addSeguridadRowsTable(ws, data?.respuestas);
+  const usedExt = addExtintoresRowsTable(ws, data?.respuestas);
+  if (!usedSeguridad && !usedExt) {
+    addRespuestasTable(ws, data?.respuestas);
+  }
   addObservacionesTable(ws, data?.observaciones);
   addAccionesTable(ws, data?.observaciones);
   applyBasicSheetStyle(ws);

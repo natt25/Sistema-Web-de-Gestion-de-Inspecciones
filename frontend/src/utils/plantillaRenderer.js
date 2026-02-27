@@ -103,17 +103,18 @@ export function deserializeTableRowsFromRespuestas(respuestas, tipo) {
 
 export function serializeObservacionesAccionesRows(rows) {
   return (Array.isArray(rows) ? rows : []).map((row, idx) => ({
+    id: `row_${idx + 1}`,
     id_campo: null,
     item_ref: `row_${idx + 1}`,
     categoria: "OBSERVACIONES_ACCIONES",
     descripcion: row?.observacion?.trim() || `Fila ${idx + 1}`,
-    estado: null,
+    estado: row?.riesgo || null,
     observacion: row?.observacion?.trim() || "",
     accion: {
       accion_correctiva: row?.accion_correctiva?.trim() || "",
       fecha_ejecucion: row?.fecha_ejecucion || null,
       porcentaje: Number.isFinite(Number(row?.porcentaje)) ? Number(row.porcentaje) : null,
-      responsable: row?.responsable?.trim() || "",
+      responsable: typeof row?.responsable === "string" ? row.responsable.trim() : "",
       evidencia_obs: Array.isArray(row?.evidencia_obs) ? row.evidencia_obs : [],
       evidencia_lev: Array.isArray(row?.evidencia_lev) ? row.evidencia_lev : [],
     },

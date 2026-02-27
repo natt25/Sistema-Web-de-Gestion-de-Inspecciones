@@ -6,9 +6,10 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { obtenerDefinicionPlantilla } from "../api/plantillas.api.js";
 import { listarCatalogosInspeccion } from "../api/catalogos.api.js";
+import { buscarEmpleados } from "../api/busquedas.api.js";
 import InspeccionHeaderForm from "../components/inspecciones/InspeccionHeaderForm.jsx";
 import ChecklistForm from "../components/forms/ChecklistForm.jsx";
-import TablaObservacionesForm from "../components/forms/TablaObservacionesForm.jsx";
+import TablaObservacionesSeguridadForm from "../components/forms/TablaObservacionesSeguridadForm.jsx";
 import TablaExtintoresForm from "../components/forms/TablaExtintoresForm.jsx";
 import http from "../api/http.js";
 import useOnlineStatus from "../hooks/useOnlineStatus";
@@ -28,6 +29,13 @@ function getApiErrorMessage(error) {
   const endpoint = error?.config?.url || "endpoint-desconocido";
   const msg = error?.response?.data?.message || error?.message || "Error inesperado";
   return `[HTTP ${status ?? "NO_STATUS"}] ${endpoint} - ${msg}`;
+}
+
+function pickRendererType(def, plantillaId) {
+  const code = String(def?.codigo_formato || "").trim().toUpperCase();
+  if (plantillaId === 4 || code === "AQP-SSOMA-FOR-014") return "observaciones_seguridad";
+  if (plantillaId === 5 || code === "AQP-SSOMA-FOR-034") return "tabla_extintores";
+  return def?.tipo || "checklist";
 }
 
 export default function InspeccionNueva() {
@@ -53,6 +61,7 @@ export default function InspeccionNueva() {
   });
 
   const [cabecera, setCabecera] = useState({
+    id_otro: null,
     id_cliente: null,
     id_servicio: null,
     servicio_detalle: "",
@@ -84,6 +93,7 @@ export default function InspeccionNueva() {
         const data = await obtenerDefinicionPlantilla(plantillaId, undefined, {
           signal: controller.signal,
         });
+
         if (!alive) return;
         const normalized = normalizePlantillaDef(data);
         setDef(normalized);
@@ -137,8 +147,9 @@ export default function InspeccionNueva() {
     };
   }, [navigate]);
 
-  const rendererType = def?.tipo || "checklist";
+  const rendererType = pickRendererType(def, plantillaId);
   const hasChecklistItems = Boolean(def?.items?.length || def?.json?.secciones?.length);
+  const isPlantilla45 = plantillaId === 4 || plantillaId === 5;
 
   const initialObsAccRows = useMemo(
     () => deserializeTableRowsFromRespuestas(def?.json?.respuestas, "observaciones_acciones"),
@@ -150,18 +161,38 @@ export default function InspeccionNueva() {
   );
 
   async function handleSubmit(payload) {
+    const cabeceraPayload = {
+      ...cabecera,
+      id_plantilla_inspec: Number(plantillaId),
+      id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
+      id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
+      id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
+      id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
+      id_otro: cabecera.id_otro ? Number(cabecera.id_otro) : null,
+      servicio_detalle: cabecera.servicio_detalle || null,
+      fecha_inspeccion: cabecera.fecha_inspeccion || "",
+      id_estado_inspeccion: 1,
+      id_modo_registro: 1,
+    };
+
+    if (!cabeceraPayload.id_area) {
+      const msg = "Debes completar la cabecera: falta Area (id_area).";
+      setError(msg);
+      alert(msg);
+      return;
+    }
+
+    const hasCatalogo = Boolean(cabeceraPayload.id_cliente && cabeceraPayload.id_servicio);
+    const hasOtro = Boolean(cabeceraPayload.id_otro);
+    if ((hasCatalogo && hasOtro) || (!hasCatalogo && !hasOtro)) {
+      const msg = "Completa cabecera usando (Cliente + Servicio) o id_otro, pero no ambos.";
+      setError(msg);
+      alert(msg);
+      return;
+    }
+
     const body = {
-      cabecera: {
-        id_plantilla_inspec: Number(def.id_plantilla_inspec),
-        id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
-        id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
-        servicio_detalle: cabecera.servicio_detalle || null,
-        id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
-        id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
-        fecha_inspeccion: cabecera.fecha_inspeccion,
-        id_estado_inspeccion: 1,
-        id_modo_registro: 1,
-      },
+      cabecera: cabeceraPayload,
       participantes: cabecera.participantes || [],
       respuestas: Array.isArray(payload?.respuestas) ? payload.respuestas : [],
     };
@@ -191,11 +222,27 @@ export default function InspeccionNueva() {
     }
   }
 
+  async function buscarEmpleadosForAutocomplete(text) {
+    try {
+      const rows = await buscarEmpleados(String(text || "").trim());
+      return Array.isArray(rows) ? rows : [];
+    } catch (err) {
+      console.error("[InspeccionNueva] buscarEmpleados error", err);
+      return [];
+    }
+  }
+
   function renderFormByTipo() {
     if (!def) return null;
 
-    if (rendererType === "observaciones_acciones") {
-      return <TablaObservacionesForm initialRows={initialObsAccRows} onSubmit={handleSubmit} />;
+    if (rendererType === "observaciones_seguridad" || rendererType === "observaciones_acciones") {
+      return (
+        <TablaObservacionesSeguridadForm
+          initialRows={initialObsAccRows}
+          buscarEmpleados={buscarEmpleadosForAutocomplete}
+          onSubmit={handleSubmit}
+        />
+      );
     }
 
     if (rendererType === "tabla_extintores") {
@@ -216,7 +263,10 @@ export default function InspeccionNueva() {
     }
 
     if (!hasChecklistItems) {
-      return <Card title="Sin items">Esta plantilla no tiene items.</Card>;
+      const msg = isPlantilla45
+        ? "Plantilla sin campos en BD (INS_PLANTILLA_CAMPO) o sin definicion de items."
+        : "Esta plantilla no tiene items.";
+      return <Card title="Sin campos">{msg}</Card>;
     }
 
     return <ChecklistForm plantilla={def} definicion={def.json} onSubmit={handleSubmit} />;
@@ -262,9 +312,9 @@ export default function InspeccionNueva() {
           </Card>
         ) : null}
 
-        {def?.json?.header ? (
+        {!loadingDef && !error && def ? (
           <InspeccionHeaderForm
-            headerDef={def.json.header}
+            headerDef={def?.json?.header || {}}
             catalogos={catalogos}
             user={user}
             value={cabecera}

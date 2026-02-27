@@ -524,6 +524,7 @@ async function listarRespuestasPorInspeccion(id_inspeccion) {
           observacion: String(r?.observacion ?? ""),
           // IMPORTANTE: manda el objeto o string si existe
           accion_json: r?.accion ?? r?.accion_json ?? null,
+          row_data: r?.row_data ?? null,
         }));
 
         // Si hay data en JSON, devolvemos esto y listo
@@ -567,6 +568,7 @@ async function listarRespuestasPorInspeccion(id_inspeccion) {
       estado: r.estado || "NA",
       observacion: r.observacion || "",
       accion_json: null,
+      row_data: null,
     }));
   }
 
@@ -602,6 +604,7 @@ async function listarRespuestasPorInspeccion(id_inspeccion) {
     estado: r.estado || "NA",
     observacion: r.observacion || "",
     accion_json: null,
+    row_data: null,
   }));
 }
 
@@ -829,4 +832,3 @@ export default {
   crearInspeccionYGuardarJSON,
   obtenerJsonRespuestasPorInspeccion,
 };
-

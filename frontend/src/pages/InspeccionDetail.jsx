@@ -576,6 +576,7 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
     </form>
   );
 }
+
 export default function InspeccionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1171,7 +1172,7 @@ export default function InspeccionDetail() {
     }
   }
 
-  async function handleDownloadExcel() {
+  const handleDownloadExcel = async () => {
     const routeId = typeof id === "string" ? id.trim() : "";
     const stateId = String(data?.cabecera?.id_inspeccion ?? "").trim();
     const inspeccionId = routeId || stateId;
@@ -1181,32 +1182,22 @@ export default function InspeccionDetail() {
       return;
     }
 
-    const token = getToken();
-    const base = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
-    const url = `${base}/api/inspecciones/${inspeccionId}/export/xlsx`;
-    const codigoFormato = String(data?.cabecera?.codigo_formato || "").trim();
-    const fallbackFilename = `${codigoFormato || "Inspeccion"}_${inspeccionId}.xlsx`;
-
     try {
-      const resp = await fetch(url, {
+      const token = getToken();
+      const base = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+      const resp = await fetch(`${base}/api/inspecciones/${inspeccionId}/export/xlsx`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!resp.ok) {
         const contentType = resp.headers.get("content-type") || "";
-        let message = "No se pudo descargar el Excel.";
-
-        if (contentType.includes("application/json")) {
-          const body = await resp.json();
-          message = body?.message || message;
-        } else {
-          const text = await resp.text();
-          message = text || message;
-        }
-
-        const error = new Error(`[${resp.status}] ${message}`);
-        console.error("inspeccion.detail.download.xlsx:", error);
+        const message = contentType.includes("application/json")
+          ? ((await resp.json())?.message || "No se pudo descargar el Excel.")
+          : (await resp.text()) || "No se pudo descargar el Excel.";
+        console.error("inspeccion.detail.download.xlsx:", { status: resp.status, message });
         alert(message);
         return;
       }
@@ -1214,24 +1205,23 @@ export default function InspeccionDetail() {
       const contentDisposition = resp.headers.get("content-disposition") || "";
       const match = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
       const decodedName = match?.[1] ? decodeURIComponent(match[1].replace(/"/g, "").trim()) : "";
-      const filename = decodedName || fallbackFilename;
+      const fallback = `inspeccion_${inspeccionId}.xlsx`;
+      const filename = decodedName || fallback;
 
       const blob = await resp.blob();
-      const href = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = href;
+      a.href = url;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(href);
-    } catch (err) {
-      const message = err?.message || "No se pudo descargar el Excel.";
-      console.error("inspeccion.detail.download.xlsx:", err);
-      alert(message);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("inspeccion.detail.download.xlsx:", e);
+      alert("Error: No se pudo descargar");
     }
-  }
-
+  };
   return (
     <DashboardLayout title={`Inspeccion #${id}`}>
       <div style={{ display: "grid", gap: 12 }}>
