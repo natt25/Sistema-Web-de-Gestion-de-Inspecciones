@@ -211,6 +211,7 @@ async function listarAccionesPorObservacion(id_observacion) {
       a.desc_accion,
       a.fecha_compromiso,
       a.item_ref,
+      a.porcentaje_cumplimiento,
 
       r.id_acc_responsable,
       r.dni,
@@ -368,6 +369,23 @@ async function actualizarEstadoAccion({ id_accion, id_estado_accion }) {
   return result.recordset[0] || null;
 }
 
+async function actualizarPorcentajeAccion({ id_accion, porcentaje_cumplimiento }) {
+  const query = `
+    UPDATE SSOMA.INS_ACCION
+    SET porcentaje_cumplimiento = @porcentaje_cumplimiento
+    OUTPUT INSERTED.*
+    WHERE id_accion = @id_accion;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_accion", sql.Int, id_accion);
+  request.input("porcentaje_cumplimiento", sql.Int, porcentaje_cumplimiento);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
 async function obtenerInspeccionIdPorObservacion(id_observacion) {
   const query = `
     SELECT id_inspeccion
@@ -453,6 +471,7 @@ export default {
   crearEvidenciaObservacion,
   listarEvidenciasPorObservacion,
   crearAccionObservacion,
+  actualizarPorcentajeAccion,
   listarAccionesPorObservacion,
   crearEvidenciaAccion,
   listarEvidenciasPorAccion,

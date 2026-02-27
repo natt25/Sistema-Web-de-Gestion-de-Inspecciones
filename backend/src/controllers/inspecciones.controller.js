@@ -102,6 +102,27 @@ async function actualizarEstado(req, res) {
   }
 }
 
+async function actualizarPorcentajeAccion(req, res) {
+  try {
+    const { idAccion } = req.params;
+
+    const result = await service.actualizarPorcentajeAccion({
+      id_accion: Number(idAccion),
+      body: req.body,
+      user: req.user,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("inspecciones.actualizarPorcentajeAccion:", err);
+    return res.status(500).json({ message: "Error interno", error: err.message });
+  }
+}
+
 async function actualizarEstadoObservacion(req, res) {
   try {
     const { idObservacion } = req.params;
@@ -151,5 +172,6 @@ export default {
   obtenerDetalleFull,
   actualizarEstado,
   actualizarEstadoObservacion,
-  actualizarEstadoAccion
+  actualizarEstadoAccion,
+  actualizarPorcentajeAccion
 };

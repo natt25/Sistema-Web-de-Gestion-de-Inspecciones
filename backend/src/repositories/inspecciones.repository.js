@@ -243,7 +243,7 @@ async function crearInspeccionCabecera(payload) {
 }
 
 async function listarInspecciones(filtros) {
-  const fechaExpr = "COALESCE(i.fecha_inspeccion, i.created_at)";
+  const fechaExpr = "i.created_at";
   const where = [];
   const pool = await getPool();
   const request = pool.request();

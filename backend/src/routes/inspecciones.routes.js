@@ -27,4 +27,6 @@ router.patch("/:id/estado", authMiddleware, controller.actualizarEstado);
 router.patch("/observaciones/:idObservacion/estado", authMiddleware, controller.actualizarEstadoObservacion);
 router.patch("/acciones/:idAccion/estado", authMiddleware, controller.actualizarEstadoAccion);
 
+router.patch("/acciones/:idAccion/porcentaje", authMiddleware, controller.actualizarPorcentajeAccion);
+
 export default router;

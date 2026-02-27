@@ -253,6 +253,37 @@ async function actualizarEstadoAccion({ id_accion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
+async function actualizarPorcentajeAccion({ id_accion, body }) {
+  const raw = body?.porcentaje_cumplimiento;
+
+  // permitir null para “vaciar”
+  if (raw === "" || raw == null) {
+    const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
+    if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
+
+    const updated = await observacionesRepo.actualizarPorcentajeAccion({
+      id_accion,
+      porcentaje_cumplimiento: null,
+    });
+    return { ok: true, status: 200, data: updated };
+  }
+
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 100) {
+    return { ok: false, status: 400, message: "porcentaje_cumplimiento invalido (0-100)." };
+  }
+
+  const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
+  if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
+
+  const updated = await observacionesRepo.actualizarPorcentajeAccion({
+    id_accion,
+    porcentaje_cumplimiento: Math.round(n),
+  });
+
+  return { ok: true, status: 200, data: updated };
+}
+
 function badRequest(message, data) {
   return { ok: false, status: 400, message, data };
 }
@@ -510,5 +541,6 @@ export default {
   actualizarEstadoInspeccion,
   actualizarEstadoObservacion,
   actualizarEstadoAccion,
+  actualizarPorcentajeAccion
 };
 

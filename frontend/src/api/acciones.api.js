@@ -11,3 +11,10 @@ export async function actualizarEstadoAccion(idAccion, id_estado_accion) {
   });
   return res.data;
 }
+
+export async function actualizarPorcentajeAccion(idAccion, porcentaje_cumplimiento) {
+  const res = await http.patch(`/api/inspecciones/acciones/${idAccion}/porcentaje`, {
+    porcentaje_cumplimiento,
+  });
+  return res.data;
+}
