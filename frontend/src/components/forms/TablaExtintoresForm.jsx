@@ -1,130 +1,197 @@
+// frontend/src/components/forms/TablaExtintoresForm.jsx
 import { useMemo, useState } from "react";
 import Button from "../ui/Button.jsx";
+import Autocomplete from "../ui/Autocomplete.jsx";
+import { buscarEmpleados } from "../../api/busquedas.api.js";
 import { serializeTablaExtintoresRows } from "../../utils/plantillaRenderer.js";
 
-const ESTADOS_DEFAULT = ["BUENO", "MALO", "NA"];
 const TIPOS_DEFAULT = ["PQS", "CO2", "AGUA", "OTROS"];
-const PQS_CLASES_DEFAULT = ["BC", "ABC"];
+const PQS_CLASES = ["BC", "ABC"];
+
+// === Sub-secciones REVISIÓN ESTADO GENERAL (como tu cabecera de Excel)
+const REVISION_SECTIONS = [
+  {
+    titulo: "CILINDRO",
+    items: [
+      { key: "cil_pintura", label: "Pintura" },
+      { key: "cil_golpes", label: "Golpes" },
+      { key: "cil_autoadhesivo", label: "Autoadhesivo Fecha/Tipo" },
+    ],
+  },
+  {
+    titulo: "MANIJAS",
+    items: [
+      { key: "man_transporte", label: "Manija de transporte" },
+      { key: "man_disparo", label: "Manija de disparo" },
+    ],
+  },
+  {
+    titulo: "OTROS COMPONENTES",
+    items: [
+      { key: "comp_presion", label: "Presión" },
+      { key: "comp_manometro", label: "Manómetro" },
+      { key: "comp_boquilla", label: "Boquilla" },
+      { key: "comp_manguera", label: "Manguera" },
+      { key: "comp_ring", label: "Ring / Aro de seguridad" },
+      { key: "comp_corneta", label: "Corneta" },
+      { key: "comp_senializacion", label: "Señalización" },
+      { key: "comp_soporte", label: "Soporte colgar o ruedas" },
+    ],
+  },
+];
+
+function createEmptyRevision() {
+  // 🔥 importante: NO default NA => todo vacío ""
+  const estados = {};
+  const notas = {};
+  const acciones = {};
+  for (const sec of REVISION_SECTIONS) {
+    for (const it of sec.items) {
+      estados[it.key] = ""; // "" | "BUENO" | "MALO" | "NA"
+      notas[it.key] = "";
+      acciones[it.key] = { que: "", quien: "", cuando: "", responsable: null };
+    }
+  }
+  return { estados, notas, acciones };
+}
 
 function createEmptyRow() {
   return {
     codigo: "",
     ubicacion: "",
-
-    // Tipo + subcampos condicionales
-    tipo: "PQS",
-    pqs_clase: "BC",           // SOLO si tipo === PQS
-    otros_descripcion: "",     // SOLO si tipo === OTROS
-
-    // Datos generales
+    tipo: "",
+    pqs_clase: "",
+    tipo_otro_desc: "",
     capacidad: "",
     fecha_prueba: "",
     fecha_vencimiento: "",
-
-    // Estados (BUENO / MALO / NA) - TODOS los del cuadro
-    pintura: "NA",
-    golpes: "NA",
-    autoadhesivo_fecha_tipo: "NA",
-    cilindro_transporte: "NA",
-    manija_transporte: "NA",
-    manija_disparo: "NA",
-    presion: "NA",
-    manometro: "NA",
-    boquilla: "NA",
-    manguera: "NA",
-    ring_aro_seguridad: "NA",
-    corneta: "NA",
-    senializacion: "NA",
-    soporte_colgar_ruedas: "NA",
-
-    // Texto final
     observaciones: "",
+
+    // revision estado general (nuevo shape)
+    revision: createEmptyRevision(),
   };
 }
 
 function mapInitialRows(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return [createEmptyRow()];
   return rows.map((row) => {
-    const merged = { ...createEmptyRow(), ...row };
+    const base = { ...createEmptyRow(), ...row };
+    // compat: si viene "revision" vieja o incompleta
+    if (!base.revision || typeof base.revision !== "object") base.revision = createEmptyRevision();
+    if (!base.revision.estados) base.revision.estados = createEmptyRevision().estados;
+    if (!base.revision.notas) base.revision.notas = createEmptyRevision().notas;
+    if (!base.revision.acciones) base.revision.acciones = createEmptyRevision().acciones;
 
-    // Si viene tipo distinto, asegurar defaults coherentes
-    if (merged.tipo !== "PQS") merged.pqs_clase = createEmptyRow().pqs_clase;
-    if (merged.tipo !== "OTROS") merged.otros_descripcion = "";
+    // asegurar keys
+    const empty = createEmptyRevision();
+    base.revision.estados = { ...empty.estados, ...(base.revision.estados || {}) };
+    base.revision.notas = { ...empty.notas, ...(base.revision.notas || {}) };
+    base.revision.acciones = { ...empty.acciones, ...(base.revision.acciones || {}) };
 
-    return merged;
+    return base;
   });
 }
 
-function FieldSelect({ label, value, onChange, options }) {
+function onlyNumericLike(value) {
+  // permite: 12  12.5  12,5
+  const v = String(value ?? "");
+  return v.replace(/[^\d.,]/g, "");
+}
+
+function isValidDecimal(v) {
+  const s = String(v ?? "").trim();
+  if (!s) return true; // vacío permitido si no quieres validar requerido aquí
+  return /^\d+([.,]\d+)?$/.test(s);
+}
+
+function Option({ name, label, checked, onChange }) {
+  const cls = label === "BUENO" ? "good" : label === "MALO" ? "bad" : "na";
   return (
-    <label className="ins-field">
+    <label className={`ins-opt ${cls} ${checked ? "is-checked" : ""}`}>
+      <input type="radio" name={name} checked={checked} onChange={onChange} />
       <span>{label}</span>
-      <select className="ins-input" value={value} onChange={onChange}>
-        {options.map((opt) => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
     </label>
   );
 }
 
-// Solo números y coma (ej: 4,5). Sin letras.
-function normalizeCapacidadInput(raw) {
-  const s = String(raw ?? "");
-  // permitir dígitos y coma
-  let out = s.replace(/[^\d,]/g, "");
-  // solo 1 coma
-  const firstComma = out.indexOf(",");
-  if (firstComma !== -1) {
-    out = out.slice(0, firstComma + 1) + out.slice(firstComma + 1).replace(/,/g, "");
-  }
-  return out;
-}
-
 export default function TablaExtintoresForm({ onSubmit, initialRows = [], definicion }) {
   const [rows, setRows] = useState(() => mapInitialRows(initialRows));
-
-  const estadoOpciones =
-    Array.isArray(definicion?.estado_opciones) && definicion.estado_opciones.length
-      ? definicion.estado_opciones
-      : ESTADOS_DEFAULT;
+  const [errors, setErrors] = useState({}); // errores por fila y por item revision
+  const [respOptions, setRespOptions] = useState({}); // autocomplete options por (fila-item)
 
   const tiposOpciones =
-    Array.isArray(definicion?.tipos) && definicion.tipos.length
-      ? definicion.tipos
-      : TIPOS_DEFAULT;
-
-  const pqsClases =
-    Array.isArray(definicion?.pqs_clases) && definicion.pqs_clases.length
-      ? definicion.pqs_clases
-      : PQS_CLASES_DEFAULT;
+    Array.isArray(definicion?.tipos) && definicion.tipos.length ? definicion.tipos : TIPOS_DEFAULT;
 
   const total = rows.length;
   const filled = useMemo(
-    () =>
-      rows.filter(
-        (r) => String(r?.codigo || "").trim() || String(r?.ubicacion || "").trim()
-      ).length,
+    () => rows.filter((r) => String(r?.codigo || "").trim() || String(r?.ubicacion || "").trim()).length,
     [rows]
   );
 
-  function updateRow(index, key, value) {
+  function updateRow(idx, patch) {
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  }
+
+  function updateRevision(idx, key, patch) {
     setRows((prev) =>
-      prev.map((row, idx) => (idx === index ? { ...row, [key]: value } : row))
+      prev.map((r, i) => {
+        if (i !== idx) return r;
+        const rev = r.revision || createEmptyRevision();
+        return { ...r, revision: { ...rev, ...patch } };
+      })
     );
   }
 
-  function onChangeTipo(index, nextTipo) {
+  function setRevisionEstado(rowIdx, itemKey, value) {
     setRows((prev) =>
-      prev.map((row, idx) => {
-        if (idx !== index) return row;
-        const next = { ...row, tipo: nextTipo };
+      prev.map((r, i) => {
+        if (i !== rowIdx) return r;
+        const rev = r.revision || createEmptyRevision();
+        const estados = { ...(rev.estados || {}) };
+        estados[itemKey] = value;
 
-        // reset condicionales
-        if (nextTipo !== "PQS") next.pqs_clase = createEmptyRow().pqs_clase;
-        if (nextTipo !== "OTROS") next.otros_descripcion = "";
+        // si deja de ser MALO, limpia errores de ese item
+        return { ...r, revision: { ...rev, estados } };
+      })
+    );
 
-        return next;
+    // limpia errores si ya no es malo
+    setErrors((p) => {
+      const k = `${rowIdx}:${itemKey}`;
+      if (value === "MALO") return p;
+      if (!p[k]) return p;
+      const copy = { ...p };
+      delete copy[k];
+      return copy;
+    });
+  }
+
+  function setRevisionNota(rowIdx, itemKey, text) {
+    setRows((prev) =>
+      prev.map((r, i) => {
+        if (i !== rowIdx) return r;
+        const rev = r.revision || createEmptyRevision();
+        return {
+          ...r,
+          revision: { ...rev, notas: { ...(rev.notas || {}), [itemKey]: text } },
+        };
+      })
+    );
+  }
+
+  function setRevisionAccion(rowIdx, itemKey, patch) {
+    setRows((prev) =>
+      prev.map((r, i) => {
+        if (i !== rowIdx) return r;
+        const rev = r.revision || createEmptyRevision();
+        const act = (rev.acciones || {})[itemKey] || { que: "", quien: "", cuando: "", responsable: null };
+        return {
+          ...r,
+          revision: {
+            ...rev,
+            acciones: { ...(rev.acciones || {}), [itemKey]: { ...act, ...patch } },
+          },
+        };
       })
     );
   }
@@ -140,43 +207,75 @@ export default function TablaExtintoresForm({ onSubmit, initialRows = [], defini
     });
   }
 
+  function validateAll() {
+    const newErrors = {};
+
+    rows.forEach((row, rowIdx) => {
+      // capacidad numérica
+      if (row.capacidad && !isValidDecimal(row.capacidad)) {
+        newErrors[`row:${rowIdx}:capacidad`] = "Capacidad debe ser numérica (ej: 10,5 o 10.5).";
+      }
+
+      // validación extra: si tipo = PQS -> pqs_clase requerido
+      if (String(row.tipo || "").toUpperCase() === "PQS" && !String(row.pqs_clase || "").trim()) {
+        newErrors[`row:${rowIdx}:pqs_clase`] = "Selecciona BC o ABC.";
+      }
+      // si tipo = OTROS -> descripción requerida
+      if (String(row.tipo || "").toUpperCase() === "OTROS" && !String(row.tipo_otro_desc || "").trim()) {
+        newErrors[`row:${rowIdx}:tipo_otro_desc`] = "Describe el tipo (OTROS).";
+      }
+
+      // regla plantilla 3: si un componente es MALO => nota + plan acción obligatorio
+      const rev = row.revision || createEmptyRevision();
+      for (const sec of REVISION_SECTIONS) {
+        for (const it of sec.items) {
+          const estado = rev.estados?.[it.key] || "";
+          if (estado !== "MALO") continue;
+
+          const note = String(rev.notas?.[it.key] || "").trim();
+          const act = rev.acciones?.[it.key] || {};
+          const quienText = typeof act.quien === "string" ? act.quien : act?.quien?.nombre || "";
+
+          const k = `${rowIdx}:${it.key}`;
+          if (note.length < 10) {
+            newErrors[k] = { ...(newErrors[k] || {}), note: "Obligatorio si es MALO (min. 10 caracteres)." };
+          }
+          if (!act.que || String(act.que).trim().length < 5) {
+            newErrors[k] = { ...(newErrors[k] || {}), que: "Indica Qué (min. 5 caracteres)." };
+          }
+          if (!quienText || String(quienText).trim().length < 3) {
+            newErrors[k] = { ...(newErrors[k] || {}), quien: "Indica Quién (responsable)." };
+          }
+          if (!act.cuando) {
+            newErrors[k] = { ...(newErrors[k] || {}), cuando: "Indica Cuándo (fecha)." };
+          }
+        }
+      }
+    });
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
+    if (!validateAll()) return;
 
-    // limpieza final por seguridad
-    const cleaned = rows.map((r) => {
-      const out = { ...r };
-      if (out.tipo !== "PQS") out.pqs_clase = createEmptyRow().pqs_clase;
-      if (out.tipo !== "OTROS") out.otros_descripcion = "";
-      out.capacidad = normalizeCapacidadInput(out.capacidad);
-      return out;
-    });
+    // normaliza capacidad a punto si quieres
+    const normalizedRows = rows.map((r) => ({
+      ...r,
+      capacidad: String(r.capacidad || "").replace(",", "."),
+    }));
 
     onSubmit?.({
       tipo: "tabla_extintores",
-      respuestas: serializeTablaExtintoresRows(cleaned),
+      respuestas: serializeTablaExtintoresRows(normalizedRows),
       resumen: { total, respondidas: filled },
       createdAt: new Date().toISOString(),
+      // opcional: por si luego quieres subir evidencias (aquí ya no hay)
+      rows: normalizedRows,
     });
   }
-
-  // Lista de estados (para render fácil)
-  const estadoFields = [
-    { key: "pintura", label: "Pintura" },
-    { key: "golpes", label: "Golpes" },
-    { key: "autoadhesivo_fecha_tipo", label: "Autoadhesivo Fecha/Tipo" },
-    { key: "cilindro_transporte", label: "Cilindro transporte" },
-    { key: "manija_transporte", label: "Manija transporte" },
-    { key: "manija_disparo", label: "Manija disparo" },
-    { key: "presion", label: "Presión" },
-    { key: "manometro", label: "Manómetro" },
-    { key: "boquilla", label: "Boquilla" },
-    { key: "manguera", label: "Manguera" },
-    { key: "ring_aro_seguridad", label: "Ring / Aro seguridad" },
-    { key: "corneta", label: "Corneta" },
-    { key: "senializacion", label: "Señalización" },
-    { key: "soporte_colgar_ruedas", label: "Soporte colgar / ruedas" },
-  ];
 
   return (
     <form onSubmit={handleSubmit} className="ins-form">
@@ -184,142 +283,302 @@ export default function TablaExtintoresForm({ onSubmit, initialRows = [], defini
         <div>
           <div className="ins-title">Rellenar inspección</div>
           <div className="ins-sub" style={{ marginTop: 6 }}>
-            Registra estado de extintores por fila.
+            Si marcas <b>MALO</b> en un componente, debes completar observación y plan de acción.
           </div>
         </div>
         <div className="ins-progress">
           <span>{filled}/{total} filas completas</span>
-          <Button type="button" variant="outline" onClick={addRow}>
-            Agregar fila
-          </Button>
+          <Button type="button" variant="outline" onClick={addRow}>Agregar fila</Button>
           <Button type="submit">Guardar</Button>
         </div>
       </div>
 
       <div style={{ display: "grid", gap: 12 }}>
         {rows.map((row, idx) => (
-          <div
-            key={`ext-${idx}`}
-            className="card ins-item"
-            style={{ display: "grid", gap: 10 }}
-          >
+          <div key={`ext-${idx}`} className="card ins-item" style={{ display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <b>Fila {idx + 1}</b>
-              <Button type="button" variant="ghost" onClick={() => removeRow(idx)}>
-                Eliminar
-              </Button>
+              <Button type="button" variant="ghost" onClick={() => removeRow(idx)}>Eliminar</Button>
             </div>
 
-            {/* Datos generales */}
+            {/* Datos principales */}
             <div className="ins-grid">
               <label className="ins-field">
                 <span>Código</span>
-                <input
-                  className="ins-input"
-                  value={row.codigo}
-                  onChange={(e) => updateRow(idx, "codigo", e.target.value)}
-                />
+                <input className="ins-input" value={row.codigo}
+                  onChange={(e) => updateRow(idx, { codigo: e.target.value })} />
               </label>
 
               <label className="ins-field">
                 <span>Ubicación</span>
-                <input
-                  className="ins-input"
-                  value={row.ubicacion}
-                  onChange={(e) => updateRow(idx, "ubicacion", e.target.value)}
-                />
+                <input className="ins-input" value={row.ubicacion}
+                  onChange={(e) => updateRow(idx, { ubicacion: e.target.value })} />
               </label>
 
-              <FieldSelect
-                label="Tipo"
-                value={row.tipo}
-                options={tiposOpciones}
-                onChange={(e) => onChangeTipo(idx, e.target.value)}
-              />
+              <label className="ins-field">
+                <span>Tipo</span>
+                <select
+                  className="ins-input"
+                  value={row.tipo}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // al cambiar tipo, resetea campos condicionales
+                    updateRow(idx, {
+                      tipo: v,
+                      pqs_clase: v === "PQS" ? row.pqs_clase : "",
+                      tipo_otro_desc: v === "OTROS" ? row.tipo_otro_desc : "",
+                    });
+                  }}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {tiposOpciones.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+
+                {/* 👇 campo condicional inmediatamente debajo */}
+                {String(row.tipo || "").toUpperCase() === "PQS" ? (
+                  <div style={{ marginTop: 10 }}>
+                    <label className="ins-field" style={{ marginTop: 0 }}>
+                      <span>Clase PQS (BC / ABC)</span>
+                      <select
+                        className={`ins-input ${errors[`row:${idx}:pqs_clase`] ? "is-error" : ""}`}
+                        value={row.pqs_clase}
+                        onChange={(e) => updateRow(idx, { pqs_clase: e.target.value })}
+                      >
+                        <option value="">-- Seleccionar --</option>
+                        {PQS_CLASES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      {errors[`row:${idx}:pqs_clase`] ? <div className="ins-error">{errors[`row:${idx}:pqs_clase`]}</div> : null}
+                    </label>
+                  </div>
+                ) : null}
+
+                {String(row.tipo || "").toUpperCase() === "OTROS" ? (
+                  <div style={{ marginTop: 10 }}>
+                    <label className="ins-field" style={{ marginTop: 0 }}>
+                      <span>Descripción (OTROS)</span>
+                      <input
+                        className={`ins-input ${errors[`row:${idx}:tipo_otro_desc`] ? "is-error" : ""}`}
+                        value={row.tipo_otro_desc}
+                        onChange={(e) => updateRow(idx, { tipo_otro_desc: e.target.value })}
+                        placeholder="Ej: espuma, clase K, etc."
+                      />
+                      {errors[`row:${idx}:tipo_otro_desc`] ? <div className="ins-error">{errors[`row:${idx}:tipo_otro_desc`]}</div> : null}
+                    </label>
+                  </div>
+                ) : null}
+              </label>
 
               <label className="ins-field">
                 <span>Capacidad</span>
                 <input
-                  className="ins-input"
-                  inputMode="decimal"
-                  placeholder="Ej: 4,5"
+                  className={`ins-input ${errors[`row:${idx}:capacidad`] ? "is-error" : ""}`}
                   value={row.capacidad}
-                  onChange={(e) => updateRow(idx, "capacidad", normalizeCapacidadInput(e.target.value))}
+                  inputMode="decimal"
+                  placeholder="Ej: 10,5"
+                  onChange={(e) => updateRow(idx, { capacidad: onlyNumericLike(e.target.value) })}
                 />
+                {errors[`row:${idx}:capacidad`] ? <div className="ins-error">{errors[`row:${idx}:capacidad`]}</div> : null}
               </label>
 
               <label className="ins-field">
                 <span>Fecha prueba</span>
-                <input
-                  type="date"
-                  className="ins-input"
+                <input type="date" className="ins-input"
                   value={row.fecha_prueba}
-                  onChange={(e) => updateRow(idx, "fecha_prueba", e.target.value)}
+                  onChange={(e) => updateRow(idx, { fecha_prueba: e.target.value })}
                 />
               </label>
             </div>
 
-            {/* Condicionales por tipo */}
-            {row.tipo === "PQS" ? (
-              <div className="ins-grid">
-                <FieldSelect
-                  label="Tipo PQS (BC / ABC)"
-                  value={row.pqs_clase}
-                  options={pqsClases}
-                  onChange={(e) => updateRow(idx, "pqs_clase", e.target.value)}
-                />
-              </div>
-            ) : null}
+            {/* REVISIÓN ESTADO GENERAL */}
+            <div className="ins-section" style={{ marginTop: 2 }}>
+              <div className="ins-section-title">REVISIÓN ESTADO GENERAL</div>
 
-            {row.tipo === "OTROS" ? (
-              <div className="ins-grid">
+              {REVISION_SECTIONS.map((sec) => (
+                <div key={sec.titulo} style={{ marginTop: 10 }}>
+                  <div style={{ fontWeight: 900, marginBottom: 10 }}>{sec.titulo}</div>
+
+                  <div className="ins-grid">
+                    {sec.items.map((it) => {
+                      const rev = row.revision || createEmptyRevision();
+                      const value = rev.estados?.[it.key] || "";
+                      const errKey = `${idx}:${it.key}`;
+                      const err = errors[errKey] || {};
+                      const act = rev.acciones?.[it.key] || { que: "", quien: "", cuando: "", responsable: null };
+
+                      const optName = `rev_${idx}_${it.key}`;
+                      return (
+                        <div key={it.key} className="card ins-item">
+                          <div className="ins-item-top">
+                            <div className="ins-item-title">{it.label}</div>
+                            <div className="ins-item-badge">
+                              {value === "BUENO" ? (
+                                <span className="status-badge good">BUENO</span>
+                              ) : value === "MALO" ? (
+                                <span className="status-badge bad">MALO</span>
+                              ) : value === "NA" ? (
+                                <span className="status-badge na">N/A</span>
+                              ) : (
+                                <span className="status-badge pending">Sin responder</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* mismo formato de plantilla 3 */}
+                          <div className="ins-options">
+                            <Option name={optName} label="BUENO" checked={value === "BUENO"} onChange={() => setRevisionEstado(idx, it.key, "BUENO")} />
+                            <Option name={optName} label="MALO" checked={value === "MALO"} onChange={() => setRevisionEstado(idx, it.key, "MALO")} />
+                            <Option name={optName} label="N/A" checked={value === "NA"} onChange={() => setRevisionEstado(idx, it.key, "NA")} />
+                          </div>
+
+                          {/* 🔥 NO mostrar observación si NO es MALO */}
+                          {value === "MALO" ? (
+                            <>
+                              <div className="ins-note">
+                                <label className="ins-note-label">
+                                  <span className="ins-required">
+                                    <span className="dot" />
+                                    Observación (obligatoria)
+                                  </span>
+                                </label>
+                                <textarea
+                                  className={`ins-note-input ${err.note ? "is-error" : ""}`}
+                                  rows={2}
+                                  value={rev.notas?.[it.key] || ""}
+                                  onChange={(e) => setRevisionNota(idx, it.key, e.target.value)}
+                                  placeholder="Detalla observaciones y medidas correctivas."
+                                />
+                                {err.note ? <div className="ins-error">{err.note}</div> : null}
+                              </div>
+
+                              <div className="ins-action">
+                                <div className="ins-action-title">Plan de acción (obligatorio)</div>
+
+                                <label className="ins-field">
+                                  <span>Qué</span>
+                                  <textarea
+                                    className={`ins-note-input ${err.que ? "is-error" : ""}`}
+                                    rows={3}
+                                    value={act.que || ""}
+                                    onChange={(e) => setRevisionAccion(idx, it.key, { que: e.target.value })}
+                                    placeholder="Describe la acción correctiva inmediata..."
+                                  />
+                                  {err.que ? <div className="ins-error">{err.que}</div> : null}
+                                </label>
+
+                                <label className="ins-field">
+                                  <span>Quién</span>
+                                  <Autocomplete
+                                    placeholder="DNI / Apellido / Nombre"
+                                    displayValue={act.quien || ""}
+                                    options={respOptions[`${idx}:${it.key}`] || []}
+                                    getOptionLabel={(e) => {
+                                      const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
+                                      const dni = e.dni ? `(${e.dni})` : "";
+                                      const cargo = e.cargo ? `- ${e.cargo}` : "";
+                                      return `${nom} ${dni} ${cargo}`.trim();
+                                    }}
+                                    onFocus={async () => {
+                                      try {
+                                        const list = await buscarEmpleados("");
+                                        setRespOptions((p) => ({ ...p, [`${idx}:${it.key}`]: Array.isArray(list) ? list : [] }));
+                                      } catch {
+                                        setRespOptions((p) => ({ ...p, [`${idx}:${it.key}`]: [] }));
+                                      }
+                                    }}
+                                    onInputChange={async (txt) => {
+                                      setRevisionAccion(idx, it.key, {
+                                        quien: txt,
+                                        responsable: txt?.trim()
+                                          ? { tipo: "EXTERNO", nombre: txt.trim(), cargo: "EXTERNO" }
+                                          : null,
+                                      });
+
+                                      if (!txt.trim()) {
+                                        setRespOptions((p) => ({ ...p, [`${idx}:${it.key}`]: [] }));
+                                        return;
+                                      }
+
+                                      try {
+                                        const list = await buscarEmpleados(txt.trim());
+                                        setRespOptions((p) => ({ ...p, [`${idx}:${it.key}`]: Array.isArray(list) ? list : [] }));
+                                      } catch {
+                                        setRespOptions((p) => ({ ...p, [`${idx}:${it.key}`]: [] }));
+                                      }
+                                    }}
+                                    onSelect={(e) => {
+                                      const nombre = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
+                                      const label = `${nombre}${e.dni ? ` (${e.dni})` : ""}`;
+                                      setRevisionAccion(idx, it.key, {
+                                        quien: label,
+                                        responsable: {
+                                          tipo: "INTERNO",
+                                          dni: e.dni || "",
+                                          nombre: nombre || e.dni || "",
+                                          cargo: e.cargo || "",
+                                        },
+                                      });
+                                      setRespOptions((p) => ({ ...p, [`${idx}:${it.key}`]: [] }));
+                                    }}
+                                    allowCustom
+                                    onCreateCustom={(text) => {
+                                      setRevisionAccion(idx, it.key, {
+                                        quien: text,
+                                        responsable: { tipo: "EXTERNO", nombre: text, cargo: "EXTERNO" },
+                                      });
+                                      setRespOptions((p) => ({ ...p, [`${idx}:${it.key}`]: [] }));
+                                    }}
+                                  />
+                                  {err.quien ? <div className="ins-error">{err.quien}</div> : null}
+                                </label>
+
+                                <label className="ins-field">
+                                  <span>Cuándo</span>
+                                  <input
+                                    type="date"
+                                    className={`ins-input ${err.cuando ? "is-error" : ""}`}
+                                    value={act.cuando || ""}
+                                    onChange={(e) => setRevisionAccion(idx, it.key, { cuando: e.target.value })}
+                                  />
+                                  {err.cuando ? <div className="ins-error">{err.cuando}</div> : null}
+                                </label>
+                              </div>
+                            </>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {/* Fecha vencimiento después de la revisión */}
+              <div className="ins-grid" style={{ marginTop: 14 }}>
                 <label className="ins-field">
-                  <span>Descripción (OTROS)</span>
+                  <span>Fecha de vencimiento</span>
                   <input
+                    type="date"
                     className="ins-input"
-                    value={row.otros_descripcion}
-                    onChange={(e) => updateRow(idx, "otros_descripcion", e.target.value)}
-                    placeholder="Describe el tipo..."
+                    value={row.fecha_vencimiento || ""}
+                    onChange={(e) => updateRow(idx, { fecha_vencimiento: e.target.value })}
                   />
                 </label>
               </div>
-            ) : null}
-
-            {/* Estados generales (todos los del cuadro) */}
-            <div className="ins-grid">
-              {estadoFields.map((f) => (
-                <FieldSelect
-                  key={f.key}
-                  label={f.label}
-                  value={row[f.key] ?? "NA"}
-                  options={estadoOpciones}
-                  onChange={(e) => updateRow(idx, f.key, e.target.value)}
-                />
-              ))}
             </div>
 
-            {/* Fecha vencimiento antes de observaciones */}
-            <div className="ins-grid">
-              <label className="ins-field">
-                <span>Fecha de vencimiento</span>
-                <input
-                  type="date"
-                  className="ins-input"
-                  value={row.fecha_vencimiento}
-                  onChange={(e) => updateRow(idx, "fecha_vencimiento", e.target.value)}
-                />
-              </label>
-            </div>
-
+            {/* Observaciones generales (se quedan) */}
             <label className="ins-field">
               <span>Observaciones</span>
               <textarea
                 className="ins-note-input"
                 rows={2}
                 value={row.observaciones}
-                onChange={(e) => updateRow(idx, "observaciones", e.target.value)}
+                onChange={(e) => updateRow(idx, { observaciones: e.target.value })}
               />
             </label>
+
+            {/* ✅ eliminado: evidencia fotos */}
           </div>
         ))}
       </div>

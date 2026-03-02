@@ -159,24 +159,20 @@ export function serializeObservacionesAccionesRows(rows) {
   });
 }
 
+// frontend/src/utils/plantillaRenderer.js
 export function serializeTablaExtintoresRows(rows) {
-  return (Array.isArray(rows) ? rows : []).map((row, idx) => {
-    // Omitimos evidencia_fotos (ya no se usa)
-    const { evidencia_fotos, ...rowSinFotos } = (row && typeof row === "object") ? row : {};
-
-    return {
-      id_campo: null,
-      item_ref: `row_${idx + 1}`,
-      categoria: "TABLA_EXTINTORES",
-      descripcion: rowSinFotos?.codigo?.trim() || rowSinFotos?.ubicacion?.trim() || `Fila ${idx + 1}`,
-      estado: null,
-      observacion: rowSinFotos?.observaciones?.trim() || "",
-      accion: null,
-      row_data: {
-        __tipo: "tabla_extintores",
-        rowIndex: idx + 1,
-        ...rowSinFotos,
-      },
-    };
-  });
+  return (Array.isArray(rows) ? rows : []).map((row, idx) => ({
+    id_campo: null,
+    item_ref: `row_${idx + 1}`,
+    categoria: "TABLA_EXTINTORES",
+    descripcion: row?.codigo?.trim() || row?.ubicacion?.trim() || `Fila ${idx + 1}`,
+    estado: null,
+    observacion: row?.observaciones?.trim() || "",
+    accion: null,
+    row_data: {
+      __tipo: "tabla_extintores",
+      rowIndex: idx + 1,
+      ...row,
+    },
+  }));
 }
