@@ -28,4 +28,18 @@ router.put(
   controller.subirFirma
 );
 
+// DELETE /api/uploads/acciones/evidencias/:id_acc_evidencia
+router.delete(
+  "/acciones/evidencias/:id_acc_evidencia",
+  authMiddleware,
+  controller.eliminarAccEvidencia
+);
+
+// (OPCIONAL) DELETE /api/uploads/observaciones/evidencias/:id  (id_obs_evidencia)
+router.delete(
+  "/observaciones/evidencias/:id",
+  authMiddleware,
+  controller.eliminarObsEvidencia
+);
+
 export default router;

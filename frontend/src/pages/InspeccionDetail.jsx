@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion, actualizarEstadoObservacion } from "../api/observaciones.api";
 import { crearAccion, actualizarEstadoAccion, actualizarPorcentajeAccion } from "../api/acciones.api";
-import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api";
+import { uploadEvidenciaObs, uploadEvidenciaAcc, deleteEvidenciaAcc } from "../api/uploads.api";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -211,113 +211,114 @@ function getItemNumber(itemId) {
   return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
 }
 
-function EvidenceGrid({ evidencias, onPreview }) {
-  const [blobUrlByKey, setBlobUrlByKey] = useState({});
-
-  useEffect(() => {
-    // cleanup de blobs al desmontar
-    return () => {
-      Object.values(blobUrlByKey).forEach((u) => {
-        try { if (u) URL.revokeObjectURL(u); } catch {}
-      });
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+function EvidenceGrid({ evidencias, allowDelete = false, onDelete, onPreview }) {
   if (!evidencias || evidencias.length === 0) {
     return <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin evidencias.</p>;
-  }
-
-  async function ensureBlobUrl(key, url) {
-    if (!url) return null;
-    if (blobUrlByKey[key]) return blobUrlByKey[key];
-
-    // Intento 1: usar url directo
-    // (si falla por auth/CORS, caemos al fetch con token)
-    try {
-      // hacemos un HEAD liviano; si falla, caemos al fetch
-      await fetch(url, { method: "HEAD" });
-      setBlobUrlByKey((p) => ({ ...p, [key]: url }));
-      return url;
-    } catch {}
-
-    // Intento 2: fetch con Authorization -> blob
-    try {
-      const token = getToken();
-      const r = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!r.ok) throw new Error("no ok");
-      const blob = await r.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      setBlobUrlByKey((p) => ({ ...p, [key]: blobUrl }));
-      return blobUrl;
-    } catch {
-      return null;
-    }
   }
 
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
       {evidencias.map((e) => {
-        const key = String(e.id_obs_evidencia ?? e.id_acc_evidencia ?? e.id ?? e.archivo_ruta);
+        const key = e.id_obs_evidencia ?? e.id_acc_evidencia ?? e.id ?? e.archivo_ruta;
         const url = fileUrl(e.archivo_ruta);
+        const showDelete = allowDelete && typeof onDelete === "function";
+        const onOpenPreview = () => {
+          if (!url) return;
+          onPreview?.({ url, name: e.archivo_nombre || "Evidencia" });
+        };
 
-        // pendientes offline
+        const deleteBtn = showDelete ? (
+          <Button
+            variant="primary"
+            type="button"
+            onClick={(ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              onDelete(e);
+            }}
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              width: 30,
+              height: 30,
+              borderRadius: 999,
+              padding: 0,
+              minWidth: 0,
+              background: "var(--orange-500)",
+              borderColor: "var(--orange-500)",
+              color: "#fff",
+              lineHeight: "30px",
+              fontSize: 15,
+              fontWeight: 900,
+            }}
+            onMouseEnter={(ev) => {
+              ev.currentTarget.style.background = "var(--orange-600)";
+              ev.currentTarget.style.borderColor = "var(--orange-600)";
+            }}
+            onMouseLeave={(ev) => {
+              ev.currentTarget.style.background = "var(--orange-500)";
+              ev.currentTarget.style.borderColor = "var(--orange-500)";
+            }}
+            title="Eliminar evidencia"
+            aria-label="Eliminar evidencia"
+          >
+            X
+          </Button>
+        ) : null;
+
         if (!url) {
           return (
             <div
               key={key}
               style={{
-                width: 220,
+                width: 200,
                 border: "1px dashed #bbb",
                 borderRadius: 12,
                 padding: 10,
                 background: "#fffdf5",
+                position: "relative",
               }}
             >
+              {deleteBtn}
               <b style={{ fontSize: 12 }}>PENDIENTE</b>
-              <div style={{ fontSize: 12, wordBreak: "break-all" }}>{e.archivo_ruta}</div>
+              <div style={{ fontSize: 12, wordBreak: "break-all", marginTop: 4 }}>{e.archivo_ruta}</div>
             </div>
           );
         }
 
-        const shownUrl = blobUrlByKey[key] || url;
-
         return (
-          <button
+          <div
             key={key}
-            type="button"
-            onClick={async () => {
-              const finalUrl = await ensureBlobUrl(key, url);
-              if (!finalUrl) return alert("No se pudo cargar la imagen.");
-              onPreview?.({ url: finalUrl, name: e.archivo_nombre || "Evidencia" });
-            }}
             style={{
-              width: 220,
-              textAlign: "left",
-              padding: 0,
+              width: 200,
               border: "1px solid #ddd",
-              borderRadius: 14,
+              borderRadius: 12,
               overflow: "hidden",
               background: "#fff",
+              position: "relative",
               cursor: "pointer",
             }}
+            onClick={onOpenPreview}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter" || ev.key === " ") {
+                ev.preventDefault();
+                onOpenPreview();
+              }
+            }}
           >
+            {deleteBtn}
             <img
-              src={shownUrl}
+              src={url}
               alt={e.archivo_nombre || "evidencia"}
-              style={{
-                width: "100%",
-                height: 150,
-                objectFit: "contain",   // ✅ para que se vea completa en miniatura
-                background: "#f7f6f3",
-                display: "block",
-              }}
-              onError={() => {
-                // si no puede cargar directo, el click igual abrirá con fetch+token
+              style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
+              onError={(ev) => {
+                ev.currentTarget.style.display = "none";
               }}
             />
+
             <div style={{ padding: 10, display: "grid", gap: 4 }}>
               <div style={{ fontSize: 12, wordBreak: "break-all" }}>
                 {e.archivo_nombre || e.archivo_ruta}
@@ -325,7 +326,7 @@ function EvidenceGrid({ evidencias, onPreview }) {
               <div style={{ fontSize: 11, opacity: 0.7 }}>{e.mime_type || "-"}</div>
               <div style={{ fontSize: 11, opacity: 0.7 }}>Capturada: {fmtDate(e.capturada_en)}</div>
             </div>
-          </button>
+          </div>
         );
       })}
     </div>
@@ -341,15 +342,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
     responsable_externo_nombre: "",
     responsable_externo_cargo: "",
   });
-
-    const [preview, setPreview] = useState({ open: false, url: "", name: "" });
-
-  function openPreview({ url, name }) {
-    setPreview({ open: true, url, name: name || "Evidencia" });
-  }
-  function closePreview() {
-    setPreview({ open: false, url: "", name: "" });
-  }
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -520,9 +512,9 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
         </div>
       )}
 
-      <button disabled={saving || inspeccionCerrada} type="submit">
+      <Button variant="primary" disabled={saving || inspeccionCerrada} type="submit">
         {inspeccionCerrada ? "Inspeccion cerrada" : saving ? "Guardando..." : "Crear accion"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -681,6 +673,14 @@ export default function InspeccionDetail() {
   const closePreview = () => {
     setPreview({ open: false, url: "", name: "" });
   };
+  useEffect(() => {
+    if (!preview.open) return undefined;
+    const onKeyDown = (ev) => {
+      if (ev.key === "Escape") closePreview();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [preview.open]);
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -912,6 +912,69 @@ export default function InspeccionDetail() {
     try {
       await setInspeccionCache(id, next);
     } catch {}
+  }
+
+  async function removeAccEvidenceFromState(idAccion, matchFn) {
+    const base = dataRef.current;
+    if (!base) return;
+
+    const next = {
+      ...base,
+      observaciones: (base.observaciones || []).map((o) => ({
+        ...o,
+        acciones: (o.acciones || []).map((a) => {
+          if (String(a.id_accion) !== String(idAccion)) return a;
+          const evs = Array.isArray(a.evidencias) ? a.evidencias : [];
+          return { ...a, evidencias: evs.filter((ev) => !matchFn(ev)) };
+        }),
+      })),
+    };
+
+    await setDataAndCache(next);
+  }
+
+  async function removePendingUploadFromQueue(idAccion, pendingPath) {
+    const queue = await getAllQueue();
+    const items = queue.filter((q) =>
+      q?.kind === "ACC" &&
+      String(q?.idTarget) === String(idAccion) &&
+      String(q?.pendingPath || "") === String(pendingPath || "")
+    );
+
+    for (const item of items) {
+      if (item?.id != null) await removeFromQueue(item.id);
+    }
+  }
+
+  async function handleDeleteAccEvidence({ evItem, idAccion }) {
+    if (!evItem || !idAccion) return;
+    if (!confirm("¿Eliminar evidencia?")) return;
+
+    const pendingPath = String(evItem?.archivo_ruta || "");
+    const isPendingOffline = pendingPath.startsWith("PENDING_UPLOAD/");
+
+    if (isPendingOffline) {
+      await removePendingUploadFromQueue(idAccion, pendingPath);
+      await removeAccEvidenceFromState(idAccion, (ev) => String(ev?.archivo_ruta || "") === pendingPath);
+      await refreshPending();
+      return;
+    }
+
+    if (!evItem?.id_acc_evidencia) return;
+
+    try {
+      await deleteEvidenciaAcc(evItem.id_acc_evidencia);
+      await removeAccEvidenceFromState(
+        idAccion,
+        (ev) =>
+          String(ev?.id_acc_evidencia || "") === String(evItem.id_acc_evidencia) ||
+          String(ev?.archivo_ruta || "") === String(evItem?.archivo_ruta || "")
+      );
+    } catch (err) {
+      // fallback conservador si el estado local no coincide con backend
+      await load();
+      alert(getErrorMessage(err));
+    }
   }
 
   async function load() {
@@ -1167,6 +1230,16 @@ export default function InspeccionDetail() {
     }
     return map;
   }, [data?.observaciones]);
+  const obsByItemRef = useMemo(() => {
+  const map = new Map();
+  const obs = Array.isArray(data?.observaciones) ? data.observaciones : [];
+  for (const o of obs) {
+    const key = String(o?.item_ref || "").trim();
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, o);
+  }
+  return map;
+}, [data?.observaciones]);
   const realizadoPor = participantes.find((p) => String(p?.tipo || "").toUpperCase() === "REALIZADO_POR");
   const inspectores = participantes.filter((p) => String(p?.tipo || "").toUpperCase() === "INSPECTOR");
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
@@ -1440,6 +1513,8 @@ export default function InspeccionDetail() {
                     if (isObsAcc && row) {
                       const itemRef = normItemRef(r?.item_id || r?.item_ref || "");
                       const accionDb = accionByItemRef.get(itemRef);
+                      const obsDb = obsByItemRef.get(itemRef);
+                      const evidObs = Array.isArray(obsDb?.evidencias) ? obsDb.evidencias : [];
                       const evidLev = Array.isArray(accionDb?.evidencias) ? accionDb.evidencias : [];
                       const hasLev = evidLev.length > 0;
 
@@ -1451,70 +1526,79 @@ export default function InspeccionDetail() {
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             <b>{`Observación ${idx + 1}`}</b>
                             <Badge>{itemRef}</Badge>
-                            <Badge>{String(row?.riesgo || r?.estado || "NA").toUpperCase()}</Badge>
                             {accionDb?.id_accion ? <Badge>Acc #{accionDb.id_accion}</Badge> : <Badge>Acc: -</Badge>}
                           </div>
 
-                          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                             <div><b>Observación:</b> {row?.observacion || "-"}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <b>Nivel de riesgo:</b>
+                              <Badge>{String(row?.riesgo || r?.estado || "NA").toUpperCase()}</Badge>
+                            </div>
+                            <div>
+                              <b>Evidencias (Observación)</b>
+                              <EvidenceGrid evidencias={evidObs} onPreview={openPreview} />
+                            </div>
                             <div><b>Acción correctiva:</b> {row?.accion_correctiva || "-"}</div>
                             <div><b>Fecha ejecución:</b> {row?.fecha_ejecucion || "-"}</div>
                             <div><b>Responsable:</b> {row?.responsable || row?.responsable_data?.nombre || "-"}</div>
-                          </div>
 
-                          {/* SOLO lo que quieres que quede: evidencia levantamiento + % */}
-                          <div style={{ marginTop: 10 }}>
-                            <b>Evidencia de levantamiento (Acción)</b>
-                            {accionDb?.id_accion ? (
-                              <>
-                                <EvidenceGrid evidencias={evidLev} onPreview={openPreview} />
-                                <UploadEvidence
-                                  kind="ACC"
-                                  idTarget={accionDb.id_accion}
-                                  onUploaded={handleEvidenceUploaded}
-                                  disabled={false}
-                                  inspeccionCerrada={inspeccionCerrada}
-                                  online={online}
-                                />
-                              </>
-                            ) : (
-                              <p style={{ margin: "6px 0", opacity: 0.7 }}>
-                                No se encontró acción creada para {itemRef}.
-                              </p>
-                            )}
-                          </div>
+                            <div>
+                              <b>Evidencia de levantamiento (Acción)</b>
+                              {accionDb?.id_accion ? (
+                                <>
+                                  <EvidenceGrid
+                                    evidencias={evidLev}
+                                    allowDelete={true}
+                                    onPreview={openPreview}
+                                    onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: accionDb.id_accion })}
+                                  />
+                                  <UploadEvidence
+                                    kind="ACC"
+                                    idTarget={accionDb.id_accion}
+                                    onUploaded={handleEvidenceUploaded}
+                                    disabled={false}
+                                    inspeccionCerrada={inspeccionCerrada}
+                                    online={online}
+                                  />
+                                </>
+                              ) : (
+                                <p style={{ margin: "6px 0", opacity: 0.7 }}>
+                                  No se encontró acción creada para {itemRef}.
+                                </p>
+                              )}
+                            </div>
 
-                          <div style={{ marginTop: 10, maxWidth: 220 }}>
-                            <b>% cumplimiento</b>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              className="ins-input"
-                              value={accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? ""}
-                              onChange={(e) => {
-                                // solo UI local mientras escribe: no guardes aquí, se guarda en blur
-                                const val = e.target.value;
-                                // hack simple: permite escribir sin romper (si te molesta, te lo hago con estado local)
-                                e.target.value = val;
-                              }}
-                              disabled={!hasLev}
-                              placeholder={hasLev ? "0 - 100" : "Sube evidencia para habilitar"}
-                              onBlur={async (e) => {
-                                if (!accionDb?.id_accion) return;
-                                if (!online) return; // por ahora solo online (si quieres, lo metemos a mutations offline)
+                            <div style={{ maxWidth: 220, display: "grid", gap: 6 }}>
+                              <b>% cumplimiento</b>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                className="ins-input"
+                                value={accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  e.target.value = val;
+                                }}
+                                disabled={!hasLev}
+                                placeholder={hasLev ? "0 - 100" : "Sube evidencia para habilitar"}
+                                onBlur={async (e) => {
+                                  if (!accionDb?.id_accion) return;
+                                  if (!online) return;
 
-                                const vRaw = e.target.value;
-                                const v = vRaw === "" ? null : Number(vRaw);
+                                  const vRaw = e.target.value;
+                                  const v = vRaw === "" ? null : Number(vRaw);
 
-                                try {
-                                  await actualizarPorcentajeAccion(accionDb.id_accion, v);
-                                  await load();
-                                } catch (err) {
-                                  alert(getErrorMessage(err));
-                                }
-                              }}
-                            />
+                                  try {
+                                    await actualizarPorcentajeAccion(accionDb.id_accion, v);
+                                    await load();
+                                  } catch (err) {
+                                    alert(getErrorMessage(err));
+                                  }
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
                       );
@@ -1656,9 +1740,13 @@ export default function InspeccionDetail() {
 
                             <div style={{ marginTop: 10 }}>
                               <b>Evidencias (Acc)</b>
-                              <EvidenceGrid evidencias={evidAcc} onPreview={openPreview} />
+                              <EvidenceGrid
+                                evidencias={evidAcc}
+                                allowDelete={true}
+                                onPreview={openPreview}
+                                onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: acc.id_accion })}
+                              />
                             </div>
-
                             <UploadEvidence
                               kind="ACC"
                               idTarget={acc.id_accion}
@@ -1905,19 +1993,16 @@ export default function InspeccionDetail() {
               }}
             >
               <b style={{ fontSize: 13, wordBreak: "break-all" }}>{preview.name}</b>
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button variant="outline" type="button" onClick={() => window.open(preview.url, "_blank", "noreferrer")}>
-                  Abrir
-                </Button>
-                <Button 
-                  type="button"
-                  onClick={closePreview}
-                  className="btn btn-ghost"
-                  style={{ height: 36, padding: "0 12px" }}
-                >
-                  ✕
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={closePreview}
+                style={{ height: 36, width: 36, padding: 0, minWidth: 0 }}
+                aria-label="Cerrar"
+                title="Cerrar"
+              >
+                X
+              </Button>
             </div>
 
             <div style={{ padding: 12, overflow: "auto" }}>
@@ -1927,7 +2012,7 @@ export default function InspeccionDetail() {
                 style={{
                   width: "100%",
                   maxHeight: "78vh",
-                  objectFit: "contain",   // ✅ completa, no recortada
+                  objectFit: "contain",   // completa, no recortada
                   background: "#f7f6f3",
                   borderRadius: 14,
                   border: "1px solid rgba(0,0,0,.08)",

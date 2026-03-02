@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import obsRepo from "../repositories/observaciones.repository.js";
 import fsp from "fs/promises";
 import usuariosRepo from "../repositories/usuarios.repository.js";
+import { getPool } from "../config/database.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,11 +207,114 @@ async function subirFirmaUsuario({ id_usuario, file }) {
   };
 }
 
+function buildEvidencePathCandidates(archivoRuta) {
+  const raw = String(archivoRuta || "").trim();
+  if (!raw) return [];
+  if (path.isAbsolute(raw)) return [raw];
+
+  const clean = raw.replace(/^\/+/, "");
+  const candidates = new Set([
+    path.resolve(process.cwd(), clean),
+    path.resolve(process.cwd(), "src", clean),
+  ]);
+
+  const nasBase = process.env.NAS_BASE_PATH;
+  if (nasBase) {
+    candidates.add(path.resolve(nasBase, clean));
+    if (clean.toLowerCase().startsWith("storage/")) {
+      candidates.add(path.resolve(nasBase, clean.replace(/^storage\//i, "")));
+    }
+  }
+
+  return Array.from(candidates);
+}
+
+async function unlinkEvidenceFile(archivoRuta) {
+  const candidates = buildEvidencePathCandidates(archivoRuta);
+  if (!candidates.length) return { ok: true, deleted: false };
+
+  for (const absPath of candidates) {
+    try {
+      await fsp.unlink(absPath);
+      return { ok: true, deleted: true };
+    } catch (err) {
+      if (err?.code === "ENOENT") continue;
+      return { ok: false, message: `No se pudo eliminar archivo (${absPath}): ${err.message}` };
+    }
+  }
+
+  return { ok: true, deleted: false };
+}
+
+// Borra evidencia de ACCION (id_acc_evidencia)
+async function eliminarEvidenciaAccion({ id_acc_evidencia }) {
+  const id = Number(id_acc_evidencia);
+  if (!id) return { ok: false, status: 400, message: "id_acc_evidencia inválido" };
+
+  const pool = await getPool();
+
+  // 1) buscar ruta
+  const q1 = `
+    SELECT TOP 1 archivo_ruta
+    FROM SSOMA.INS_ACC_EVIDENCIA
+    WHERE id_acc_evidencia = @id;
+  `;
+  const r1 = await pool.request().input("id", id).query(q1);
+  const row = r1.recordset?.[0];
+  if (!row) return { ok: false, status: 404, message: "Evidencia no encontrada" };
+
+  const unlinkResult = await unlinkEvidenceFile(row.archivo_ruta);
+  if (!unlinkResult.ok) {
+    return { ok: false, status: 500, message: unlinkResult.message };
+  }
+
+  // 2) borrar registro en DB
+  const q2 = `
+    DELETE FROM SSOMA.INS_ACC_EVIDENCIA
+    WHERE id_acc_evidencia = @id;
+  `;
+  await pool.request().input("id", id).query(q2);
+
+  return { ok: true, status: 200, data: { ok: true } };
+}
+
+// (OPCIONAL) Borra evidencia de OBS (id_obs_evidencia)
+async function eliminarEvidenciaObservacion({ id_obs_evidencia }) {
+  const id = Number(id_obs_evidencia);
+  if (!id) return { ok: false, status: 400, message: "id_obs_evidencia inválido" };
+
+  const pool = await getPool();
+
+  const q1 = `
+    SELECT TOP 1 archivo_ruta
+    FROM SSOMA.INS_OBS_EVIDENCIA
+    WHERE id_obs_evidencia = @id;
+  `;
+  const r1 = await pool.request().input("id", id).query(q1);
+  const row = r1.recordset?.[0];
+  if (!row) return { ok: false, status: 404, message: "Evidencia no encontrada" };
+
+  const q2 = `
+    DELETE FROM SSOMA.INS_OBS_EVIDENCIA
+    WHERE id_obs_evidencia = @id;
+  `;
+  await pool.request().input("id", id).query(q2);
+
+  await unlinkEvidenceFile(row.archivo_ruta);
+
+  return { ok: true, status: 200, data: { ok: true } };
+}
+
+
 export default {
   uploadObsMiddleware,
   uploadAccMiddleware,
   subirEvidenciaObservacion,
   subirEvidenciaAccion,
   uploadFirmaMiddleware,
-  subirFirmaUsuario
+  subirFirmaUsuario,
+  eliminarEvidenciaAccion,
+  eliminarEvidenciaObservacion
 };
+
+

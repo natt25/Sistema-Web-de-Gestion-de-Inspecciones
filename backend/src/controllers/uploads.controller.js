@@ -57,4 +57,36 @@ async function subirFirma(req, res) {
   }
 }
 
-export default { subirObs, subirAcc, subirFirma };
+async function eliminarAccEvidencia(req, res) {
+  try {
+    const { id_acc_evidencia } = req.params;
+    const result = await service.eliminarEvidenciaAccion({ id_acc_evidencia });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.status(200).json(result.data);
+  } catch (err) {
+    console.error("uploads.eliminarAccEvidencia:", err);
+    return res.status(500).json({ message: "Error interno", error: err.message });
+  }
+}
+
+async function eliminarObsEvidencia(req, res) {
+  try {
+    const { id } = req.params; // id_obs_evidencia
+    const result = await service.eliminarEvidenciaObservacion({ id_obs_evidencia: id });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.status(200).json(result.data);
+  } catch (err) {
+    console.error("uploads.eliminarObsEvidencia:", err);
+    return res.status(500).json({ message: "Error interno", error: err.message });
+  }
+}
+
+export default { subirObs, subirAcc, subirFirma, eliminarAccEvidencia, eliminarObsEvidencia };

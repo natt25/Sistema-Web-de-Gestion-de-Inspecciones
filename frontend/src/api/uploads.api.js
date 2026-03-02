@@ -29,3 +29,8 @@ export async function uploadEvidenciaAcc(idAccion, file) {
 
   return res.data;
 }
+
+export async function deleteEvidenciaAcc(idAccEvidencia) {
+  const res = await http.delete(`/api/uploads/acciones/evidencias/${idAccEvidencia}`);
+  return res.data;
+}
