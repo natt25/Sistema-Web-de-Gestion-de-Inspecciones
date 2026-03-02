@@ -830,3 +830,142 @@
 .status-badge.bad{ color: var(--bad); background: rgba(220,38,38,.10); border-color: rgba(220,38,38,.30); }
 .status-badge.na{ color: var(--na); background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.30); }
 .status-badge.pending{ color: #92400e; background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.35); }
+
+/* ===== Observaciones + Acciones (FOR-014) ===== */
+.obsacc-item{
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.obsacc-item-top{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.obsacc-cards{
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.obsacc-card{
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.obsacc-header{
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+  background: linear-gradient(180deg, rgba(255,122,26,.08), rgba(255,122,26,.02));
+}
+
+.obsacc-title{
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  color: #111827;
+}
+
+.obsacc-section{
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.obsacc-cumplimiento{
+  max-width: 260px;
+}
+
+.obsacc-grid{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.evi-thumb{
+  width: 200px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  position: relative;
+  cursor: pointer;
+}
+
+.evi-thumb-pending{
+  border: 1px dashed #bbb;
+  background: #fffdf5;
+  padding: 10px;
+  cursor: default;
+}
+
+.evi-image{
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+.evi-meta{
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.evi-name{
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.evi-text-muted{
+  font-size: 11px;
+  opacity: .7;
+}
+
+.evi-pending-title{
+  font-size: 12px;
+}
+
+.evi-pending-path{
+  font-size: 12px;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.evi-x{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  padding: 0;
+  min-width: 0;
+  line-height: 30px;
+  font-size: 15px;
+  font-weight: 900;
+  background: var(--orange-500);
+  border-color: var(--orange-500);
+  color: #fff;
+  z-index: 2;
+}
+
+.evi-x:hover{
+  background: var(--orange-600);
+  border-color: var(--orange-600);
+}
+
+@media (max-width: 960px){
+  .obsacc-cards{
+    grid-template-columns: 1fr;
+  }
+}

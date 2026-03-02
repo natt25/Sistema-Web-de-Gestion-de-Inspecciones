@@ -14,7 +14,7 @@ export async function deleteEvidenciaAcc(req, res) {
   // 1) obtén ruta para borrar archivo físico
   const q1 = `
     SELECT TOP 1 archivo_ruta
-    FROM SSOMA.INS_ACC_EVIDENCIA
+    FROM SSOMA.INS_ACCION_EVIDENCIA
     WHERE id_acc_evidencia = @id;
   `;
   const r1 = await pool.request().input("id", Number(id)).query(q1);
@@ -24,7 +24,7 @@ export async function deleteEvidenciaAcc(req, res) {
 
   // 2) borra registro
   const q2 = `
-    DELETE FROM SSOMA.INS_ACC_EVIDENCIA
+    DELETE FROM SSOMA.INS_ACCION_EVIDENCIA
     WHERE id_acc_evidencia = @id;
   `;
   await pool.request().input("id", Number(id)).query(q2);

@@ -32,7 +32,7 @@ router.put(
 router.delete(
   "/acciones/evidencias/:id_acc_evidencia",
   authMiddleware,
-  controller.eliminarAccEvidencia
+  controller.eliminarAccEvidenciaAcc
 );
 
 // (OPCIONAL) DELETE /api/uploads/observaciones/evidencias/:id  (id_obs_evidencia)

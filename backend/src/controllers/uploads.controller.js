@@ -57,7 +57,7 @@ async function subirFirma(req, res) {
   }
 }
 
-async function eliminarAccEvidencia(req, res) {
+async function eliminarAccEvidenciaAcc(req, res) {
   try {
     const { id_acc_evidencia } = req.params;
     const result = await service.eliminarEvidenciaAccion({ id_acc_evidencia });
@@ -68,7 +68,7 @@ async function eliminarAccEvidencia(req, res) {
 
     return res.status(200).json(result.data);
   } catch (err) {
-    console.error("uploads.eliminarAccEvidencia:", err);
+    console.error("uploads.eliminarAccEvidenciaAcc:", err);
     return res.status(500).json({ message: "Error interno", error: err.message });
   }
 }
@@ -89,4 +89,4 @@ async function eliminarObsEvidencia(req, res) {
   }
 }
 
-export default { subirObs, subirAcc, subirFirma, eliminarAccEvidencia, eliminarObsEvidencia };
+export default { subirObs, subirAcc, subirFirma, eliminarAccEvidenciaAcc, eliminarObsEvidencia };

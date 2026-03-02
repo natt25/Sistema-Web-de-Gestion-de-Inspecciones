@@ -39,7 +39,7 @@ const uploadAccMiddleware = multer({ storage: crearStorageEvidencia(ACC_DIR, "ac
 async function subirEvidenciaObservacion({ id_observacion, file }) {
   const id = Number(id_observacion);
   if (!id || Number.isNaN(id)) {
-    return { ok: false, status: 400, message: "id_observacion inválido" };
+    return { ok: false, status: 400, message: "id_observacion invalido" };
   }
 
   if (!file) {
@@ -79,7 +79,7 @@ async function subirEvidenciaObservacion({ id_observacion, file }) {
 async function subirEvidenciaAccion({ id_accion, file }) {
   const id = Number(id_accion);
   if (!id || Number.isNaN(id)) {
-    return { ok: false, status: 400, message: "id_accion inválido" };
+    return { ok: false, status: 400, message: "id_accion invalido" };
   }
 
   if (!file) {
@@ -149,7 +149,7 @@ const firmaStorage = multer.diskStorage({
 function firmaFileFilter(req, file, cb) {
   const allowed = ["image/png", "image/jpeg", "image/jpg"];
   if (!allowed.includes(file.mimetype)) {
-    return cb(new Error("Formato inválido. Solo PNG o JPG."), false);
+    return cb(new Error("Formato invalido. Solo PNG o JPG."), false);
   }
   cb(null, true);
 }
@@ -249,14 +249,14 @@ async function unlinkEvidenceFile(archivoRuta) {
 // Borra evidencia de ACCION (id_acc_evidencia)
 async function eliminarEvidenciaAccion({ id_acc_evidencia }) {
   const id = Number(id_acc_evidencia);
-  if (!id) return { ok: false, status: 400, message: "id_acc_evidencia inválido" };
+  if (!id) return { ok: false, status: 400, message: "id_acc_evidencia invalido" };
 
   const pool = await getPool();
 
   // 1) buscar ruta
   const q1 = `
     SELECT TOP 1 archivo_ruta
-    FROM SSOMA.INS_ACC_EVIDENCIA
+    FROM SSOMA.INS_ACCION_EVIDENCIA
     WHERE id_acc_evidencia = @id;
   `;
   const r1 = await pool.request().input("id", id).query(q1);
@@ -270,7 +270,7 @@ async function eliminarEvidenciaAccion({ id_acc_evidencia }) {
 
   // 2) borrar registro en DB
   const q2 = `
-    DELETE FROM SSOMA.INS_ACC_EVIDENCIA
+    DELETE FROM SSOMA.INS_ACCION_EVIDENCIA
     WHERE id_acc_evidencia = @id;
   `;
   await pool.request().input("id", id).query(q2);
@@ -281,7 +281,7 @@ async function eliminarEvidenciaAccion({ id_acc_evidencia }) {
 // (OPCIONAL) Borra evidencia de OBS (id_obs_evidencia)
 async function eliminarEvidenciaObservacion({ id_obs_evidencia }) {
   const id = Number(id_obs_evidencia);
-  if (!id) return { ok: false, status: 400, message: "id_obs_evidencia inválido" };
+  if (!id) return { ok: false, status: 400, message: "id_obs_evidencia invalido" };
 
   const pool = await getPool();
 
@@ -316,5 +316,3 @@ export default {
   eliminarEvidenciaAccion,
   eliminarEvidenciaObservacion
 };
-
-
