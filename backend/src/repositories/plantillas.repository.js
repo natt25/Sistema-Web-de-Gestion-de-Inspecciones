@@ -34,6 +34,7 @@ async function listPlantillas() {
       p.fecha_creacion
     FROM SSOMA.INS_PLANTILLA_INSPECCION p
     WHERE p.estado = 1
+      AND p.id_plantilla_inspec <> 1   -- 👈 OCULTAR SSOMA-FOR-001
     ORDER BY p.codigo_formato;
   `;
   console.log("[plantillas.repo] listPlantillas:start");

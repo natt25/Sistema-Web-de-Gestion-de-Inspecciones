@@ -136,7 +136,7 @@ export default function InspeccionesList() {
       <Button variant="outline" onClick={() => load()} disabled={loading}>
         {loading ? "Cargando..." : "Refrescar"}
       </Button>
-      <Button variant="primary" onClick={() => navigate("/inspecciones/nueva")}>
+      <Button variant="primary" onClick={() => navigate("/inspecciones/plantillas")}>
         Nueva inspeccion
       </Button>
     </div>

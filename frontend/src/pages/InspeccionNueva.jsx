@@ -102,6 +102,12 @@ export default function InspeccionNueva() {
         setError("Plantilla invalida: falta ?plantilla=ID en la URL.");
         return;
       }
+       if (plantillaId === 1) {
+        setError("Plantilla no disponible.");
+        // opcional: redirigir automáticamente a plantillas
+        setTimeout(() => navigate("/inspecciones/plantillas", { replace: true }), 0);
+        return;
+      }
 
       setLoadingDef(true);
 

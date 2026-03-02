@@ -28,6 +28,8 @@ export default function PlantillasInspeccion() {
         const data = await listarPlantillas();
         if (!ok) return;
         const rowsData = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        const filtered = rowsData.filter(p => Number(p.id_plantilla_inspec) !== 1); 
+        setRows(filtered);
         setRows(rowsData);
       } catch (e) {
         if (!ok) return;
