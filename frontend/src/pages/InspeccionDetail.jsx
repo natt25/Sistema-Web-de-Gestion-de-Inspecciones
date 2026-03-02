@@ -40,42 +40,165 @@ function pick(obj, keys, fallback = "") {
 
 function RenderTablaExtintores({ respuestas }) {
   const rows = (respuestas || [])
-    .filter((r) => String(r.categoria).toUpperCase() === "TABLA_EXTINTORES" && r.row_data)
+    .filter((r) => String(r.categoria || "").toUpperCase() === "TABLA_EXTINTORES" && r.row_data)
     .map((r) => r.row_data)
-    .sort((a, b) => (a.rowIndex || a.row_index || 0) - (b.rowIndex || b.row_index || 0));
+    .sort((a, b) => (a.rowIndex || 0) - (b.rowIndex || 0));
 
-  if (!rows.length) return <div style={{ opacity: 0.7 }}>Sin registros en TABLA_EXTINTORES.</div>;
+  if (!rows.length) return <p style={{ opacity: 0.7 }}>Sin filas.</p>;
+
+  const REVISION_SECTIONS = [
+    {
+      titulo: "CILINDRO",
+      items: [
+        { key: "cil_pintura", label: "Pintura" },
+        { key: "cil_golpes", label: "Golpes" },
+        { key: "cil_autoadhesivo", label: "Autoadhesivo Fecha/Tipo" },
+      ],
+    },
+    {
+      titulo: "MANIJAS",
+      items: [
+        { key: "man_transporte", label: "Manija de transporte" },
+        { key: "man_disparo", label: "Manija de disparo" },
+      ],
+    },
+    {
+      titulo: "OTROS COMPONENTES",
+      items: [
+        { key: "comp_presion", label: "Presión" },
+        { key: "comp_manometro", label: "Manómetro" },
+        { key: "comp_boquilla", label: "Boquilla" },
+        { key: "comp_manguera", label: "Manguera" },
+        { key: "comp_ring", label: "Ring / Aro de seguridad" },
+        { key: "comp_corneta", label: "Corneta" },
+        { key: "comp_senializacion", label: "Señalización" },
+        { key: "comp_soporte", label: "Soporte colgar o ruedas" },
+      ],
+    },
+  ];
+
+  const badgeStyle = (v) => {
+    const s = String(v || "").toUpperCase();
+    const base = {
+      display: "inline-flex",
+      alignItems: "center",
+      padding: "2px 10px",
+      borderRadius: 999,
+      fontSize: 12,
+      border: "1px solid rgba(0,0,0,.08)",
+    };
+    if (s === "BUENO") return { ...base, background: "#ecffec", borderColor: "#b3ffb3" };
+    if (s === "MALO") return { ...base, background: "#ffecec", borderColor: "#ffb3b3" };
+    if (s === "NA") return { ...base, background: "#f3f4f6" };
+    return { ...base, background: "#fff7ed", borderColor: "rgba(255,106,0,.25)" };
+  };
 
   return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Código</th>
-            <th>Ubicación</th>
-            <th>Tipo</th>
-            <th>Capacidad</th>
-            <th>F. Prueba</th>
-            <th>F. Venc.</th>
-            <th>Obs.</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.rowIndex ?? r.row_index ?? i}>
-              <td>{pick(r, ["rowIndex", "row_index", "n", "numero"], i + 1)}</td>
-              <td>{pick(r, ["codigo", "cod", "code"])}</td>
-              <td>{pick(r, ["ubicacion", "ubic", "location"])}</td>
-              <td>{pick(r, ["tipo", "type"])}</td>
-              <td>{pick(r, ["capacidad", "cap", "kg"])}</td>
-              <td>{pick(r, ["fecha_prueba", "f_prueba", "fechaPrueba"])}</td>
-              <td>{pick(r, ["fecha_vencimiento", "f_venc", "fechaVencimiento"])}</td>
-              <td>{pick(r, ["observaciones", "obs", "observacion"])}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={{ display: "grid", gap: 12 }}>
+      {rows.map((r, i) => {
+        const rev = r.revision || {};
+        const estados = rev.estados || {};
+        const notas = rev.notas || {};
+        const acciones = rev.acciones || {};
+
+        return (
+          <div
+            key={r.rowIndex ?? i}
+            style={{ border: "1px solid #eee", borderRadius: 14, padding: 12, background: "#fff" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <b>Fila {r.rowIndex ?? i + 1}</b>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {r.codigo ? <span style={badgeStyle("NA")}>Código: {r.codigo}</span> : null}
+                {r.ubicacion ? <span style={badgeStyle("NA")}>Ubicación: {r.ubicacion}</span> : null}
+                {r.tipo ? <span style={badgeStyle("NA")}>Tipo: {r.tipo}</span> : null}
+              </div>
+            </div>
+
+            {/* Datos principales (TODO) */}
+            <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+              <div><b>Código:</b> {r.codigo || "-"}</div>
+              <div><b>Ubicación:</b> {r.ubicacion || "-"}</div>
+              <div><b>Tipo:</b> {r.tipo || "-"}</div>
+
+              {String(r.tipo || "").toUpperCase() === "PQS" ? (
+                <div><b>Clase PQS:</b> {r.pqs_clase || "-"}</div>
+              ) : null}
+
+              {String(r.tipo || "").toUpperCase() === "OTROS" ? (
+                <div><b>Descripción (OTROS):</b> {r.tipo_otro_desc || "-"}</div>
+              ) : null}
+
+              <div><b>Capacidad:</b> {r.capacidad || "-"}</div>
+              <div><b>Fecha prueba:</b> {r.fecha_prueba || "-"}</div>
+              <div><b>Fecha vencimiento:</b> {r.fecha_vencimiento || "-"}</div>
+
+              {r.observaciones ? (
+                <div><b>Observaciones generales:</b> {r.observaciones}</div>
+              ) : null}
+            </div>
+
+            {/* REVISIÓN ESTADO GENERAL (TODO + MALO => Obs + Plan) */}
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #eee" }}>
+              <b>REVISIÓN ESTADO GENERAL</b>
+
+              <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
+                {REVISION_SECTIONS.map((sec) => (
+                  <div key={sec.titulo}>
+                    <div style={{ fontWeight: 900, marginBottom: 8 }}>{sec.titulo}</div>
+
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {sec.items.map((it) => {
+                        const estado = estados[it.key] || "";
+                        const isMalo = String(estado).toUpperCase() === "MALO";
+                        const note = notas[it.key] || "";
+                        const act = acciones[it.key] || {};
+                        const quien =
+                          typeof act.quien === "string"
+                            ? act.quien
+                            : (act?.responsable?.nombre || "");
+
+                        return (
+                          <div
+                            key={it.key}
+                            style={{
+                              border: "1px solid #eee",
+                              borderRadius: 12,
+                              padding: 10,
+                              background: "#fafafa",
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                              <div><b>{it.label}</b></div>
+                              <span style={badgeStyle(estado)}>{estado ? String(estado).toUpperCase() : "SIN RESPONDER"}</span>
+                            </div>
+
+                            {isMalo ? (
+                              <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+                                  <b>Observación (obligatoria):</b>
+                                  <div style={{ marginTop: 6 }}>{note || "-"}</div>
+                                </div>
+
+                                <div style={{ padding: 10, borderRadius: 12, border: "1px solid rgba(255,106,0,.25)", background: "#fff7ed" }}>
+                                  <b>Plan de acción (obligatorio)</b>
+                                  <div style={{ marginTop: 6 }}><b>Qué:</b> {act.que || "-"}</div>
+                                  <div style={{ marginTop: 6 }}><b>Quién:</b> {quien || "-"}</div>
+                                  <div style={{ marginTop: 6 }}><b>Cuándo:</b> {act.cuando || "-"}</div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1233,7 +1356,10 @@ export default function InspeccionDetail() {
   const plantillaId = Number(cab?.id_plantilla_inspec ?? 0);
   const codigoFormato = String(cab?.codigo_formato || "").toUpperCase();
   const isFOR034 = codigoFormato.includes("AQP-SSOMA-FOR-034");
-  const hideObsUI = isFOR034 || [3, 4].includes(plantillaId);
+  const hideObsUI =
+  Number(data?.cabecera?.id_plantilla_inspec ?? 0) === 4 ||
+  String(cab?.codigo_formato || "").toUpperCase().includes("AQP-SSOMA-FOR-034") ||
+  String(definicion?.tipo || "").toLowerCase() === "tabla_extintores";
   const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
   const observaciones = data?.observaciones || [];
   const accionByItemRef = useMemo(() => {
@@ -1522,7 +1648,9 @@ export default function InspeccionDetail() {
               const list = respuestasPorCategoria.get(categoria) || [];
 
               // CASO ESPECIAL: TABLA_EXTINTORES
-              if (upper === "TABLA_EXTINTORES") {
+              const isTablaExtintores = String(categoria).toUpperCase() === "TABLA_EXTINTORES";
+              if (isTablaExtintores) {
+                const list = respuestasPorCategoria.get(categoria) || [];
                 return (
                   <div key={categoria}>
                     <h4 style={{ margin: "0 0 8px 0" }}>{categoria}</h4>
@@ -1530,7 +1658,6 @@ export default function InspeccionDetail() {
                   </div>
                 );
               }
-
               // CASO ESPECIAL: Observaciones/Acciones (tu lógica actual)
               const isObsAcc = upper === "OBSERVACIONES_ACCIONES";
               return (
