@@ -46,8 +46,11 @@ async function descargarExcelSeguridad(idInspeccion) {
 }
 
 function fileUrl(archivo_ruta) {
-  if (!archivo_ruta || archivo_ruta.startsWith("PENDING_UPLOAD/")) return null;
-  return `${API_BASE}/${archivo_ruta}`;
+  if (!archivo_ruta || String(archivo_ruta).startsWith("PENDING_UPLOAD/")) return null;
+
+  const base = String(API_BASE || "").replace(/\/+$/, "");
+  const path = String(archivo_ruta || "").replace(/^\/+/, "");
+  return `${base}/${path}`;
 }
 
 function fmtDate(value) {
@@ -208,23 +211,65 @@ function getItemNumber(itemId) {
   return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
 }
 
-function EvidenceGrid({ evidencias }) {
+function EvidenceGrid({ evidencias, onPreview }) {
+  const [blobUrlByKey, setBlobUrlByKey] = useState({});
+
+  useEffect(() => {
+    // cleanup de blobs al desmontar
+    return () => {
+      Object.values(blobUrlByKey).forEach((u) => {
+        try { if (u) URL.revokeObjectURL(u); } catch {}
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!evidencias || evidencias.length === 0) {
     return <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin evidencias.</p>;
+  }
+
+  async function ensureBlobUrl(key, url) {
+    if (!url) return null;
+    if (blobUrlByKey[key]) return blobUrlByKey[key];
+
+    // Intento 1: usar url directo
+    // (si falla por auth/CORS, caemos al fetch con token)
+    try {
+      // hacemos un HEAD liviano; si falla, caemos al fetch
+      await fetch(url, { method: "HEAD" });
+      setBlobUrlByKey((p) => ({ ...p, [key]: url }));
+      return url;
+    } catch {}
+
+    // Intento 2: fetch con Authorization -> blob
+    try {
+      const token = getToken();
+      const r = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("no ok");
+      const blob = await r.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      setBlobUrlByKey((p) => ({ ...p, [key]: blobUrl }));
+      return blobUrl;
+    } catch {
+      return null;
+    }
   }
 
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
       {evidencias.map((e) => {
-        const key = e.id_obs_evidencia ?? e.id_acc_evidencia ?? e.id ?? e.archivo_ruta;
+        const key = String(e.id_obs_evidencia ?? e.id_acc_evidencia ?? e.id ?? e.archivo_ruta);
         const url = fileUrl(e.archivo_ruta);
 
+        // pendientes offline
         if (!url) {
           return (
             <div
               key={key}
               style={{
-                width: 200,
+                width: 220,
                 border: "1px dashed #bbb",
                 borderRadius: 12,
                 padding: 10,
@@ -237,28 +282,40 @@ function EvidenceGrid({ evidencias }) {
           );
         }
 
+        const shownUrl = blobUrlByKey[key] || url;
+
         return (
-          <a
+          <button
             key={key}
-            href={url}
-            target="_blank"
-            rel="noreferrer"
+            type="button"
+            onClick={async () => {
+              const finalUrl = await ensureBlobUrl(key, url);
+              if (!finalUrl) return alert("No se pudo cargar la imagen.");
+              onPreview?.({ url: finalUrl, name: e.archivo_nombre || "Evidencia" });
+            }}
             style={{
-              width: 200,
-              textDecoration: "none",
-              color: "inherit",
+              width: 220,
+              textAlign: "left",
+              padding: 0,
               border: "1px solid #ddd",
-              borderRadius: 12,
+              borderRadius: 14,
               overflow: "hidden",
               background: "#fff",
+              cursor: "pointer",
             }}
           >
             <img
-              src={url}
+              src={shownUrl}
               alt={e.archivo_nombre || "evidencia"}
-              style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
-              onError={(ev) => {
-                ev.currentTarget.style.display = "none";
+              style={{
+                width: "100%",
+                height: 150,
+                objectFit: "contain",   // ✅ para que se vea completa en miniatura
+                background: "#f7f6f3",
+                display: "block",
+              }}
+              onError={() => {
+                // si no puede cargar directo, el click igual abrirá con fetch+token
               }}
             />
             <div style={{ padding: 10, display: "grid", gap: 4 }}>
@@ -268,7 +325,7 @@ function EvidenceGrid({ evidencias }) {
               <div style={{ fontSize: 11, opacity: 0.7 }}>{e.mime_type || "-"}</div>
               <div style={{ fontSize: 11, opacity: 0.7 }}>Capturada: {fmtDate(e.capturada_en)}</div>
             </div>
-          </a>
+          </button>
         );
       })}
     </div>
@@ -284,6 +341,16 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
     responsable_externo_nombre: "",
     responsable_externo_cargo: "",
   });
+
+    const [preview, setPreview] = useState({ open: false, url: "", name: "" });
+
+  function openPreview({ url, name }) {
+    setPreview({ open: true, url, name: name || "Evidencia" });
+  }
+  function closePreview() {
+    setPreview({ open: false, url: "", name: "" });
+  }
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -466,6 +533,8 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
+  const inputId = `file_${kind}_${idTarget}`;
+
   function onPickFiles(e) {
     const picked = Array.from(e.target.files || []);
     setFiles(picked);
@@ -530,12 +599,43 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
     }
   }
 
+  const blocked = disabled || saving || inspeccionCerrada;
+
   return (
-    <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 8, maxWidth: 520 }}>
+    <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 10, maxWidth: 520 }}>
       <b>Subir evidencias ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
 
-      <input type="file" accept="image/*" multiple onChange={onPickFiles} disabled={disabled || saving || inspeccionCerrada} />
+      {/* selector en columna */}
+      <div style={{ display: "grid", gap: 10, justifyItems: "start" }}>
+        {/* input real oculto */}
+        <input
+          id={`file_${kind}_${idTarget}`}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onPickFiles}
+          disabled={disabled || saving || inspeccionCerrada}
+          style={{ display: "none" }}
+        />
 
+        {/* botón con estilo del proyecto */}
+        <label htmlFor={`file_${kind}_${idTarget}`}>
+          <Button variant="outline" type="button" disabled={disabled || saving || inspeccionCerrada}>
+            Elegir archivos
+          </Button>
+        </label>
+
+        <div style={{ fontSize: 12, opacity: 0.75 }}>
+          {files.length ? `${files.length} seleccionado(s)` : "Ningún archivo seleccionado"}
+        </div>
+
+        {/* botón subir debajo y a la izquierda */}
+        <Button variant="primary" disabled={saving || disabled || inspeccionCerrada} type="submit">
+          {saving ? "Subiendo..." : `Subir${files.length ? ` (${files.length})` : ""}`}
+        </Button>
+      </div>
+
+      {/* previews seleccionados */}
       {files.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {files.map((f) => {
@@ -543,15 +643,15 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
             return (
               <div
                 key={f.name + f.size}
-                style={{ width: 110, border: "1px solid #ddd", borderRadius: 10, overflow: "hidden", background: "#fff" }}
+                style={{ width: 140, border: "1px solid #ddd", borderRadius: 14, overflow: "hidden", background: "#fff" }}
               >
                 <img
                   src={url}
                   alt={f.name}
-                  style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }}
+                  style={{ width: "100%", height: 110, objectFit: "contain", background: "#f7f6f3", display: "block" }}
                   onLoad={() => URL.revokeObjectURL(url)}
                 />
-                <div style={{ padding: 6, fontSize: 11, wordBreak: "break-all" }}>{f.name}</div>
+                <div style={{ padding: 8, fontSize: 11, wordBreak: "break-all" }}>{f.name}</div>
               </div>
             );
           })}
@@ -569,15 +669,18 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
           {ok}
         </div>
       )}
-
-      <button disabled={saving || disabled} type="submit">
-        {saving ? "Subiendo..." : `Subir ${files.length ? `(${files.length})` : ""}`}
-      </button>
     </form>
   );
 }
 
 export default function InspeccionDetail() {
+  const [preview, setPreview] = useState({ open: false, url: "", name: "" });
+  const openPreview = ({ url, name }) => {
+    setPreview({ open: true, url, name: name || "Evidencia" });
+  };
+  const closePreview = () => {
+    setPreview({ open: false, url: "", name: "" });
+  };
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -1324,7 +1427,11 @@ export default function InspeccionDetail() {
           <div style={{ display: "grid", gap: 12 }}>
             {categoriasOrdenadas.map((categoria) => (
               <div key={categoria}>
-                <h4 style={{ margin: "0 0 8px 0" }}>{categoria}</h4>
+                <h4 style={{ margin: "0 0 8px 0" }}>
+                  {String(categoria).toUpperCase() === "OBSERVACIONES_ACCIONES"
+                    ? "Observaciones y acciones correctivas"
+                    : categoria}
+                </h4>
                 <div style={{ display: "grid", gap: 8 }}>
                   {(respuestasPorCategoria.get(categoria) || []).map((r, idx) => {
                     const isObsAcc = String(categoria).toUpperCase() === "OBSERVACIONES_ACCIONES";
@@ -1342,7 +1449,8 @@ export default function InspeccionDetail() {
                           style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}
                         >
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <b>{itemRef}</b>
+                            <b>{`Observación ${idx + 1}`}</b>
+                            <Badge>{itemRef}</Badge>
                             <Badge>{String(row?.riesgo || r?.estado || "NA").toUpperCase()}</Badge>
                             {accionDb?.id_accion ? <Badge>Acc #{accionDb.id_accion}</Badge> : <Badge>Acc: -</Badge>}
                           </div>
@@ -1359,7 +1467,7 @@ export default function InspeccionDetail() {
                             <b>Evidencia de levantamiento (Acción)</b>
                             {accionDb?.id_accion ? (
                               <>
-                                <EvidenceGrid evidencias={evidLev} />
+                                <EvidenceGrid evidencias={evidLev} onPreview={openPreview} />
                                 <UploadEvidence
                                   kind="ACC"
                                   idTarget={accionDb.id_accion}
@@ -1548,7 +1656,7 @@ export default function InspeccionDetail() {
 
                             <div style={{ marginTop: 10 }}>
                               <b>Evidencias (Acc)</b>
-                              <EvidenceGrid evidencias={evidAcc} />
+                              <EvidenceGrid evidencias={evidAcc} onPreview={openPreview} />
                             </div>
 
                             <UploadEvidence
@@ -1656,7 +1764,7 @@ export default function InspeccionDetail() {
                   <>
                     <div style={{ marginTop: 10 }}>
                       <b>Evidencias (Obs)</b>
-                      <EvidenceGrid evidencias={o.evidencias} />
+                      <EvidenceGrid evidencias={o.evidencias} onPreview={openPreview} />
                     </div>
 
                     <UploadEvidence
@@ -1739,7 +1847,7 @@ export default function InspeccionDetail() {
 
                         <div style={{ marginTop: 10 }}>
                           <b>Evidencias (Acc)</b>
-                          <EvidenceGrid evidencias={a.evidencias} />
+                          <EvidenceGrid evidencias={a.evidencias} onPreview={openPreview} />
                         </div>
 
                         <UploadEvidence
@@ -1760,6 +1868,75 @@ export default function InspeccionDetail() {
       </Card>
       )}
       </div>
+            {preview.open && (
+        <div
+          onClick={closePreview}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.55)",
+            zIndex: 9999,
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(980px, 96vw)",
+              maxHeight: "92vh",
+              background: "#fff",
+              borderRadius: 18,
+              overflow: "hidden",
+              border: "1px solid rgba(255,106,0,.25)",
+              boxShadow: "0 18px 55px rgba(17,24,39,.25)",
+              display: "grid",
+            }}
+          >
+            <div
+              style={{
+                padding: 12,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10,
+                borderBottom: "1px solid rgba(0,0,0,.08)",
+              }}
+            >
+              <b style={{ fontSize: 13, wordBreak: "break-all" }}>{preview.name}</b>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button variant="outline" type="button" onClick={() => window.open(preview.url, "_blank", "noreferrer")}>
+                  Abrir
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={closePreview}
+                  className="btn btn-ghost"
+                  style={{ height: 36, padding: "0 12px" }}
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+
+            <div style={{ padding: 12, overflow: "auto" }}>
+              <img
+                src={preview.url}
+                alt={preview.name}
+                style={{
+                  width: "100%",
+                  maxHeight: "78vh",
+                  objectFit: "contain",   // ✅ completa, no recortada
+                  background: "#f7f6f3",
+                  borderRadius: 14,
+                  border: "1px solid rgba(0,0,0,.08)",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
