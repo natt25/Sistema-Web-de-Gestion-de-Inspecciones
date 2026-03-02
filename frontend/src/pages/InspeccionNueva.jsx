@@ -16,9 +16,11 @@ import useOnlineStatus from "../hooks/useOnlineStatus";
 import { addInspeccionToQueue } from "../utils/offlineQueue";
 import {
   deserializeTableRowsFromRespuestas,
+  deserializeTablaEppsRowsFromRespuestas,
   normalizePlantillaDef,
 } from "../utils/plantillaRenderer.js";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
+import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -32,11 +34,20 @@ function getApiErrorMessage(error) {
   return `[HTTP ${status ?? "NO_STATUS"}] ${endpoint} - ${msg}`;
 }
 
-function pickRendererType(def, plantillaId) {
-  const code = String(def?.codigo_formato || "").trim().toUpperCase();
-  if (plantillaId === 4 || code === "AQP-SSOMA-FOR-014") return "observaciones_seguridad";
-  if (plantillaId === 5 || code === "AQP-SSOMA-FOR-034") return "tabla_extintores";
-  return def?.tipo || "checklist";
+function pickRendererType(def) {
+  const code = String(def?.codigo_formato || def?.json?.codigo_formato || "")
+    .trim()
+    .toUpperCase();
+
+  // Primero: si el backend ya manda tipo, úsalo
+  if (def?.tipo) return def.tipo;
+
+  // Fallback por codigo_formato
+  if (code === "AQP-SSOMA-FOR-014") return "observaciones_seguridad";
+  if (code === "AQP-SSOMA-FOR-034") return "tabla_extintores";
+  if (code === "AQP-SSOMA-FOR-033") return "tabla_epps";
+
+  return "checklist";
 }
 
 const CABECERA_EMPTY = {
@@ -166,7 +177,7 @@ export default function InspeccionNueva() {
     };
   }, [navigate]);
 
-  const rendererType = pickRendererType(def, plantillaId);
+  const rendererType = pickRendererType(def);
   const hasChecklistItems = Boolean(def?.items?.length || def?.json?.secciones?.length);
   const isPlantilla45 = plantillaId === 4 || plantillaId === 5;
 
@@ -176,6 +187,10 @@ export default function InspeccionNueva() {
   );
   const initialExtintoresRows = useMemo(
     () => deserializeTableRowsFromRespuestas(def?.json?.respuestas, "tabla_extintores"),
+    [def]
+  );
+  const initialEppsRows = useMemo(
+    () => deserializeTablaEppsRowsFromRespuestas(def?.json?.respuestas),
     [def]
   );
 
@@ -331,6 +346,15 @@ export default function InspeccionNueva() {
       );
     }
 
+    if (rendererType === "tabla_epps") {
+      return (
+        <TablaEppsForm
+          initialRows={initialEppsRows}
+          onSubmit={handleSubmit}
+        />
+      );
+    }
+
     if (!hasChecklistItems) {
       const msg = isPlantilla45
         ? "Plantilla sin campos en BD (INS_PLANTILLA_CAMPO) o sin definicion de items."
@@ -346,6 +370,7 @@ export default function InspeccionNueva() {
     buscarEmpleadosForAutocomplete,
     handleSubmit,
     initialExtintoresRows,
+    initialEppsRows,
     hasChecklistItems,
     isPlantilla45,
   ]);

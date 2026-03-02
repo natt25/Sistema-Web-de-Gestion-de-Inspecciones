@@ -46,10 +46,25 @@ function normalizeChecklistSections(json) {
   return sections;
 }
 
-export function detectPlantillaTipo(json) {
+export function detectPlantillaTipo(json, rawPlantilla) {
   const raw = String(json?.tipo || "").trim().toLowerCase();
+
+  // tipos explícitos (cuando el JSON ya trae "tipo")
   if (raw === "observaciones_acciones") return "observaciones_acciones";
   if (raw === "tabla_extintores") return "tabla_extintores";
+  if (raw === "tabla_epps") return "tabla_epps";
+
+  // fallback por código formato (cuando el JSON NO trae "tipo")
+  const codigo = String(
+    rawPlantilla?.codigo_formato ||
+      json?.codigo_formato ||
+      json?.codigo ||
+      ""
+  ).toUpperCase();
+
+  if (codigo.includes("AQP-SSOMA-FOR-034")) return "tabla_extintores";
+  if (codigo.includes("AQP-SSOMA-FOR-033")) return "tabla_epps";
+
   return "checklist";
 }
 
@@ -57,7 +72,7 @@ export function normalizePlantillaDef(raw) {
   const jsonRaw = raw?.json ?? raw?.json_definicion ?? null;
   const parsedJson = tryParseJson(jsonRaw);
   const json = parsedJson && typeof parsedJson === "object" ? parsedJson : {};
-  const tipo = detectPlantillaTipo(json);
+  const tipo = detectPlantillaTipo(json, raw);
   const sections = tipo === "checklist" ? normalizeChecklistSections(json) : [];
   const items = sections.flatMap((sec) => sec.items);
 
@@ -95,6 +110,9 @@ export function deserializeTableRowsFromRespuestas(respuestas, tipo) {
       parsed.push(data);
     }
     if (tipo === "tabla_extintores" && data?.__tipo === "tabla_extintores") {
+      parsed.push(data);
+    }
+    if (tipo === "tabla_epps" && data?.__tipo === "tabla_epps") {
       parsed.push(data);
     }
   }
@@ -175,4 +193,59 @@ export function serializeTablaExtintoresRows(rows) {
       ...row,
     },
   }));
+}
+
+function normalizeEppsRow(row, idx) {
+  const epps = row?.epps && typeof row.epps === "object" ? row.epps : {};
+  const hasMalo = Object.values(epps).some((v) => String(v).toUpperCase() === "MALO");
+
+  const observaciones = hasMalo ? String(row?.observaciones || "").trim() : "";
+  const accion = hasMalo
+    ? {
+        que: String(row?.accion?.que || "").trim(),
+        quien: String(row?.accion?.quien || "").trim(),
+        cuando: String(row?.accion?.cuando || "").trim(),
+      }
+    : { que: "", quien: "", cuando: "" };
+
+  return {
+    __tipo: "tabla_epps",
+    rowIndex: row?.rowIndex ?? idx + 1,
+    apellidos_nombres: String(row?.apellidos_nombres || "").trim(),
+    puesto_trabajo: String(row?.puesto_trabajo || "").trim(),
+    epps,
+    observaciones,
+    accion,
+  };
+}
+
+export function serializeTablaEppsRows(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  return safeRows.map((row, idx) => {
+    const normalized = normalizeEppsRow(row, idx);
+    return {
+      id_campo: null,
+      item_ref: `row_${idx + 1}`,
+      categoria: "TABLA_EPPS",
+      descripcion:
+        normalized.apellidos_nombres ||
+        normalized.puesto_trabajo ||
+        `Fila ${idx + 1}`,
+      estado: null,
+      observacion: normalized.observaciones,
+      accion: normalized.accion,
+      row_data: normalized,
+    };
+  });
+}
+
+export function deserializeTablaEppsRowsFromRespuestas(respuestas) {
+  const list = Array.isArray(respuestas) ? respuestas : [];
+  return list
+    .filter((x) => {
+      const categoria = String(x?.categoria || "").toUpperCase();
+      const tipo = String(x?.row_data?.__tipo || "").toLowerCase();
+      return categoria === "TABLA_EPPS" || tipo === "tabla_epps";
+    })
+    .map((x, idx) => normalizeEppsRow(x?.row_data || {}, idx));
 }

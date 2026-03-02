@@ -65,13 +65,13 @@ function RenderTablaExtintores({ respuestas }) {
     {
       titulo: "OTROS COMPONENTES",
       items: [
-        { key: "comp_presion", label: "Presión" },
-        { key: "comp_manometro", label: "Manómetro" },
+        { key: "comp_presion", label: "Presion" },
+        { key: "comp_manometro", label: "Manometro" },
         { key: "comp_boquilla", label: "Boquilla" },
         { key: "comp_manguera", label: "Manguera" },
         { key: "comp_ring", label: "Ring / Aro de seguridad" },
         { key: "comp_corneta", label: "Corneta" },
-        { key: "comp_senializacion", label: "Señalización" },
+        { key: "comp_senializacion", label: "Senializacion" },
         { key: "comp_soporte", label: "Soporte colgar o ruedas" },
       ],
     },
@@ -109,16 +109,16 @@ function RenderTablaExtintores({ respuestas }) {
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <b>Fila {r.rowIndex ?? i + 1}</b>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {r.codigo ? <span style={badgeStyle("NA")}>Código: {r.codigo}</span> : null}
-                {r.ubicacion ? <span style={badgeStyle("NA")}>Ubicación: {r.ubicacion}</span> : null}
+                {r.codigo ? <span style={badgeStyle("NA")}>Codigo: {r.codigo}</span> : null}
+                {r.ubicacion ? <span style={badgeStyle("NA")}>Ubicacion: {r.ubicacion}</span> : null}
                 {r.tipo ? <span style={badgeStyle("NA")}>Tipo: {r.tipo}</span> : null}
               </div>
             </div>
 
             {/* Datos principales (TODO) */}
             <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-              <div><b>Código:</b> {r.codigo || "-"}</div>
-              <div><b>Ubicación:</b> {r.ubicacion || "-"}</div>
+              <div><b>Codigo:</b> {r.codigo || "-"}</div>
+              <div><b>Ubicacion:</b> {r.ubicacion || "-"}</div>
               <div><b>Tipo:</b> {r.tipo || "-"}</div>
 
               {String(r.tipo || "").toUpperCase() === "PQS" ? (
@@ -126,7 +126,7 @@ function RenderTablaExtintores({ respuestas }) {
               ) : null}
 
               {String(r.tipo || "").toUpperCase() === "OTROS" ? (
-                <div><b>Descripción (OTROS):</b> {r.tipo_otro_desc || "-"}</div>
+                <div><b>Descripcion (OTROS):</b> {r.tipo_otro_desc || "-"}</div>
               ) : null}
 
               <div><b>Capacidad:</b> {r.capacidad || "-"}</div>
@@ -138,9 +138,9 @@ function RenderTablaExtintores({ respuestas }) {
               ) : null}
             </div>
 
-            {/* REVISIÓN ESTADO GENERAL (TODO + MALO => Obs + Plan) */}
+            {/* REVISION ESTADO GENERAL (TODO + MALO => Obs + Plan) */}
             <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #eee" }}>
-              <b>REVISIÓN ESTADO GENERAL</b>
+              <b>REVISION ESTADO GENERAL</b>
 
               <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
                 {REVISION_SECTIONS.map((sec) => (
@@ -176,15 +176,15 @@ function RenderTablaExtintores({ respuestas }) {
                             {isMalo ? (
                               <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                                 <div style={{ padding: 10, borderRadius: 12, border: "1px solid #ffb3b3", background: "#ffecec" }}>
-                                  <b>Observación (obligatoria):</b>
+                                  <b>Observacion (obligatoria):</b>
                                   <div style={{ marginTop: 6 }}>{note || "-"}</div>
                                 </div>
 
                                 <div style={{ padding: 10, borderRadius: 12, border: "1px solid rgba(255,106,0,.25)", background: "#fff7ed" }}>
-                                  <b>Plan de acción (obligatorio)</b>
-                                  <div style={{ marginTop: 6 }}><b>Qué:</b> {act.que || "-"}</div>
-                                  <div style={{ marginTop: 6 }}><b>Quién:</b> {quien || "-"}</div>
-                                  <div style={{ marginTop: 6 }}><b>Cuándo:</b> {act.cuando || "-"}</div>
+                                  <b>Plan de accion (obligatorio)</b>
+                                  <div style={{ marginTop: 6 }}><b>Que:</b> {act.que || "-"}</div>
+                                  <div style={{ marginTop: 6 }}><b>Quien:</b> {quien || "-"}</div>
+                                  <div style={{ marginTop: 6 }}><b>Cuando:</b> {act.cuando || "-"}</div>
                                 </div>
                               </div>
                             ) : null}
@@ -199,6 +199,107 @@ function RenderTablaExtintores({ respuestas }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function RenderTablaEpps({ respuestas }) {
+  const rows = (respuestas || [])
+    .filter((r) => {
+      const categoria = String(r?.categoria || "").toUpperCase();
+      const tipo = String(r?.row_data?.__tipo || "").toLowerCase();
+      return categoria === "TABLA_EPPS" || tipo === "tabla_epps";
+    })
+    .map((r) => (r?.row_data && typeof r.row_data === "object" ? r.row_data : {}))
+    .sort((a, b) => Number(a?.rowIndex || 0) - Number(b?.rowIndex || 0));
+
+  if (!rows.length) return <p style={{ opacity: 0.7 }}>Sin filas.</p>;
+
+  const EPP_COLUMNS = [
+    ["casco", "CASCO"],
+    ["lentes_luna_clara", "LENTES LUNA CLARA"],
+    ["lentes_luna_oscura", "LENTES LUNA OSCURA"],
+    ["zapatos_seguridad", "ZAPATOS SEGURIDAD"],
+    ["chaleco_seguridad", "CHALECO SEGURIDAD"],
+    ["tapones_oido", "TAPONES OIDO"],
+    ["orejeras", "OREJERAS"],
+    ["guantes_anticorte", "GUANTES ANTICORTE"],
+    ["guantes_antiimpacto", "GUANTES ANTIIMPACTO"],
+    ["respirador_media_cara", "RESPIRADOR MEDIA CARA"],
+    ["filtros", "FILTROS"],
+    ["barbiquejo", "BARBIQUEJO"],
+    ["mascarilla_n95", "MASCARILLA N95"],
+    ["otros_1", "OTROS 1"],
+    ["otros_2", "OTROS 2"],
+  ];
+
+  const badgeStyle = (value) => {
+    const estado = String(value || "").toUpperCase();
+    const base = {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 72,
+      padding: "2px 8px",
+      borderRadius: 999,
+      fontSize: 12,
+      border: "1px solid rgba(0,0,0,.12)",
+      background: "#fff",
+    };
+    if (estado === "BUENO") return { ...base, background: "#ecffec", borderColor: "#b3ffb3" };
+    if (estado === "MALO") return { ...base, background: "#ffecec", borderColor: "#ffb3b3" };
+    if (estado === "NA") return { ...base, background: "#f3f4f6", borderColor: "#d1d5db" };
+    return { ...base, background: "#fff7ed", borderColor: "rgba(255,106,0,.25)" };
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div style={{ overflowX: "auto" }}>
+        <table className="table" style={{ minWidth: 1900 }}>
+          <thead>
+            <tr>
+              <th>N</th>
+              <th>Apellidos y Nombres</th>
+              <th>Puesto de Trabajo</th>
+              {EPP_COLUMNS.map(([, label]) => (
+                <th key={label}>{label}</th>
+              ))}
+              <th>Observaciones</th>
+              <th>Accion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              const epps = row?.epps && typeof row.epps === "object" ? row.epps : {};
+              const hasMalo = Object.values(epps).some((v) => String(v).toUpperCase() === "MALO");
+              const accion = row?.accion || {};
+
+              return (
+                <tr key={row?.rowIndex ?? idx + 1}>
+                  <td>{row?.rowIndex ?? idx + 1}</td>
+                  <td>{row?.apellidos_nombres || "-"}</td>
+                  <td>{row?.puesto_trabajo || "-"}</td>
+                  {EPP_COLUMNS.map(([key]) => (
+                    <td key={`${row?.rowIndex ?? idx + 1}-${key}`}>
+                      <span style={badgeStyle(epps[key])}>{String(epps[key] || "-").toUpperCase()}</span>
+                    </td>
+                  ))}
+                  <td>{hasMalo ? row?.observaciones || "-" : "-"}</td>
+                  <td>
+                    {hasMalo ? (
+                      <div style={{ display: "grid", gap: 4 }}>
+                        <span><b>Que:</b> {accion?.que || "-"}</span>
+                        <span><b>Quien:</b> {accion?.quien || "-"}</span>
+                        <span><b>Cuando:</b> {accion?.cuando || "-"}</span>
+                      </div>
+                    ) : "-"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1355,11 +1456,11 @@ export default function InspeccionDetail() {
   const cab = data?.cabecera;
   const plantillaId = Number(cab?.id_plantilla_inspec ?? 0);
   const codigoFormato = String(cab?.codigo_formato || "").toUpperCase();
-  const isFOR034 = codigoFormato.includes("AQP-SSOMA-FOR-034");
-  const hideObsUI =
-  Number(data?.cabecera?.id_plantilla_inspec ?? 0) === 4 ||
-  String(cab?.codigo_formato || "").toUpperCase().includes("AQP-SSOMA-FOR-034") ||
-  String(definicion?.tipo || "").toLowerCase() === "tabla_extintores";
+  const tipoDef = String(definicion?.tipo || "").toLowerCase();
+  const isFOR014 = codigoFormato.includes("AQP-SSOMA-FOR-014") || plantillaId === 4;
+  const isFOR033 = codigoFormato.includes("AQP-SSOMA-FOR-033") || tipoDef === "tabla_epps" || plantillaId === 3;
+  const isFOR034 = codigoFormato.includes("AQP-SSOMA-FOR-034") || tipoDef === "tabla_extintores";
+  const hideObsUI = isFOR033 || isFOR034 || [3, 4].includes(plantillaId);
   const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
   const observaciones = data?.observaciones || [];
   const accionByItemRef = useMemo(() => {
@@ -1658,7 +1759,19 @@ export default function InspeccionDetail() {
                   </div>
                 );
               }
-              // CASO ESPECIAL: Observaciones/Acciones (tu lógica actual)
+              // CASO ESPECIAL: Observaciones/Acciones (tu logica actual)
+              const isTablaEpps =
+                String(categoria).toUpperCase() === "TABLA_EPPS" ||
+                list.some((r) => String(r?.row_data?.__tipo || "").toLowerCase() === "tabla_epps");
+              if (isTablaEpps) {
+                const list = respuestasPorCategoria.get(categoria) || [];
+                return (
+                  <div key={categoria}>
+                    <h4 style={{ margin: "0 0 8px 0" }}>{categoria}</h4>
+                    <RenderTablaEpps respuestas={list} />
+                  </div>
+                );
+              }
               const isObsAcc = upper === "OBSERVACIONES_ACCIONES";
               return (
                 <div key={categoria}>
@@ -1681,7 +1794,7 @@ export default function InspeccionDetail() {
                         return (
                           <div key={`${itemRef || "row"}-${idx}`} className="obsacc-item">
                             <div className="obsacc-item-top">
-                              <b>{`Observación ${idx + 1}`}</b>
+                              <b>{`Observacion ${idx + 1}`}</b>
                               <Badge>{itemRef}</Badge>
                               {accionDb?.id_accion ? <Badge>Acc #{accionDb.id_accion}</Badge> : <Badge>Acc: -</Badge>}
                             </div>
@@ -1689,11 +1802,11 @@ export default function InspeccionDetail() {
                             <div className="obsacc-cards">
                               <section className="obsacc-card">
                                 <header className="obsacc-header">
-                                  <h5 className="obsacc-title">OBSERVACIÓN</h5>
+                                  <h5 className="obsacc-title">OBSERVACION</h5>
                                 </header>
 
                                 <div className="obsacc-section">
-                                  <div><b>Observación:</b> {row?.observacion || "-"}</div>
+                                  <div><b>Observacion:</b> {row?.observacion || "-"}</div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                     <b>Nivel de riesgo:</b>
                                     <Badge>{String(row?.riesgo || r?.estado || "NA").toUpperCase()}</Badge>
@@ -1701,24 +1814,24 @@ export default function InspeccionDetail() {
                                 </div>
 
                                 <div className="obsacc-section">
-                                  <b>Evidencias (Observación)</b>
+                                  <b>Evidencias (Observacion)</b>
                                   <EvidenceGrid evidencias={evidObs} onPreview={openPreview} />
                                 </div>
                               </section>
 
                               <section className="obsacc-card">
                                 <header className="obsacc-header">
-                                  <h5 className="obsacc-title">ACCIÓN CORRECTIVA</h5>
+                                  <h5 className="obsacc-title">ACCION CORRECTIVA</h5>
                                 </header>
 
                                 <div className="obsacc-section">
-                                  <div><b>Acción correctiva:</b> {row?.accion_correctiva || "-"}</div>
-                                  <div><b>Fecha ejecución:</b> {row?.fecha_ejecucion || "-"}</div>
+                                  <div><b>Accion correctiva:</b> {row?.accion_correctiva || "-"}</div>
+                                  <div><b>Fecha ejecucion:</b> {row?.fecha_ejecucion || "-"}</div>
                                   <div><b>Responsable:</b> {row?.responsable || row?.responsable_data?.nombre || "-"}</div>
                                 </div>
 
                                 <div className="obsacc-section">
-                                  <b>Evidencia de levantamiento (Acción)</b>
+                                  <b>Evidencia de levantamiento (Accion)</b>
                                   {accionDb?.id_accion ? (
                                     <>
                                       <EvidenceGrid
@@ -1738,7 +1851,7 @@ export default function InspeccionDetail() {
                                     </>
                                   ) : (
                                     <p style={{ margin: "6px 0", opacity: 0.7 }}>
-                                      No se encontró acción creada para {itemRef}.
+                                      No se encontro accion creada para {itemRef}.
                                     </p>
                                   )}
                                 </div>
@@ -1801,14 +1914,14 @@ export default function InspeccionDetail() {
 
                           {estado === "MALO" && (
                             <div style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid rgba(220,38,38,.25)", background: "rgba(220,38,38,.06)" }}>
-                              <div style={{ fontWeight: 900, color: "#b91c1c", marginBottom: 8 }}>Observación</div>
+                              <div style={{ fontWeight: 900, color: "#b91c1c", marginBottom: 8 }}>Observacion</div>
                               <div style={{ whiteSpace: "pre-wrap" }}>{obs || "-"}</div>
 
-                              <div style={{ marginTop: 10, fontWeight: 900, color: "#111" }}>Acción correctiva</div>
+                              <div style={{ marginTop: 10, fontWeight: 900, color: "#111" }}>Accion correctiva</div>
                               <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
-                                <div><b>Qué:</b> {accion?.que || "-"}</div>
-                                <div><b>Quién:</b> {accion?.quien || accion?.responsable?.nombre || "-"}</div>
-                                <div><b>Cuándo:</b> {accion?.cuando || "-"}</div>
+                                <div><b>Que:</b> {accion?.que || "-"}</div>
+                                <div><b>Quien:</b> {accion?.quien || accion?.responsable?.nombre || "-"}</div>
+                                <div><b>Cuando:</b> {accion?.cuando || "-"}</div>
                               </div>
                             </div>
                           )}

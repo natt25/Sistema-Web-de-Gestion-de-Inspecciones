@@ -33,7 +33,10 @@ async function listPlantillas() {
       p.estado,
       p.fecha_creacion
     FROM SSOMA.INS_PLANTILLA_INSPECCION p
-    WHERE p.estado = 1
+    WHERE (
+      TRY_CONVERT(INT, p.estado) = 1
+      OR UPPER(LTRIM(RTRIM(TRY_CONVERT(NVARCHAR(30), p.estado)))) IN (N'ACTIVO', N'HABILITADO')
+    )
       AND p.id_plantilla_inspec <> 1   -- 👈 OCULTAR SSOMA-FOR-001
     ORDER BY p.codigo_formato;
   `;
