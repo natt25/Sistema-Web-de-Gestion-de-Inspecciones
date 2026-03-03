@@ -1067,6 +1067,7 @@ function detectTipoPlantilla({ cabecera, definicion, respuestas }) {
   if (code.includes("FOR034")) return "tabla_extintores";
   if (code.includes("FOR035")) return "tabla_kit_antiderrames";
   if (code.includes("FOR036")) return "tabla_lavaojos";
+  if (code.includes("FOR037")) return "tabla_epps_caliente";
 
   const list = Array.isArray(respuestas) ? respuestas : [];
   if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_EPPS" || String(r?.row_data?.__tipo || "").toLowerCase() === "tabla_epps")) return "tabla_epps";

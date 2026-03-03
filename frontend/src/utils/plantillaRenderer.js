@@ -380,7 +380,7 @@ export function serializeTablaEppsCalienteRows(rows = []) {
     item_ref: `row_${idx + 1}`,
     row_data: {
       __tipo: "tabla_epps_caliente",
-      rowIndex: idx,
+      rowIndex: idx + 1,
       ...row,
     },
   }));
@@ -402,5 +402,10 @@ export function deserializeTablaEppsCalienteRowsFromRespuestas(respuestas = []) 
     .sort((a, b) => (a.rowIndex ?? 0) - (b.rowIndex ?? 0));
 
   // limpiamos helpers internos
-  return rows.map(({ __tipo, rowIndex, ...rest }) => rest);
+  return rows.map((row) => {
+    const rest = { ...(row || {}) };
+    delete rest.__tipo;
+    delete rest.rowIndex;
+    return rest;
+  });
 }

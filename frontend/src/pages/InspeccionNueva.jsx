@@ -19,7 +19,8 @@ import {
   deserializeTablaEppsRowsFromRespuestas,
   normalizePlantillaDef,
   deserializeTablaKitAntiderramesFromRespuestas,
-  deserializeTablaLavaojosFromRespuestas
+  deserializeTablaLavaojosFromRespuestas,
+  deserializeTablaEppsCalienteRowsFromRespuestas,
 } from "../utils/plantillaRenderer.js";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
 import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
@@ -54,6 +55,7 @@ function pickRendererType(def) {
   if (code === "AQP-SSOMA-FOR-033") return "tabla_epps";
   if (code === "AQP-SSOMA-FOR-035") return "tabla_kit_antiderrames";
   if (code === "AQP-SSOMA-FOR-036") return "tabla_lavaojos";
+  if (code === "AQP-SSOMA-FOR-037") return "tabla_epps_caliente";
 
   return "checklist";
 }
@@ -101,6 +103,7 @@ export default function InspeccionNueva() {
 
   const [cabecera, setCabecera] = useState(CABECERA_EMPTY);
   const [uiNotice, setUiNotice] = useState("");
+  const [tablaRows, setTablaRows] = useState([]);
   const initialKit = useMemo(
     () => deserializeTablaKitAntiderramesFromRespuestas(def?.json?.respuestas || []),
     [def]
@@ -201,6 +204,14 @@ export default function InspeccionNueva() {
     () => deserializeTablaLavaojosFromRespuestas(def?.json?.respuestas),
     [def]
   );
+  const initialEppsCalienteRows = useMemo(
+    () => deserializeTablaEppsCalienteRowsFromRespuestas(def?.json?.respuestas || []),
+    [def]
+  );
+
+  useEffect(() => {
+    setTablaRows(initialEppsCalienteRows);
+  }, [initialEppsCalienteRows, plantillaId]);
   const buscarEmpleadosForAutocomplete = useCallback(async (text) => {
     try {
       const rows = await buscarEmpleados(String(text || "").trim());
@@ -383,13 +394,13 @@ export default function InspeccionNueva() {
       );
     }
 
-    if (definicion.tipo === "tabla_epps_caliente") {
+    if (rendererType === "tabla_epps_caliente") {
       return (
         <TablaEppsCalienteForm
-          definicion={definicion}
+          definicion={def?.json || def}
           value={tablaRows}
           onChange={setTablaRows}
-          participantes={participantes}
+          onSubmit={handleSubmit}
         />
       );
     }
@@ -412,6 +423,7 @@ export default function InspeccionNueva() {
     initialKit,
     cabecera,
     initialLavaojos,
+    tablaRows,
   ]);
 
   return (
