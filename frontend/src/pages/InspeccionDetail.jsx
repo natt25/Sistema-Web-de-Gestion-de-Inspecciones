@@ -65,13 +65,13 @@ function RenderTablaExtintores({ respuestas }) {
     {
       titulo: "OTROS COMPONENTES",
       items: [
-        { key: "comp_presion", label: "Presion" },
-        { key: "comp_manometro", label: "Manometro" },
+        { key: "comp_presion", label: "Presión" },
+        { key: "comp_manometro", label: "Manómetro" },
         { key: "comp_boquilla", label: "Boquilla" },
         { key: "comp_manguera", label: "Manguera" },
         { key: "comp_ring", label: "Ring / Aro de seguridad" },
         { key: "comp_corneta", label: "Corneta" },
-        { key: "comp_senializacion", label: "Senializacion" },
+        { key: "comp_senializacion", label: "Señalización" },
         { key: "comp_soporte", label: "Soporte colgar o ruedas" },
       ],
     },
