@@ -40,7 +40,8 @@ export default function PlantillasInspeccion() {
           const estadoTxt = String(p?.estado ?? "").trim().toUpperCase();
           return estadoNum === 1 || estadoTxt === "ACTIVO" || estadoTxt === "HABILITADO";
         });
-        setRows(onlyActive);
+        const withoutPlantilla1 = onlyActive.filter(p => Number(p?.id_plantilla_inspec) !== 1);
+        setRows(withoutPlantilla1);
       } catch (e) {
         if (!ok) return;
         const status = e?.response?.status;

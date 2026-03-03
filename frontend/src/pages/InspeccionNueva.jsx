@@ -104,6 +104,12 @@ export default function InspeccionNueva() {
   const [tablaRows, setTablaRows] = useState([]);
 
   useEffect(() => {
+    if (plantillaId === 1) {
+      navigate("/inspecciones/plantillas", { replace: true });
+    }
+  }, [plantillaId, navigate]);
+
+  useEffect(() => {
     setCabecera(CABECERA_EMPTY);
     setUiNotice("");
     setError("");

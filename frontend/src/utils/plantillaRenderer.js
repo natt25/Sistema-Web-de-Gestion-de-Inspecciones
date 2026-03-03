@@ -293,7 +293,7 @@ export function deserializeTablaKitAntiderramesFromRespuestas(respuestas = []) {
 
   for (const r of ours) {
     const rd = r?.row_data;
-    const rowData = typeof rd === "string" ? safeJsonParse(rd) : rd;
+    const rowData = typeof rd === "string" ? safeJsonParse2(rd) : rd;
 
     if (rowData?.__tipo === "tabla_kit_antiderrames_meta") meta = rowData?.meta || null;
     if (rowData?.__tipo === "tabla_kit_antiderrames_row") rows.push(rowData);
@@ -303,77 +303,8 @@ export function deserializeTablaKitAntiderramesFromRespuestas(respuestas = []) {
   return { meta, rows };
 }
 
-function safeJsonParse(s) {
+function safeJsonParse2(s) {
   try { return JSON.parse(s); } catch { return null; }
-}
-
-// =========================
-// FOR-036 - Tabla Lavaojos
-// =========================
-
-export function serializeTablaLavaojosPayload(model) {
-  // Devuelve el payload de respuestas normalizadas que tu backend ya guarda
-  // (mismo patrón que tabla_extintores: categoria + item_ref + row_data)
-  const respuestas = [];
-
-  // 1) META (cabecera interna de la tarjeta semanal)
-  respuestas.push({
-    categoria: "LAVAOJOS_META",
-    item_ref: "meta",
-    row_data: {
-      __tipo: "tabla_lavaojos_meta",
-      codigo_lavaojos: model?.meta?.codigo_lavaojos ?? "",
-      responsable_proceso: model?.meta?.responsable_proceso ?? "",
-      dias: model?.meta?.dias ?? {},
-    },
-  });
-
-  // 2) ITEMS (cada item tiene los 7 días)
-  (model?.items || []).forEach((it, idx) => {
-    respuestas.push({
-      categoria: "LAVAOJOS_ITEM",
-      item_ref: `item_${idx + 1}`,
-      row_data: {
-        __tipo: "tabla_lavaojos_item",
-        item_id: it.item_id,
-        descripcion: it.descripcion,
-        dias: it.dias,
-      },
-    });
-  });
-
-  return { respuestas };
-}
-
-export function deserializeTablaLavaojosFromRespuestas(respuestas) {
-  const rows = Array.isArray(respuestas) ? respuestas : [];
-
-  const metaRow = rows.find((r) => r?.categoria === "LAVAOJOS_META");
-  const meta = metaRow?.row_data && typeof metaRow.row_data === "string"
-    ? tryParseJson(metaRow.row_data)
-    : (metaRow?.row_data || null);
-
-  const itemsRows = rows.filter((r) => r?.categoria === "LAVAOJOS_ITEM");
-
-  const items = itemsRows.map((r) => {
-    const rd = r?.row_data && typeof r.row_data === "string" ? tryParseJson(r.row_data) : r?.row_data;
-    return {
-      item_id: rd?.item_id,
-      descripcion: rd?.descripcion,
-      dias: rd?.dias || {},
-    };
-  });
-
-  return {
-    meta: meta
-      ? {
-          codigo_lavaojos: meta.codigo_lavaojos || "",
-          responsable_proceso: meta.responsable_proceso || "",
-          dias: meta.dias || {},
-        }
-      : null,
-    items,
-  };
 }
 
 export function serializeTablaEppsCalienteRows(rows = []) {
@@ -436,4 +367,70 @@ export function deserializeTablaBotiquinFromRespuestas(respuestas = []) {
   if (!row?.row_data) return null;
   if (typeof row.row_data === "string") return tryParseJson(row.row_data);
   return row.row_data;
+}
+
+// =========================
+// FOR-036 - Tabla Lavaojos 
+// =========================
+export function serializeTablaLavaojos({ meta, rows }) {
+  const out = [];
+
+  // meta por días (fecha/realizado/firma)
+  out.push({
+    categoria: "TABLA_LAVAOJOS",
+    item_ref: "meta",
+    valor: null,
+    row_data: { __tipo: "tabla_lavaojos_meta", meta },
+  });
+
+  // filas items
+  (rows || []).forEach((r, i) => {
+    out.push({
+      categoria: "TABLA_LAVAOJOS",
+      item_ref: r.item_ref || `i${i + 1}`,
+      valor: null,
+      row_data: {
+        __tipo: "tabla_lavaojos_row",
+        rowIndex: i + 1,
+        item_ref: r.item_ref || `i${i + 1}`,
+        descripcion: r.descripcion || "",
+        checks: r.checks || {},
+        __locked: !!r.__locked,
+      },
+    });
+  });
+
+  return out;
+}
+
+export function deserializeTablaLavaojosFromRespuestas(respuestas = []) {
+  const list = Array.isArray(respuestas) ? respuestas : [];
+  const ours = list.filter((r) => String(r?.categoria || "").toUpperCase() === "TABLA_LAVAOJOS");
+
+  let meta = null;
+  const rows = [];
+
+  for (const r of ours) {
+    const rd = r?.row_data;
+    const rowData = typeof rd === "string" ? safeJsonParse(rd) : rd;
+
+    if (rowData?.__tipo === "tabla_lavaojos_meta") meta = rowData?.meta || null;
+
+    if (rowData?.__tipo === "tabla_lavaojos_row") {
+      rows.push({
+        rowIndex: rowData?.rowIndex,
+        item_ref: rowData?.item_ref || r?.item_ref,
+        descripcion: rowData?.descripcion || "",
+        checks: rowData?.checks || {},
+        __locked: !!rowData?.__locked,
+      });
+    }
+  }
+
+  rows.sort((a, b) => Number(a.rowIndex || 0) - Number(b.rowIndex || 0));
+  return { meta, rows };
+}
+
+function safeJsonParse(s) {
+  try { return JSON.parse(s); } catch { return null; }
 }
