@@ -1,381 +1,411 @@
-// frontend/src/components/forms/TablaBotiquinForm.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Card from "../ui/Card.jsx";
 import Button from "../ui/Button.jsx";
 import Badge from "../ui/Badge.jsx";
-import Input from "../ui/Input.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
-import { buscarEmpleados } from "../../api/busquedas.api.js";
-import { serializeTablaBotiquin } from "../../utils/plantillaRenderer.js";
 
-const MESES = [
-  { key: "ENE", label: "Enero" },
-  { key: "FEB", label: "Febrero" },
-  { key: "MAR", label: "Marzo" },
-  { key: "ABR", label: "Abril" },
-  { key: "MAY", label: "Mayo" },
-  { key: "JUN", label: "Junio" },
-  { key: "JUL", label: "Julio" },
-  { key: "AGO", label: "Agosto" },
-  { key: "SEP", label: "Septiembre" },
-  { key: "OCT", label: "Octubre" },
-  { key: "NOV", label: "Noviembre" },
-  { key: "DIC", label: "Diciembre" },
+const DAYS = [
+  { key: "LUNES", label: "Lunes" },
+  { key: "MARTES", label: "Martes" },
+  { key: "MIERCOLES", label: "Miercoles" },
+  { key: "JUEVES", label: "Jueves" },
+  { key: "VIERNES", label: "Viernes" },
+  { key: "SABADO", label: "Sabado" },
+  { key: "DOMINGO", label: "Domingo" },
 ];
 
 const ESTADOS = ["", "BUENO", "MALO", "NA"];
 
 const DEFAULT_ITEMS = [
-  { descripcion: "Guantes Quirúrgicos / Nitrilo", cant: "1", unidad: "Par" },
-  { descripcion: "Yodopovidona (….. ml)", cant: "1", unidad: "Uni" },
-  { descripcion: "Agua Oxigenada (….. ml)", cant: "1", unidad: "Uni" },
-  { descripcion: "Alcohol (….. ml)", cant: "1", unidad: "Uni" },
-  { descripcion: "Apósitos Esterilizados", cant: "1", unidad: "Uni" },
-  { descripcion: "Gasas Esterilizadas ….. x ….. cm", cant: "1", unidad: "Uni" },
-  { descripcion: "Esparadrapos ….. cm x ….. cm", cant: "1", unidad: "Uni" },
-  { descripcion: "Vendas Elásticas ….. pulg x ….. yardas", cant: "1", unidad: "Uni" },
-  { descripcion: "Algodón ….. gramos", cant: "1", unidad: "Uni" },
-  { descripcion: "Vendas Triangulares", cant: "1", unidad: "Uni" },
-  { descripcion: "Paleta Baja Lengua (Entablillado de Dedos)", cant: "1", unidad: "Uni" },
-  { descripcion: "Tijera Punta Roma", cant: "1", unidad: "Uni" },
-  { descripcion: "Pinza", cant: "1", unidad: "Uni" },
-  { descripcion: "Bandas Adhesivas", cant: "1", unidad: "Uni" },
-  { descripcion: "Gel Antibacterial (….. ml)", cant: "1", unidad: "Uni" },
-  { descripcion: "Gasa Tipo Jalonet", cant: "1", unidad: "Uni" },
-  { descripcion: "Colirio (….. ml)", cant: "1", unidad: "Uni" },
-  { descripcion: "Guía de Primero Auxilios", cant: "1", unidad: "Uni" },
-  { descripcion: "Estuche / Gabinete", cant: "1", unidad: "Uni" },
+  "Camilla",
+  "Botiquin completo",
+  "Acceso libre",
+  "Senaletica",
 ];
 
-// helper arriba del componente ✅ (AQUÍ va)
-const getFirmaUrl = (emp) => {
+function getFirmaUrl(emp) {
   if (!emp) return null;
   if (emp.firma_url) return emp.firma_url;
-  if (emp.id_usuario)
-    return `${import.meta.env.VITE_API_URL}/api/usuarios/${emp.id_usuario}/firma`;
+  if (emp.firma_ruta) {
+    const base = String(import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+    return `${base}/${String(emp.firma_ruta).replace(/^\/+/, "")}`;
+  }
+  if (emp.id_usuario) {
+    const base = String(import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+    return `${base}/api/usuarios/${emp.id_usuario}/firma`;
+  }
   return null;
-};
-
-function emptyAccion() {
-  return { que: "", quien: null, cuando: "" };
 }
 
-function makeRow(i, base) {
-  const idx = String(i + 1).padStart(2, "0");
+function emptyCell() {
   return {
-    item_ref: `i${idx}`,
-    descripcion: base?.descripcion || "",
-    cant: base?.cant || "",
-    unidad: base?.unidad || "",
     estado: "",
     observacion: "",
-    accion: emptyAccion(),
+    accion: { que: "", quien: null, cuando: "" },
   };
 }
 
-/**
- * Props esperadas (compatibles con tu arquitectura):
- * - definicion: definición normalizada (trae tipo/codigo_formato)
- * - participantes: { inspectores: [] } (si lo tienes)
- * - value: estado actual del form (opcional)
- * - onChange: callback(value)
- * - onSubmit: callback({ respuestas })
- */
-export default function TablaBotiquinForm({ definicion, participantes, value, onChange, onSubmit }) {
-  const inspectores = participantes?.inspectores || [];
+function buildInitial(initial) {
+  const items = Array.isArray(initial?.items) && initial.items.length
+    ? initial.items
+    : DEFAULT_ITEMS.map((desc) => ({ desc }));
 
-  const [mes, setMes] = useState(value?.mes || "ENE");
-  const [fecha, setFecha] = useState(value?.fecha || "");
-  const [realizadoPor, setRealizadoPor] = useState(value?.realizadoPor || null);
-
-  const [codigoBotiquin, setCodigoBotiquin] = useState(value?.codigoBotiquin || "");
-  const [rows, setRows] = useState(() => {
-    if (Array.isArray(value?.rows) && value.rows.length) return value.rows;
-    return DEFAULT_ITEMS.map((it, i) => makeRow(i, it));
-  });
-
-  // búsqueda empleados (para "Realizado por" y fallback de "Quién")
-  const [qEmp, setQEmp] = useState("");
-  const [empOptions, setEmpOptions] = useState([]);
-  const handleGuardar = () => {
-    const payload = {
-        respuestas: serializeTablaBotiquin({
-        mes, fecha, realizadoPor, firmaUrl, codigoBotiquin, rows, definicion
-        }),
+  const days = {};
+  for (const d of DAYS) {
+    const src = initial?.days?.[d.key] || {};
+    const srcItems = Array.isArray(src?.items) ? src.items : [];
+    const cellItems = items.map((_, i) => srcItems[i] || emptyCell());
+    days[d.key] = {
+      fecha: src?.fecha || "",
+      realizado_por: src?.realizado_por || null,
+      items: cellItems,
     };
+  }
+  return { items, days };
+}
 
-    onSubmit?.(payload);
-    };
+function empleadoLabel(opt) {
+  if (!opt) return "";
+  if (typeof opt === "string") return opt;
+  return `${opt?.dni ?? ""} - ${opt?.apellido ?? ""} ${opt?.nombre ?? ""}`.trim();
+}
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!qEmp || qEmp.trim().length < 2) return setEmpOptions([]);
-      try {
-        const r = await buscarEmpleados(qEmp.trim());
-        if (alive) setEmpOptions(Array.isArray(r) ? r : []);
-      } catch {
-        if (alive) setEmpOptions([]);
+function filterInspectores(inspectores, query) {
+  const q = String(query || "").toLowerCase().trim();
+  const list = Array.isArray(inspectores) ? inspectores : [];
+  if (!q) return list.slice(0, 20);
+  return list
+    .filter((x) => {
+      const dni = String(x?.dni ?? "").toLowerCase();
+      const ap = String(x?.apellido ?? x?.apellidos ?? "").toLowerCase();
+      const no = String(x?.nombre ?? x?.nombres ?? "").toLowerCase();
+      const full = `${ap} ${no}`.trim();
+      return dni.includes(q) || ap.includes(q) || no.includes(q) || full.includes(q);
+    })
+    .slice(0, 20);
+}
+
+export default function TablaBotiquinForm({
+  definicion,
+  initial,
+  inspectores = [],
+  buscarEmpleados,
+  onSubmit,
+}) {
+  const seed = useMemo(() => buildInitial(initial), [initial]);
+  const [items, setItems] = useState(seed.items);
+  const [days, setDays] = useState(seed.days);
+  const [searchMap, setSearchMap] = useState({});
+  const [errors, setErrors] = useState({});
+
+  const setItemDesc = (idx, value) => {
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, desc: value } : it)));
+  };
+
+  const setDayMeta = (dayKey, patch) => {
+    setDays((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], ...patch } }));
+  };
+
+  const setCell = (dayKey, itemIdx, patch) => {
+    setDays((prev) => {
+      const day = prev[dayKey];
+      const nextItems = day.items.map((cell, i) => (i === itemIdx ? { ...cell, ...patch } : cell));
+      return { ...prev, [dayKey]: { ...day, items: nextItems } };
+    });
+  };
+
+  const addRow = () => {
+    setItems((prev) => [...prev, { desc: "" }]);
+    setDays((prev) => {
+      const next = { ...prev };
+      for (const d of DAYS) {
+        next[d.key] = {
+          ...next[d.key],
+          items: [...next[d.key].items, emptyCell()],
+        };
       }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [qEmp]);
-
-  const firmaUrl = useMemo(() => getFirmaUrl(realizadoPor), [realizadoPor]);
-
-  function updateRow(index, patch) {
-    setRows((prev) => {
-      const next = [...prev];
-      const cur = next[index];
-      next[index] = { ...cur, ...patch };
       return next;
     });
-  }
+  };
 
-  function updateAccion(index, patch) {
-    setRows((prev) => {
-      const next = [...prev];
-      const cur = next[index];
-      next[index] = { ...cur, accion: { ...(cur.accion || emptyAccion()), ...patch } };
-      return next;
-    });
-  }
-
-  function addRow() {
-    setRows((prev) => {
-      const i = prev.length;
-      return [...prev, makeRow(i, { descripcion: "", cant: "", unidad: "" })];
-    });
-  }
-
-  // Validación UX simple: si MALO => obs + acción obligatorios
-  const errores = useMemo(() => {
-    const errs = {};
-    rows.forEach((r) => {
-      if (String(r.estado).toUpperCase() === "MALO") {
-        const k = r.item_ref;
-        const faltaObs = !String(r.observacion || "").trim();
-        const faltaQue = !String(r.accion?.que || "").trim();
-        const faltaQuien = !r.accion?.quien;
-        const faltaCuando = !String(r.accion?.cuando || "").trim();
-        if (faltaObs || faltaQue || faltaQuien || faltaCuando) {
-          errs[k] = {
-            observacion: faltaObs,
-            que: faltaQue,
-            quien: faltaQuien,
-            cuando: faltaCuando,
-          };
-        }
+  const validate = () => {
+    const nextErrors = {};
+    for (const d of DAYS) {
+      const row = days[d.key];
+      for (let i = 0; i < row.items.length; i += 1) {
+        const c = row.items[i];
+        if (String(c?.estado || "").toUpperCase() !== "MALO") continue;
+        if (!String(c?.observacion || "").trim()) nextErrors[`obs:${d.key}:${i}`] = "Observacion obligatoria";
+        if (!String(c?.accion?.que || "").trim()) nextErrors[`que:${d.key}:${i}`] = "Que obligatorio";
+        const quienText = typeof c?.accion?.quien === "string"
+          ? c.accion.quien
+          : `${c?.accion?.quien?.dni || ""} ${c?.accion?.quien?.apellido || ""} ${c?.accion?.quien?.nombre || ""}`.trim();
+        if (!String(quienText || "").trim()) nextErrors[`quien:${d.key}:${i}`] = "Quien obligatorio";
+        if (!String(c?.accion?.cuando || "").trim()) nextErrors[`cuando:${d.key}:${i}`] = "Cuando obligatorio";
       }
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const getOptions = (fieldKey) => {
+    const q = searchMap[fieldKey] || "";
+    if (fieldKey.startsWith("quien:")) return filterInspectores(inspectores, q);
+    if (typeof buscarEmpleados === "function" && q.trim().length >= 2) return [];
+    return filterInspectores(inspectores, q);
+  };
+
+  const handleGuardar = async () => {
+    if (!validate()) return;
+    const data = {
+      __tipo: "tabla_botiquin",
+      codigo_formato: definicion?.codigo_formato || "AQP-SSOMA-FOR-038",
+      items,
+      days,
+    };
+    await onSubmit?.({
+      __tipo: "tabla_botiquin",
+      data,
     });
-    return errs;
-  }, [rows]);
-
-  // Emitir value al padre
-  useEffect(() => {
-    const v = { mes, fecha, realizadoPor, codigoBotiquin, rows };
-    onChange?.(v);
-  }, [mes, fecha, realizadoPor, codigoBotiquin, rows, onChange]);
-
-  const quienOptions = inspectores.length ? inspectores : empOptions;
+  };
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <Card title="Inspección de Botiquín (FOR-038)">
-        <div style={{ display: "grid", gap: 10 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label>
-              Mes
-              <select
-                value={mes}
-                onChange={(e) => setMes(e.target.value)}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid rgba(0,0,0,.15)" }}
-              >
-                {MESES.map((m) => (
-                  <option key={m.key} value={m.key}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Fecha
-              <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-            </label>
-          </div>
-
-          <label>
-            Código de Botiquín
-            <Input value={codigoBotiquin} onChange={(e) => setCodigoBotiquin(e.target.value)} placeholder="Ej: BOT-001" />
-          </label>
-
-          <label>
-            Realizado por
-            <Autocomplete
-              value={realizadoPor}
-              onChange={setRealizadoPor}
-              onSearch={setQEmp}
-              options={empOptions}
-              placeholder="DNI / Apellido / Nombre"
-              getOptionLabel={(o) => o?.nombre || o?.nombres || o?.apellidos || o?.label || ""}
-            />
-          </label>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ fontWeight: 600, opacity: 0.8 }}>Firma:</div>
-            {firmaUrl ? (
-              <img
-                src={firmaUrl}
-                alt="firma"
-                style={{ height: 56, borderRadius: 10, border: "1px solid rgba(0,0,0,.12)", background: "#fff" }}
-              />
-            ) : (
-              <span style={{ opacity: 0.65 }}>Sin firma registrada</span>
-            )}
-          </div>
+    <Card title="FOR-038 | Inspeccion de Botiquin y Camilla">
+      <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Button onClick={addRow}>Agregar fila</Button>
+          <Button variant="outline" onClick={handleGuardar}>Guardar inspeccion</Button>
         </div>
-      </Card>
 
-      <Card title="Items del botiquín">
-        <div style={{ display: "grid", gap: 10 }}>
-          {rows.map((r, idx) => {
-            const isMalo = String(r.estado).toUpperCase() === "MALO";
-            const err = errores[r.item_ref];
-
-            return (
-              <div
-                key={r.item_ref}
-                style={{
-                  border: "1px solid rgba(0,0,0,.10)",
-                  borderRadius: 14,
-                  padding: 12,
-                  display: "grid",
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 90px 90px 140px", gap: 10, alignItems: "end" }}>
-                  <div style={{ fontWeight: 700, opacity: 0.7 }}>{idx + 1}</div>
-
-                  <label>
-                    Descripción
-                    <Input value={r.descripcion} onChange={(e) => updateRow(idx, { descripcion: e.target.value })} />
-                  </label>
-
-                  <label>
-                    Cant.
-                    <Input value={r.cant} onChange={(e) => updateRow(idx, { cant: e.target.value })} />
-                  </label>
-
-                  <label>
-                    Unidad
-                    <Input value={r.unidad} onChange={(e) => updateRow(idx, { unidad: e.target.value })} />
-                  </label>
-
-                  <label>
-                    Estado{" "}
-                    {r.estado && (
-                      <Badge>
-                        {r.estado === "BUENO" ? "✓ BUENO" : r.estado === "MALO" ? "X MALO" : r.estado === "NA" ? "NA" : ""}
-                      </Badge>
-                    )}
-                    <select
-                      value={r.estado}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        // si cambia a no-MALO, limpiar panel
-                        if (String(v).toUpperCase() !== "MALO") {
-                          updateRow(idx, { estado: v, observacion: "", accion: emptyAccion() });
-                        } else {
-                          updateRow(idx, { estado: v });
-                        }
-                      }}
-                      style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid rgba(0,0,0,.15)" }}
-                    >
-                      {ESTADOS.map((x) => (
-                        <option key={x} value={x}>
-                          {x === "" ? "— Seleccionar —" : x}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                {isMalo && (
-                  <div
-                    style={{
-                      border: "1px solid rgba(255,0,0,.25)",
-                      background: "rgba(255,0,0,.03)",
-                      borderRadius: 14,
-                      padding: 12,
-                      display: "grid",
-                      gap: 10,
-                    }}
-                  >
-                    <div style={{ fontWeight: 800, color: "#b00020" }}>Observación (obligatoria)</div>
-                    <textarea
-                      value={r.observacion}
-                      onChange={(e) => updateRow(idx, { observacion: e.target.value })}
-                      placeholder="Detalla observaciones y medidas correctivas..."
-                      style={{
-                        width: "100%",
-                        minHeight: 70,
-                        padding: 10,
-                        borderRadius: 12,
-                        border: err?.observacion ? "1px solid rgba(176,0,32,.6)" : "1px solid rgba(0,0,0,.15)",
-                      }}
+        <div style={{ overflowX: "auto", border: "1px solid #eee", borderRadius: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+            <thead>
+              <tr>
+                <th style={thSticky}>ITEM</th>
+                <th style={thSticky}>DESCRIPCION</th>
+                {DAYS.map((d) => {
+                  const firmaUrl = getFirmaUrl(days[d.key]?.realizado_por);
+                  return (
+                    <th key={d.key} style={thDay}>
+                      <div style={{ fontWeight: 800 }}>{d.label.toUpperCase()}</div>
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        <label style={miniField}>
+                          <span style={miniLabel}>Fecha</span>
+                          <input
+                            type="date"
+                            value={days[d.key]?.fecha || ""}
+                            onChange={(e) => setDayMeta(d.key, { fecha: e.target.value })}
+                            style={miniInput(false)}
+                          />
+                        </label>
+                        <label style={miniField}>
+                          <span style={miniLabel}>Realizado por</span>
+                          <Autocomplete
+                            placeholder="DNI / Apellido / Nombre"
+                            displayValue={empleadoLabel(days[d.key]?.realizado_por)}
+                            onInputChange={(text) => {
+                              setSearchMap((prev) => ({ ...prev, [`realizado:${d.key}`]: text }));
+                              setDayMeta(d.key, { realizado_por: text });
+                            }}
+                            options={getOptions(`realizado:${d.key}`)}
+                            getOptionLabel={empleadoLabel}
+                            onSelect={(emp) => setDayMeta(d.key, { realizado_por: emp || null })}
+                          />
+                        </label>
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <span style={miniLabel}>Firma</span>
+                          {firmaUrl ? (
+                            <img
+                              alt="firma"
+                              src={firmaUrl}
+                              style={{
+                                width: "100%",
+                                maxWidth: 180,
+                                height: 70,
+                                objectFit: "contain",
+                                border: "1px solid #eee",
+                                borderRadius: 10,
+                                background: "#fff",
+                              }}
+                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                            />
+                          ) : (
+                            <div style={{ opacity: 0.6, fontSize: 12 }}>Sin firma</div>
+                          )}
+                        </div>
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it, idx) => (
+                <tr key={`row-${idx}`}>
+                  <td style={tdSticky}>{idx + 1}</td>
+                  <td style={tdSticky}>
+                    <input
+                      value={it.desc || ""}
+                      onChange={(e) => setItemDesc(idx, e.target.value)}
+                      placeholder="Descripcion..."
+                      style={{ width: "100%", padding: "10px 12px", border: "1px solid #ddd", borderRadius: 10 }}
                     />
+                  </td>
+                  {DAYS.map((d) => {
+                    const cell = days[d.key]?.items?.[idx] || emptyCell();
+                    const isMalo = String(cell.estado || "").toUpperCase() === "MALO";
+                    return (
+                      <td key={`${d.key}-${idx}`} style={tdCell}>
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <select
+                            value={cell.estado || ""}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (next !== "MALO") {
+                                setCell(d.key, idx, { estado: next, observacion: "", accion: { que: "", quien: null, cuando: "" } });
+                              } else {
+                                setCell(d.key, idx, { estado: next });
+                              }
+                            }}
+                            style={{
+                              padding: "10px 10px",
+                              borderRadius: 12,
+                              border: isMalo ? "2px solid #ef4444" : "1px solid #ddd",
+                              background: isMalo ? "#fff5f5" : "#fff",
+                              width: "100%",
+                            }}
+                          >
+                            {ESTADOS.map((x) => (
+                              <option key={x} value={x}>
+                                {x === "" ? "SIN RESPONDER" : x}
+                              </option>
+                            ))}
+                          </select>
 
-                    <div style={{ fontWeight: 800 }}>Plan de acción (obligatorio)</div>
-
-                    <label>
-                      Qué
-                      <Input
-                        value={r.accion?.que || ""}
-                        onChange={(e) => updateAccion(idx, { que: e.target.value })}
-                        style={err?.que ? { border: "1px solid rgba(176,0,32,.6)" } : undefined}
-                      />
-                    </label>
-
-                    <label>
-                      Quién
-                      <Autocomplete
-                        value={r.accion?.quien || null}
-                        onChange={(emp) => updateAccion(idx, { quien: emp })}
-                        onSearch={setQEmp}
-                        options={quienOptions}
-                        placeholder="Inspector / Responsable"
-                        getOptionLabel={(o) => o?.nombre || o?.nombres || o?.apellidos || o?.label || ""}
-                      />
-                      {err?.quien && <div style={{ color: "#b00020", fontSize: 12 }}>Selecciona un responsable.</div>}
-                    </label>
-
-                    <label>
-                      Cuándo
-                      <Input
-                        type="date"
-                        value={r.accion?.cuando || ""}
-                        onChange={(e) => updateAccion(idx, { cuando: e.target.value })}
-                        style={err?.cuando ? { border: "1px solid rgba(176,0,32,.6)" } : undefined}
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button onClick={addRow}>+ Agregar fila</Button>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button onClick={handleGuardar}>Guardar inspeccion</Button>
-          </div>
+                          {isMalo ? (
+                            <div style={maloBox}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <b style={{ color: "#b91c1c" }}>Observacion (obligatoria)</b>
+                                <Badge variant="danger">MALO</Badge>
+                              </div>
+                              <textarea
+                                value={cell.observacion || ""}
+                                onChange={(e) => setCell(d.key, idx, { observacion: e.target.value })}
+                                placeholder="Detalla observaciones y medidas correctivas..."
+                                style={txtArea(Boolean(errors[`obs:${d.key}:${idx}`]))}
+                              />
+                              <div style={{ marginTop: 8 }}>
+                                <b>Plan de accion (obligatorio)</b>
+                              </div>
+                              <label style={miniField}>
+                                <span style={miniLabel}>Que</span>
+                                <input
+                                  value={cell.accion?.que || ""}
+                                  onChange={(e) => setCell(d.key, idx, { accion: { ...(cell.accion || {}), que: e.target.value } })}
+                                  style={miniInput(Boolean(errors[`que:${d.key}:${idx}`]))}
+                                />
+                              </label>
+                              <label style={miniField}>
+                                <span style={miniLabel}>Quien</span>
+                                <Autocomplete
+                                  placeholder="DNI / Apellido / Nombre"
+                                  displayValue={empleadoLabel(cell.accion?.quien)}
+                                  onInputChange={(text) => {
+                                    setSearchMap((prev) => ({ ...prev, [`quien:${d.key}:${idx}`]: text }));
+                                    setCell(d.key, idx, { accion: { ...(cell.accion || {}), quien: text } });
+                                  }}
+                                  options={getOptions(`quien:${d.key}:${idx}`)}
+                                  getOptionLabel={empleadoLabel}
+                                  onSelect={(emp) => setCell(d.key, idx, { accion: { ...(cell.accion || {}), quien: emp || null } })}
+                                />
+                              </label>
+                              <label style={miniField}>
+                                <span style={miniLabel}>Cuando</span>
+                                <input
+                                  type="date"
+                                  value={cell.accion?.cuando || ""}
+                                  onChange={(e) => setCell(d.key, idx, { accion: { ...(cell.accion || {}), cuando: e.target.value } })}
+                                  style={miniInput(Boolean(errors[`cuando:${d.key}:${idx}`]))}
+                                />
+                              </label>
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </Card>
-    </div>
+      </div>
+    </Card>
   );
 }
+
+const thSticky = {
+  position: "sticky",
+  left: 0,
+  zIndex: 3,
+  background: "#111827",
+  color: "white",
+  padding: 12,
+  borderBottom: "1px solid #111",
+  minWidth: 70,
+};
+
+const thDay = {
+  background: "#f97316",
+  color: "white",
+  padding: 12,
+  borderBottom: "1px solid #f59e0b",
+  minWidth: 240,
+  verticalAlign: "top",
+};
+
+const tdSticky = {
+  position: "sticky",
+  left: 0,
+  zIndex: 2,
+  background: "white",
+  padding: 10,
+  borderBottom: "1px solid #eee",
+  borderRight: "1px solid #eee",
+  minWidth: 70,
+};
+
+const tdCell = {
+  padding: 10,
+  borderBottom: "1px solid #eee",
+  borderRight: "1px solid #eee",
+  verticalAlign: "top",
+};
+
+const maloBox = {
+  border: "2px solid #fecaca",
+  background: "#fff5f5",
+  borderRadius: 14,
+  padding: 10,
+  display: "grid",
+  gap: 8,
+};
+
+const miniField = { display: "grid", gap: 6 };
+const miniLabel = { fontSize: 12, opacity: 0.8 };
+const miniInput = (hasErr) => ({
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: hasErr ? "2px solid #ef4444" : "1px solid #ddd",
+  outline: "none",
+});
+
+const txtArea = (hasErr) => ({
+  width: "100%",
+  minHeight: 70,
+  resize: "vertical",
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: hasErr ? "2px solid #ef4444" : "1px solid #ddd",
+  outline: "none",
+});

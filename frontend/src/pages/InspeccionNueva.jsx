@@ -11,6 +11,11 @@ import InspeccionHeaderForm from "../components/inspecciones/InspeccionHeaderFor
 import ChecklistForm from "../components/forms/ChecklistForm.jsx";
 import TablaObservacionesSeguridadForm from "../components/forms/TablaObservacionesSeguridadForm.jsx";
 import TablaExtintoresForm from "../components/forms/TablaExtintoresForm.jsx";
+import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
+import TablaKitAntiderramesForm from "../components/forms/TablaKitAntiderramesForm.jsx";
+import TablaLavaojosForm from "../components/forms/TablaLavaojosForm.jsx";
+import TablaEppsCalienteForm from "../components/forms/TablaEppsCalienteForm.jsx";
+import TablaBotiquinForm from "../components/forms/TablaBotiquinForm.jsx";
 import http from "../api/http.js";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import { addInspeccionToQueue } from "../utils/offlineQueue";
@@ -22,13 +27,9 @@ import {
   deserializeTablaLavaojosFromRespuestas,
   deserializeTablaEppsCalienteRowsFromRespuestas,
   deserializeTablaBotiquinFromRespuestas,
+  serializeTablaBotiquin,
 } from "../utils/plantillaRenderer.js";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
-import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
-import TablaKitAntiderramesForm from "../components/forms/TablaKitAntiderramesForm.jsx";
-import TablaLavaojosForm from "../components/forms/TablaLavaojosForm.jsx";
-import TablaEppsCalienteForm from "../components/forms/TablaEppsCalienteForm.jsx";
-import TablaBotiquinForm from "../components/forms/TablaBotiquinForm.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -47,18 +48,16 @@ function pickRendererType(def) {
     .trim()
     .toUpperCase();
 
-  // Primero: si el backend ya manda tipo, úsalo
   const explicitTipo = String(def?.tipo || def?.json?.tipo || "").trim().toLowerCase();
   if (explicitTipo) return explicitTipo;
 
-  // Fallback por codigo_formato
   if (code === "AQP-SSOMA-FOR-014") return "observaciones_seguridad";
   if (code === "AQP-SSOMA-FOR-034") return "tabla_extintores";
   if (code === "AQP-SSOMA-FOR-033") return "tabla_epps";
   if (code === "AQP-SSOMA-FOR-035") return "tabla_kit_antiderrames";
   if (code === "AQP-SSOMA-FOR-036") return "tabla_lavaojos";
   if (code === "AQP-SSOMA-FOR-037") return "tabla_epps_caliente";
-
+  if (code === "AQP-SSOMA-FOR-038") return "tabla_botiquin";
   return "checklist";
 }
 
@@ -74,7 +73,6 @@ const CABECERA_EMPTY = {
   cargo: "",
   firma_ruta: "",
   participantes: [],
-  // (estos textos los usa tu header)
   cliente_text: "",
   servicio_text: "",
   area_text: "",
@@ -95,22 +93,16 @@ export default function InspeccionNueva() {
   const [def, setDef] = useState(null);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
-
   const [catalogos, setCatalogos] = useState({
     clientes: [],
     servicios: [],
     areas: [],
     lugares: [],
   });
-
   const [cabecera, setCabecera] = useState(CABECERA_EMPTY);
   const [uiNotice, setUiNotice] = useState("");
   const [tablaRows, setTablaRows] = useState([]);
-  const [botiquinValue, setBotiquinValue] = useState(null);
-  const initialKit = useMemo(
-    () => deserializeTablaKitAntiderramesFromRespuestas(def?.json?.respuestas || []),
-    [def]
-  );
+
   useEffect(() => {
     setCabecera(CABECERA_EMPTY);
     setUiNotice("");
@@ -132,12 +124,10 @@ export default function InspeccionNueva() {
       }
 
       setLoadingDef(true);
-
       try {
         const data = await obtenerDefinicionPlantilla(plantillaId, undefined, {
           signal: controller.signal,
         });
-
         if (!alive) return;
         setDef(normalizePlantillaDef(data));
       } catch (e) {
@@ -161,11 +151,9 @@ export default function InspeccionNueva() {
 
   useEffect(() => {
     let alive = true;
-
     (async () => {
       setWarning("");
       setLoadingCats(true);
-
       try {
         const data = await listarCatalogosInspeccion();
         if (!alive) return;
@@ -182,7 +170,6 @@ export default function InspeccionNueva() {
         if (alive) setLoadingCats(false);
       }
     })();
-
     return () => {
       alive = false;
     };
@@ -203,6 +190,10 @@ export default function InspeccionNueva() {
     () => deserializeTablaEppsRowsFromRespuestas(def?.json?.respuestas),
     [def]
   );
+  const initialKit = useMemo(
+    () => deserializeTablaKitAntiderramesFromRespuestas(def?.json?.respuestas || []),
+    [def]
+  );
   const initialLavaojos = useMemo(
     () => deserializeTablaLavaojosFromRespuestas(def?.json?.respuestas),
     [def]
@@ -211,7 +202,7 @@ export default function InspeccionNueva() {
     () => deserializeTablaEppsCalienteRowsFromRespuestas(def?.json?.respuestas || []),
     [def]
   );
-  const initialBotiquinValue = useMemo(
+  const initialBotiquin = useMemo(
     () => deserializeTablaBotiquinFromRespuestas(def?.json?.respuestas || []),
     [def]
   );
@@ -219,9 +210,7 @@ export default function InspeccionNueva() {
   useEffect(() => {
     setTablaRows(initialEppsCalienteRows);
   }, [initialEppsCalienteRows, plantillaId]);
-  useEffect(() => {
-    setBotiquinValue(initialBotiquinValue);
-  }, [initialBotiquinValue, plantillaId]);
+
   const buscarEmpleadosForAutocomplete = useCallback(async (text) => {
     try {
       const rows = await buscarEmpleados(String(text || "").trim());
@@ -260,6 +249,11 @@ export default function InspeccionNueva() {
     async (payload) => {
       setUiNotice("");
 
+      let respuestas = Array.isArray(payload?.respuestas) ? payload.respuestas : [];
+      if (payload?.__tipo === "tabla_botiquin") {
+        respuestas = serializeTablaBotiquin(payload);
+      }
+
       const cabeceraPayload = {
         ...cabecera,
         id_plantilla_inspec: Number(plantillaId),
@@ -293,7 +287,7 @@ export default function InspeccionNueva() {
       const body = {
         cabecera: cabeceraPayload,
         participantes: cabecera.participantes || [],
-        respuestas: Array.isArray(payload?.respuestas) ? payload.respuestas : [],
+        respuestas,
       };
 
       try {
@@ -306,35 +300,28 @@ export default function InspeccionNueva() {
 
         const r = await http.post("/api/inspecciones", body);
         const created = r.data;
-
-        // created.observaciones = [{id_observacion, item_ref}, ...]
-        // created.acciones = [{id_accion, item_ref}, ...]
-
-        const obsMap = new Map((created.observaciones || []).map(o => [String(o.item_ref), Number(o.id_observacion)]));
-        const accMap = new Map((created.acciones || []).map(a => [String(a.item_ref), Number(a.id_accion)]));
-
-        // payload.respuestas debe incluir item_ref por cada fila para empatar:
-        const filas = (payload?.rowsWithRef || payload?.rows || []);
+        const obsMap = new Map((created.observaciones || []).map((o) => [String(o.item_ref), Number(o.id_observacion)]));
+        const accMap = new Map((created.acciones || []).map((a) => [String(a.item_ref), Number(a.id_accion)]));
+        const filas = payload?.rowsWithRef || payload?.rows || [];
 
         for (const row of filas) {
           const ref = String(row.item_ref || "").trim();
           const idObs = obsMap.get(ref);
           const idAcc = accMap.get(ref);
 
-          // subir evidencia de OBSERVACIÓN
           if (idObs && Array.isArray(row.evidencia_obs_files)) {
             for (const file of row.evidencia_obs_files) {
               await uploadEvidenciaObs(idObs, file);
             }
           }
 
-          // subir evidencia de LEVANTAMIENTO (lo estás tratando como evidencia de ACCIÓN)
           if (idAcc && Array.isArray(row.evidencia_lev_files)) {
             for (const file of row.evidencia_lev_files) {
               await uploadEvidenciaAcc(idAcc, file);
             }
           }
         }
+
         alert(
           `GUARDADO EN SQL: ID_INSPECCION=${r.data?.id_inspeccion ?? "??"} ID_RESPUESTA=${r.data?.id_respuesta ?? "??"}`
         );
@@ -354,13 +341,11 @@ export default function InspeccionNueva() {
   const renderFormByTipo = useCallback(() => {
     if (!def) return null;
 
-    if (rendererType === "tabla_botiquin") {
+    if (rendererType === "observaciones_seguridad" || rendererType === "observaciones_acciones") {
       return (
-        <TablaBotiquinForm
-          definicion={def?.json || def}
-          participantes={{ inspectores: cabecera?.participantes || [] }}
-          value={botiquinValue}
-          onChange={setBotiquinValue}
+        <TablaObservacionesSeguridadForm
+          initialRows={initialObsAccRows}
+          buscarEmpleados={buscarEmpleadosForAutocomplete}
           onSubmit={handleSubmit}
         />
       );
@@ -377,22 +362,11 @@ export default function InspeccionNueva() {
     }
 
     if (rendererType === "tabla_epps") {
-      return (
-        <TablaEppsForm
-          initialRows={initialEppsRows}
-          onSubmit={handleSubmit}
-        />
-      );
+      return <TablaEppsForm initialRows={initialEppsRows} onSubmit={handleSubmit} />;
     }
 
     if (rendererType === "tabla_kit_antiderrames") {
-      return (
-        <TablaKitAntiderramesForm
-          definicion={def.json}
-          initial={initialKit}
-          onSubmit={handleSubmit}
-        />
-      );
+      return <TablaKitAntiderramesForm definicion={def.json} initial={initialKit} onSubmit={handleSubmit} />;
     }
 
     if (rendererType === "tabla_lavaojos") {
@@ -417,9 +391,20 @@ export default function InspeccionNueva() {
       );
     }
 
+    if (rendererType === "tabla_botiquin") {
+      return (
+        <TablaBotiquinForm
+          definicion={def?.json || {}}
+          initial={initialBotiquin}
+          inspectores={cabecera?.participantes || []}
+          buscarEmpleados={buscarEmpleadosForAutocomplete}
+          onSubmit={handleSubmit}
+        />
+      );
+    }
+
     if (!hasChecklistItems) {
-      const msg = "Plantilla sin campos en BD (INS_PLANTILLA_CAMPO) o sin definicion de items.";
-      return <Card title="Sin campos">{msg}</Card>;
+      return <Card title="Sin campos">Plantilla sin campos en BD (INS_PLANTILLA_CAMPO) o sin definicion de items.</Card>;
     }
 
     return <ChecklistForm plantilla={def} definicion={def.json} onSubmit={handleSubmit} />;
@@ -436,7 +421,7 @@ export default function InspeccionNueva() {
     cabecera,
     initialLavaojos,
     tablaRows,
-    botiquinValue,
+    initialBotiquin,
   ]);
 
   return (
