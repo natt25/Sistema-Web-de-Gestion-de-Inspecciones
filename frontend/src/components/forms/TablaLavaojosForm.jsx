@@ -254,7 +254,13 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
     const r = rows?.[rowIdx];
     if (!r) return;
     if (r.__locked) return;
+
+    const name = String(r.descripcion || "").trim() || `Fila ${rowIdx + 1}`;
+    const ok = window.confirm(`¿Eliminar "${name}"? Esta acción no se puede deshacer.`);
+    if (!ok) return;
+
     setRows((prev) => normalizeRowIndexes((prev || []).filter((_, i) => i !== rowIdx)));
+
     setErrors((prevErr) => {
       const next = { ...(prevErr || {}) };
       Object.keys(next).forEach((k) => {
@@ -300,7 +306,19 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
               {DIAS.map((d) => (
                 <th key={d.key} style={{ minWidth: 220 }}>{d.label}</th>
               ))}
-              <th style={{ width: 70, textAlign: "center" }}> </th>
+              <th
+                style={{
+                  width: 70,
+                  minWidth: 70,
+                  textAlign: "center",
+                  position: "sticky",
+                  right: 0,
+                  background: "#fff",
+                  zIndex: 6,
+                }}
+              >
+                {" "}
+              </th>
             </tr>
           </thead>
 
@@ -469,7 +487,16 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
                     ) : null}
                   </td>
                 ))}
-                <td style={{ textAlign: "center" }}>
+                <td
+                  style={{
+                    textAlign: "center",
+                    position: "sticky",
+                    right: 0,
+                    background: "#fff",
+                    zIndex: 5,
+                    pointerEvents: "auto",
+                  }}
+                >
                   <button
                     type="button"
                     title="Eliminar fila"
@@ -485,9 +512,10 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
                       fontSize: 16,
                       lineHeight: "16px",
                       opacity: row?.__locked ? 0.35 : 1,
+                      pointerEvents: row?.__locked ? "none" : "auto",
                     }}
                   >
-                    X
+                    🗑️
                   </button>
                 </td>
               </tr>
@@ -495,7 +523,7 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
           </tbody>
         </table>
 
-        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-start", paddingLeft: 50 }}>
           <Button type="button" onClick={handleAddRow}>
             + Agregar fila
           </Button>
