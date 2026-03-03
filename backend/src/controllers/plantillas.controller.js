@@ -1,5 +1,5 @@
-import repo from "../repositories/plantillas.repository.js";
 import service from "../services/plantillas.service.js";
+import repo from "../repositories/plantillas.repository.js";
 
 function normalizeText(v) {
   return String(v || "")
@@ -24,14 +24,15 @@ function normalizeRefNum(v) {
 
 async function list(req, res) {
   try {
-    const data = await repo.listPlantillas();
+    const data = await service.listarPlantillas();
+    const rows = Array.isArray(data) ? data : [];
     console.log(
-      `[plantillas.controller] GET /api/plantillas -> ${Array.isArray(data) ? data.length : 0} registros`
+      `[plantillas.controller] GET /api/plantillas -> ${rows.length} registros`
     );
-    return res.json(data);
+    return res.status(200).json(rows);
   } catch (error) {
     console.error("[plantillas.controller] list error:", error);
-    return res.status(500).json({ message: "Error al listar plantillas" });
+    return res.status(200).json([]);
   }
 }
 

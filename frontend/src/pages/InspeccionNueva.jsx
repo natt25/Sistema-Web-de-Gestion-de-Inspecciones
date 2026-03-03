@@ -25,6 +25,7 @@ import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
 import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
 import TablaKitAntiderramesForm from "../components/forms/TablaKitAntiderramesForm.jsx";
 import TablaLavaojosForm from "../components/forms/TablaLavaojosForm.jsx";
+import TablaEppsCalienteForm from "../components/forms/TablaEppsCalienteForm.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -377,6 +378,18 @@ export default function InspeccionNueva() {
           definicion={def.json}
           initial={initialLavaojos}
           onSubmit={handleSubmit}
+          inspectores={cabecera?.inspectores || cabecera?.participantes || []}
+        />
+      );
+    }
+
+    if (definicion.tipo === "tabla_epps_caliente") {
+      return (
+        <TablaEppsCalienteForm
+          definicion={definicion}
+          value={tablaRows}
+          onChange={setTablaRows}
+          participantes={participantes}
         />
       );
     }
@@ -397,6 +410,8 @@ export default function InspeccionNueva() {
     initialEppsRows,
     hasChecklistItems,
     initialKit,
+    cabecera,
+    initialLavaojos,
   ]);
 
   return (

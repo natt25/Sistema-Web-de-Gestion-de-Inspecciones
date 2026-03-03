@@ -56,6 +56,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (raw === "tabla_epps") return "tabla_epps";
   if (raw === "tabla_kit_antiderrames") return "tabla_kit_antiderrames";
   if (raw === "tabla_lavaojos") return "tabla_lavaojos";
+  if (raw === "tabla_epps_caliente") return "tabla_epps_caliente";
 
   // fallback por código formato (cuando el JSON NO trae "tipo")
   const codigo = String(
@@ -70,6 +71,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (codigo.includes("AQP-SSOMA-FOR-033")) return "tabla_epps";
   if (codigo.includes("AQP-SSOMA-FOR-035")) return "tabla_kit_antiderrames";
   if (codigo.includes("AQP-SSOMA-FOR-036")) return "tabla_lavaojos";
+  if (codigo.includes("AQP-SSOMA-FOR-037")) return "tabla_epps_caliente";
   return "checklist";
 }
 
@@ -370,4 +372,35 @@ export function deserializeTablaLavaojosFromRespuestas(respuestas) {
       : null,
     items,
   };
+}
+
+export function serializeTablaEppsCalienteRows(rows = []) {
+  return (rows || []).map((row, idx) => ({
+    categoria: "TABLA_EPPS_CALIENTE",
+    item_ref: `row_${idx + 1}`,
+    row_data: {
+      __tipo: "tabla_epps_caliente",
+      rowIndex: idx,
+      ...row,
+    },
+  }));
+}
+
+export function deserializeTablaEppsCalienteRowsFromRespuestas(respuestas = []) {
+  const rows = (respuestas || [])
+    .filter((r) => String(r?.categoria || "").toUpperCase() === "TABLA_EPPS_CALIENTE")
+    .map((r) => {
+      const rd = r?.row_data || r?.rowData || null;
+      if (rd && typeof rd === "object") return rd;
+      try {
+        return JSON.parse(rd);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.rowIndex ?? 0) - (b.rowIndex ?? 0));
+
+  // limpiamos helpers internos
+  return rows.map(({ __tipo, rowIndex, ...rest }) => rest);
 }

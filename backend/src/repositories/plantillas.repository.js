@@ -39,27 +39,54 @@ async function obtenerDefinicionPlantilla(id_plantilla_inspec) {
 async function listPlantillas() {
   const started = Date.now();
   const q = `
-    SELECT
-      p.id_plantilla_inspec,
-      p.codigo_formato,
-      p.nombre_formato,
-      p.version_actual,
-      p.estado,
-      p.fecha_creacion
-    FROM SSOMA.INS_PLANTILLA_INSPECCION p
-    WHERE (
-      TRY_CONVERT(INT, p.estado) = 1
-      OR UPPER(LTRIM(RTRIM(TRY_CONVERT(NVARCHAR(30), p.estado)))) IN (N'ACTIVO', N'HABILITADO')
-    )
-    ORDER BY p.codigo_formato;
+    DECLARE @estadoCol SYSNAME = NULL;
+    IF COL_LENGTH('SSOMA.INS_PLANTILLA_INSPECCION', 'estado') IS NOT NULL SET @estadoCol = 'estado';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_INSPECCION', 'estado_plantilla') IS NOT NULL SET @estadoCol = 'estado_plantilla';
+
+    IF @estadoCol IS NULL
+    BEGIN
+      SELECT TOP 0
+        CAST(NULL AS INT) AS id_plantilla_inspec,
+        CAST(NULL AS NVARCHAR(50)) AS codigo_formato,
+        CAST(NULL AS NVARCHAR(200)) AS nombre_formato,
+        CAST(NULL AS INT) AS version_actual,
+        CAST(NULL AS NVARCHAR(30)) AS estado,
+        CAST(NULL AS DATETIME2) AS fecha_creacion;
+      RETURN;
+    END;
+
+    DECLARE @sql NVARCHAR(MAX) = N'
+      SELECT
+        p.id_plantilla_inspec,
+        p.codigo_formato,
+        p.nombre_formato,
+        p.version_actual,
+        CAST(p.' + QUOTENAME(@estadoCol) + N' AS NVARCHAR(30)) AS estado,
+        p.fecha_creacion
+      FROM SSOMA.INS_PLANTILLA_INSPECCION p
+      WHERE (
+        TRY_CONVERT(INT, p.' + QUOTENAME(@estadoCol) + N') = 1
+        OR UPPER(LTRIM(RTRIM(TRY_CONVERT(NVARCHAR(30), p.' + QUOTENAME(@estadoCol) + N')))) IN (N''ACTIVO'', N''HABILITADO'')
+      )
+      ORDER BY p.codigo_formato;';
+
+    EXEC sp_executesql @sql;
   `;
-  console.log("[plantillas.repo] listPlantillas:start");
   const pool = await getPool();
-  const r = await pool.request().query(q);
-  console.log(`[plantillas.repo] listPlantillas:end -> ${r.recordset?.length || 0} registros`, {
-    durationMs: Date.now() - started,
-  });
-  return r.recordset;
+  try {
+    const r = await pool.request().query(q);
+    const count = r.recordset?.length || 0;
+    console.log(`[plantillas.repo] listPlantillas -> ${count}`, {
+      durationMs: Date.now() - started,
+    });
+    return r.recordset || [];
+  } catch (error) {
+    console.error("[plantillas.repo] listPlantillas error", {
+      message: error?.message,
+      query: q,
+    });
+    throw error;
+  }
 }
 
 async function getDefinicion(id_plantilla_inspec) {

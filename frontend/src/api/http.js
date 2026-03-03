@@ -1,8 +1,19 @@
 import axios from "axios";
 import { clearAuth, getToken } from "../auth/auth.storage.js";
 
+function resolveBaseURL() {
+  const raw = String(
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    "http://localhost:3000"
+  );
+
+  // Siempre trabajamos con host base para evitar /api/api cuando el env ya incluye /api.
+  return raw.replace(/\/+$/, "").replace(/\/api$/i, "");
+}
+
 const http = axios.create({
-  baseURL: (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, ""),
+  baseURL: resolveBaseURL(),
   timeout: 15000,
 });
 

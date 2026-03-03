@@ -6,6 +6,13 @@ import Button from "../components/ui/Button";
 import { listarPlantillas } from "../api/plantillas.api";
 import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
+function normalizeRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.recordset)) return payload.recordset;
+  return [];
+}
+
 export default function PlantillasInspeccion() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -27,8 +34,8 @@ export default function PlantillasInspeccion() {
         setLoading(true);
         const data = await listarPlantillas();
         if (!ok) return;
-        const rowsData = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-                const onlyActive = rowsData.filter((p) => {
+        const rowsData = normalizeRows(data);
+        const onlyActive = rowsData.filter((p) => {
           const estadoNum = Number(p?.estado);
           const estadoTxt = String(p?.estado ?? "").trim().toUpperCase();
           return estadoNum === 1 || estadoTxt === "ACTIVO" || estadoTxt === "HABILITADO";
@@ -39,7 +46,12 @@ export default function PlantillasInspeccion() {
         const status = e?.response?.status;
         const url = e?.config?.url;
         const message = e?.response?.data?.message || e?.message || "Error desconocido";
-        console.error("[PlantillasInspeccion] Error cargando plantillas:", { status, url, message });
+        console.error("[PlantillasInspeccion] Error cargando plantillas:", {
+          status,
+          url,
+          message,
+          data: e?.response?.data,
+        });
         setError("No se pudieron cargar las plantillas.");
       } finally {
         if (ok) setLoading(false);

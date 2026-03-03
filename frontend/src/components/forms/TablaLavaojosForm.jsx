@@ -115,7 +115,11 @@ function validateModel(model) {
           errors.push(`Falta Observación en "${it.descripcion}" (${d.label}).`);
         }
         const que = String(c.accion?.que || "").trim();
-        const quien = String(c.accion?.quien || "").trim();
+        const quienVal = c.accion?.quien;
+        const quien =
+        typeof quienVal === "string"
+            ? quienVal.trim()
+            : `${quienVal?.dni || ""} ${quienVal?.apellido || ""} ${quienVal?.nombre || ""}`.trim();
         const cuando = String(c.accion?.cuando || "").trim();
         if (!que || !quien || !cuando) {
           errors.push(`Falta Plan de Acción (Qué/Quién/Cuándo) en "${it.descripcion}" (${d.label}).`);
@@ -127,9 +131,35 @@ function validateModel(model) {
   return errors;
 }
 
-export default function TablaLavaojosForm({ definicion, initial, onSubmit }) {
-  const [uiError, setUiError] = useState("");
-  const [saving, setSaving] = useState(false);
+const getFirmaUrl = (emp) => {
+  if (!emp) return null;
+
+  // si tu backend ya envía firma_url
+  if (emp.firma_url) return emp.firma_url;
+
+  // si la firma está en storage por id_usuario
+  if (emp.id_usuario) {
+    return `${import.meta.env.VITE_API_URL}/api/usuarios/${emp.id_usuario}/firma`;
+  }
+
+  return null;
+};
+
+export default function TablaLavaojosForm({ definicion, initial, onSubmit, inspectores = [] }) {  const [uiError, setUiError] = useState("");
+  const fetchInspectoresLocal = useCallback(async (text) => {
+    const q = String(text || "").toLowerCase().trim();
+    const base = Array.isArray(inspectores) ? inspectores : [];
+
+    // soporta ambos shapes: {dni, apellido, nombre} o {usuario:{...}}
+    const flat = base.map((x) => x?.usuario ? x.usuario : x);
+
+    return flat.filter((p) => {
+        const s = `${p?.dni || ""} ${p?.apellido || ""} ${p?.nombre || ""}`.toLowerCase();
+        return !q || s.includes(q);
+    });
+    }, [inspectores]);
+
+    const [saving, setSaving] = useState(false);
 
   const initialModel = useMemo(
     () => buildInitialModel(definicion, initial),
@@ -137,6 +167,20 @@ export default function TablaLavaojosForm({ definicion, initial, onSubmit }) {
   );
 
   const [model, setModel] = useState(initialModel);
+  const addRow = useCallback(() => {
+    setModel((prev) => {
+      const newRow = {
+        item_id: `extra_${Date.now()}`,
+        descripcion: "",
+        dias: {},
+        __extra: true,
+      };
+      DIAS.forEach((d) => {
+        newRow.dias[d.key] = emptyCell();
+      });
+      return { ...prev, items: [...prev.items, newRow] };
+    });
+  }, []);
 
   const buscarEmpleadosForAutocomplete = useCallback(async (text) => {
     try {
@@ -256,12 +300,27 @@ export default function TablaLavaojosForm({ definicion, initial, onSubmit }) {
                         </div>
 
                         <div>
-                          <div style={miniLabel()}>Firma</div>
-                          <Input
-                            value={model.meta.dias[d.key]?.firma || ""}
-                            onChange={(e) => setDiaHeader(d.key, { firma: e.target.value })}
-                            placeholder="(texto) o código firma"
-                          />
+                            <div style={miniLabel()}>Firma</div>
+                            {model.meta.dias[d.key]?.realizado_por ? (
+                                (() => {
+                                const emp = model.meta.dias[d.key].realizado_por;
+                                const url = getFirmaUrl(emp);
+                                return url ? (
+                                    <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 10 }}>
+                                    <img
+                                        src={url}
+                                        alt="Firma"
+                                        style={{ width: "100%", height: 70, objectFit: "contain" }}
+                                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                    />
+                                    </div>
+                                ) : (
+                                    <div style={{ fontSize: 12, opacity: 0.8 }}>Sin firma registrada</div>
+                                );
+                                })()
+                            ) : (
+                                <div style={{ fontSize: 12, opacity: 0.8 }}>Selecciona “Realizado por”</div>
+                            )}
                         </div>
                       </div>
                     </div>
@@ -274,7 +333,25 @@ export default function TablaLavaojosForm({ definicion, initial, onSubmit }) {
               {model.items.map((it, idx) => (
                 <tr key={it.item_id}>
                   <td style={tdSticky(0, 60)}>{idx + 1}</td>
-                  <td style={tdSticky(60, 320)}>{it.descripcion}</td>
+                  <td style={tdSticky(60, 320)}>
+                    {it.__extra ? (
+                        <Input
+                        value={it.descripcion}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setModel((prev) => ({
+                            ...prev,
+                            items: prev.items.map((x) =>
+                                String(x.item_id) === String(it.item_id) ? { ...x, descripcion: val } : x
+                            ),
+                            }));
+                        }}
+                        placeholder="Descripción del nuevo ítem..."
+                        />
+                    ) : (
+                        it.descripcion
+                    )}
+                    </td>
 
                   {DIAS.map((d) => {
                     const cell = it.dias?.[d.key] ?? emptyCell();
@@ -337,14 +414,18 @@ export default function TablaLavaojosForm({ definicion, initial, onSubmit }) {
                                 </div>
 
                                 <div>
-                                  <div style={miniLabel()}>Quién</div>
-                                  <Input
-                                    value={cell.accion?.quien || ""}
-                                    onChange={(e) =>
-                                      setCell(it.item_id, d.key, { accion: { ...cell.accion, quien: e.target.value } })
-                                    }
-                                    placeholder="DNI / Apellido / Nombre"
-                                  />
+                                    <div style={miniLabel()}>Quién</div>
+                                    <Autocomplete
+                                        placeholder="DNI / Apellido / Nombre"
+                                        fetchOptions={fetchInspectoresLocal}
+                                        getOptionLabel={(o) => `${o?.dni ?? ""} - ${o?.apellido ?? ""} ${o?.nombre ?? ""}`.trim()}
+                                        onSelect={(opt) =>
+                                        setCell(it.item_id, d.key, {
+                                            accion: { ...cell.accion, quien: opt }, // guardamos objeto (mejor que texto)
+                                        })
+                                        }
+                                        value={cell.accion?.quien || null}
+                                    />
                                 </div>
 
                                 <div>
@@ -371,9 +452,13 @@ export default function TablaLavaojosForm({ definicion, initial, onSubmit }) {
         </div>
 
         <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button onClick={handleSubmit} disabled={saving}>
-            {saving ? "Guardando..." : "Guardar inspección"}
-          </Button>
+            <Button onClick={addRow} variant="secondary">
+                Agregar fila
+            </Button>
+
+            <Button onClick={handleSubmit} disabled={saving}>
+                {saving ? "Guardando..." : "Guardar inspección"}
+            </Button>
         </div>
       </Card>
     </div>
