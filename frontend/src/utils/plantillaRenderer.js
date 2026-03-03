@@ -55,6 +55,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (raw === "tabla_extintores") return "tabla_extintores";
   if (raw === "tabla_epps") return "tabla_epps";
   if (raw === "tabla_kit_antiderrames") return "tabla_kit_antiderrames";
+  if (raw === "tabla_lavaojos") return "tabla_lavaojos";
 
   // fallback por código formato (cuando el JSON NO trae "tipo")
   const codigo = String(
@@ -68,7 +69,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (codigo.includes("AQP-SSOMA-FOR-034")) return "tabla_extintores";
   if (codigo.includes("AQP-SSOMA-FOR-033")) return "tabla_epps";
   if (codigo.includes("AQP-SSOMA-FOR-035")) return "tabla_kit_antiderrames";
-
+  if (codigo.includes("AQP-SSOMA-FOR-036")) return "tabla_lavaojos";
   return "checklist";
 }
 
@@ -302,3 +303,71 @@ function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
 
+// =========================
+// FOR-036 - Tabla Lavaojos
+// =========================
+
+export function serializeTablaLavaojosPayload(model) {
+  // Devuelve el payload de respuestas normalizadas que tu backend ya guarda
+  // (mismo patrón que tabla_extintores: categoria + item_ref + row_data)
+  const respuestas = [];
+
+  // 1) META (cabecera interna de la tarjeta semanal)
+  respuestas.push({
+    categoria: "LAVAOJOS_META",
+    item_ref: "meta",
+    row_data: {
+      __tipo: "tabla_lavaojos_meta",
+      codigo_lavaojos: model?.meta?.codigo_lavaojos ?? "",
+      responsable_proceso: model?.meta?.responsable_proceso ?? "",
+      dias: model?.meta?.dias ?? {},
+    },
+  });
+
+  // 2) ITEMS (cada item tiene los 7 días)
+  (model?.items || []).forEach((it, idx) => {
+    respuestas.push({
+      categoria: "LAVAOJOS_ITEM",
+      item_ref: `item_${idx + 1}`,
+      row_data: {
+        __tipo: "tabla_lavaojos_item",
+        item_id: it.item_id,
+        descripcion: it.descripcion,
+        dias: it.dias,
+      },
+    });
+  });
+
+  return { respuestas };
+}
+
+export function deserializeTablaLavaojosFromRespuestas(respuestas) {
+  const rows = Array.isArray(respuestas) ? respuestas : [];
+
+  const metaRow = rows.find((r) => r?.categoria === "LAVAOJOS_META");
+  const meta = metaRow?.row_data && typeof metaRow.row_data === "string"
+    ? tryParseJson(metaRow.row_data)
+    : (metaRow?.row_data || null);
+
+  const itemsRows = rows.filter((r) => r?.categoria === "LAVAOJOS_ITEM");
+
+  const items = itemsRows.map((r) => {
+    const rd = r?.row_data && typeof r.row_data === "string" ? tryParseJson(r.row_data) : r?.row_data;
+    return {
+      item_id: rd?.item_id,
+      descripcion: rd?.descripcion,
+      dias: rd?.dias || {},
+    };
+  });
+
+  return {
+    meta: meta
+      ? {
+          codigo_lavaojos: meta.codigo_lavaojos || "",
+          responsable_proceso: meta.responsable_proceso || "",
+          dias: meta.dias || {},
+        }
+      : null,
+    items,
+  };
+}

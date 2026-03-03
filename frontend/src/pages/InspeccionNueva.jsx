@@ -18,11 +18,13 @@ import {
   deserializeTableRowsFromRespuestas,
   deserializeTablaEppsRowsFromRespuestas,
   normalizePlantillaDef,
-  deserializeTablaKitAntiderramesFromRespuestas
+  deserializeTablaKitAntiderramesFromRespuestas,
+  deserializeTablaLavaojosFromRespuestas
 } from "../utils/plantillaRenderer.js";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
 import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
 import TablaKitAntiderramesForm from "../components/forms/TablaKitAntiderramesForm.jsx";
+import TablaLavaojosForm from "../components/forms/TablaLavaojosForm.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -50,6 +52,7 @@ function pickRendererType(def) {
   if (code === "AQP-SSOMA-FOR-034") return "tabla_extintores";
   if (code === "AQP-SSOMA-FOR-033") return "tabla_epps";
   if (code === "AQP-SSOMA-FOR-035") return "tabla_kit_antiderrames";
+  if (code === "AQP-SSOMA-FOR-036") return "tabla_lavaojos";
 
   return "checklist";
 }
@@ -193,7 +196,10 @@ export default function InspeccionNueva() {
     () => deserializeTablaEppsRowsFromRespuestas(def?.json?.respuestas),
     [def]
   );
-
+  const initialLavaojos = useMemo(
+    () => deserializeTablaLavaojosFromRespuestas(def?.json?.respuestas),
+    [def]
+  );
   const buscarEmpleadosForAutocomplete = useCallback(async (text) => {
     try {
       const rows = await buscarEmpleados(String(text || "").trim());
@@ -360,6 +366,16 @@ export default function InspeccionNueva() {
         <TablaKitAntiderramesForm
           definicion={def.json}
           initial={initialKit}
+          onSubmit={handleSubmit}
+        />
+      );
+    }
+
+    if (rendererType === "tabla_lavaojos") {
+      return (
+        <TablaLavaojosForm
+          definicion={def.json}
+          initial={initialLavaojos}
           onSubmit={handleSubmit}
         />
       );

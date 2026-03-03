@@ -23,6 +23,115 @@ import { getToken } from "../auth/auth.storage";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
 
+function RenderTablaLavaojos({ respuestas }) {
+  const meta = respuestas.find((r) => r?.categoria === "LAVAOJOS_META")?.row_data;
+  const items = respuestas.filter((r) => r?.categoria === "LAVAOJOS_ITEM");
+
+  const metaObj = typeof meta === "string" ? safeJson(meta) : meta;
+
+  const dias = [
+    { key: "LUNES", label: "Lunes" },
+    { key: "MARTES", label: "Martes" },
+    { key: "MIERCOLES", label: "Miércoles" },
+    { key: "JUEVES", label: "Jueves" },
+    { key: "VIERNES", label: "Viernes" },
+    { key: "SABADO", label: "Sábado" },
+    { key: "DOMINGO", label: "Domingo" },
+  ];
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <Card title="Lavaojos portátil - Datos">
+        <div style={{ display: "grid", gap: 6 }}>
+          <div><b>Código Lavaojos:</b> {metaObj?.codigo_lavaojos || "-"}</div>
+          <div><b>Responsable del proceso:</b> {metaObj?.responsable_proceso || "-"}</div>
+        </div>
+      </Card>
+
+      <Card title="Tarjeta semanal">
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 1100 }}>
+            <thead>
+              <tr>
+                <th style={thSticky(0, 60)}>ITEM</th>
+                <th style={thSticky(60, 320)}>DESCRIPCIÓN</th>
+                {dias.map((d) => (
+                  <th key={d.key} style={thDay()}>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <div style={{ fontWeight: 900 }}>{d.label.toUpperCase()}</div>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>
+                        <b>Fecha:</b> {metaObj?.dias?.[d.key]?.fecha || "-"}
+                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>
+                        <b>Realizado:</b>{" "}
+                        {metaObj?.dias?.[d.key]?.realizado_por
+                          ? `${metaObj.dias[d.key].realizado_por.dni || ""} - ${metaObj.dias[d.key].realizado_por.apellido || ""} ${metaObj.dias[d.key].realizado_por.nombre || ""}`
+                          : "-"}
+                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>
+                        <b>Firma:</b> {metaObj?.dias?.[d.key]?.firma || "-"}
+                      </div>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {items.map((r, idx) => {
+                const rd = typeof r.row_data === "string" ? safeJson(r.row_data) : r.row_data;
+                return (
+                  <tr key={r.id_respuesta || idx}>
+                    <td style={tdSticky(0, 60)}>{idx + 1}</td>
+                    <td style={tdSticky(60, 320)}>{rd?.descripcion || "-"}</td>
+
+                    {dias.map((d) => {
+                      const c = rd?.dias?.[d.key] || {};
+                      const estado = c?.estado || "";
+                      const isMalo = estado === "MALO";
+                      return (
+                        <td key={d.key} style={tdDay()}>
+                          <div style={{ display: "grid", gap: 8 }}>
+                            <Badge variant={estado === "BUENO" ? "success" : estado === "MALO" ? "danger" : "outline"}>
+                              {estado ? (estado === "NA" ? "N/A" : estado) : "SIN RESPONDER"}
+                            </Badge>
+
+                            {isMalo ? (
+                              <div style={{ border: "1px solid #fecaca", background: "#fff7ed", borderRadius: 12, padding: 10 }}>
+                                <div style={{ fontWeight: 900, color: "#b91c1c", marginBottom: 6 }}>Observación</div>
+                                <div style={{ whiteSpace: "pre-wrap" }}>{c?.observacion || "-"}</div>
+
+                                <div style={{ fontWeight: 900, marginTop: 10 }}>Plan de acción</div>
+                                <div><b>Qué:</b> {c?.accion?.que || "-"}</div>
+                                <div><b>Quién:</b> {c?.accion?.quien || "-"}</div>
+                                <div><b>Cuándo:</b> {c?.accion?.cuando || "-"}</div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function safeJson(v) {
+  try { return JSON.parse(v); } catch { return null; }
+}
+
+// reutiliza helpers si ya los tienes; si no, puedes copiar los del Form:
+function thSticky(left, width) { return { position:"sticky", left, zIndex:3, top:0, width, minWidth:width, background:"var(--card)", borderBottom:"1px solid var(--border)", padding:10, textAlign:"left", fontWeight:900 }; }
+function tdSticky(left, width) { return { position:"sticky", left, zIndex:2, width, minWidth:width, background:"var(--card)", borderBottom:"1px solid var(--border)", padding:10, verticalAlign:"top", fontWeight:left===0?900:700 }; }
+function thDay() { return { top:0, zIndex:1, background:"var(--card)", borderBottom:"1px solid var(--border)", padding:10, textAlign:"left", verticalAlign:"top", minWidth:220 }; }
+function tdDay() { return { borderBottom:"1px solid var(--border)", padding:10, verticalAlign:"top", minWidth:220 }; }
+
 function RenderTablaKitAntiderrames({ respuestas }) {
   const list = (respuestas || []).filter(r => String(r?.categoria||"").toUpperCase() === "TABLA_KIT_ANTIDERRAMES");
 
@@ -957,12 +1066,13 @@ function detectTipoPlantilla({ cabecera, definicion, respuestas }) {
   if (code.includes("FOR033")) return "tabla_epps";
   if (code.includes("FOR034")) return "tabla_extintores";
   if (code.includes("FOR035")) return "tabla_kit_antiderrames";
+  if (code.includes("FOR036")) return "tabla_lavaojos";
 
   const list = Array.isArray(respuestas) ? respuestas : [];
   if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_EPPS" || String(r?.row_data?.__tipo || "").toLowerCase() === "tabla_epps")) return "tabla_epps";
   if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_EXTINTORES" || String(r?.row_data?.__tipo || "").toLowerCase() === "tabla_extintores")) return "tabla_extintores";
   if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_KIT_ANTIDERRAMES" || String(r?.row_data?.__tipo || "").toLowerCase().includes("tabla_kit_antiderrames"))) return "tabla_kit_antiderrames";
-
+  if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_LAVAOJOS" || String(r?.row_data?.__tipo || "").toLowerCase().includes("tabla_lavaojos"))) return "tabla_lavaojos";
   return "checklist";
 }
 export default function InspeccionDetail() {
