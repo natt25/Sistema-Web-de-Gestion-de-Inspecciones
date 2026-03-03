@@ -28,9 +28,12 @@ export default function PlantillasInspeccion() {
         const data = await listarPlantillas();
         if (!ok) return;
         const rowsData = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-        const filtered = rowsData.filter(p => Number(p.id_plantilla_inspec) !== 1); 
-        setRows(filtered);
-        setRows(rowsData);
+                const onlyActive = rowsData.filter((p) => {
+          const estadoNum = Number(p?.estado);
+          const estadoTxt = String(p?.estado ?? "").trim().toUpperCase();
+          return estadoNum === 1 || estadoTxt === "ACTIVO" || estadoTxt === "HABILITADO";
+        });
+        setRows(onlyActive);
       } catch (e) {
         if (!ok) return;
         const status = e?.response?.status;
@@ -103,3 +106,4 @@ export default function PlantillasInspeccion() {
     </DashboardLayout>
   );
 }
+

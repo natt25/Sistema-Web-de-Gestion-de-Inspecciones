@@ -69,7 +69,7 @@ export default function AdminUsuarios() {
   }
 
   async function onResetPassword(u) {
-    const nueva = prompt(`Nueva contraseÃ±a para DNI ${u.dni}:`);
+    const nueva = prompt(`Nueva contraseña para DNI ${u.dni}:`);
     if (!nueva) return;
     try {
       await resetPasswordUsuario(u.id_usuario, nueva);

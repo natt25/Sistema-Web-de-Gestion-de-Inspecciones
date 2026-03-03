@@ -5,6 +5,8 @@ import { clearAuth, getToken, setToken, setUser, getUser } from "../auth/auth.st
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,7 +51,7 @@ export default function Login() {
       const status = err?.response?.status;
       const message = err?.response?.data?.message;
 
-      if (!err?.response) setError("Network error: no se pudo conectar con la API (http://localhost:3000).");
+      if (!err?.response) setError(`Network error: no se pudo conectar con la API (${API_BASE}).`);
       else if (status === 401) setError(message || "Credenciales incorrectas");
       else if (status === 403) setError(message || "Usuario no habilitado");
       else if (status === 500) setError("Error interno del servidor");

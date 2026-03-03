@@ -1,4 +1,18 @@
 import { sql, getPool } from "../config/database.js";
+function plantillaJsonColumnSelectorSql(alias = "d") {
+  return `
+    DECLARE @jsonCol SYSNAME = NULL;
+    IF COL_LENGTH('SSOMA.INS_PLANTILLA_DEFINICION', 'json_definicion') IS NOT NULL SET @jsonCol = 'json_definicion';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_DEFINICION', 'json') IS NOT NULL SET @jsonCol = 'json';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_DEFINICION', 'json_template') IS NOT NULL SET @jsonCol = 'json_template';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_DEFINICION', 'json_def') IS NOT NULL SET @jsonCol = 'json_def';
+    ELSE IF COL_LENGTH('SSOMA.INS_PLANTILLA_DEFINICION', 'definicion_json') IS NOT NULL SET @jsonCol = 'definicion_json';
+
+    DECLARE @jsonExpr NVARCHAR(MAX) = N'CAST(NULL AS NVARCHAR(MAX)) AS json_definicion';
+    IF @jsonCol IS NOT NULL
+      SET @jsonExpr = N'CAST(${alias}.' + QUOTENAME(@jsonCol) + N' AS NVARCHAR(MAX)) AS json_definicion';
+  `;
+}
 
 async function obtenerDefinicionPlantilla(id_plantilla_inspec) {
   const pool = await getPool();
@@ -37,7 +51,6 @@ async function listPlantillas() {
       TRY_CONVERT(INT, p.estado) = 1
       OR UPPER(LTRIM(RTRIM(TRY_CONVERT(NVARCHAR(30), p.estado)))) IN (N'ACTIVO', N'HABILITADO')
     )
-      AND p.id_plantilla_inspec <> 1   -- 👈 OCULTAR SSOMA-FOR-001
     ORDER BY p.codigo_formato;
   `;
   console.log("[plantillas.repo] listPlantillas:start");
@@ -52,24 +65,30 @@ async function listPlantillas() {
 async function getDefinicion(id_plantilla_inspec) {
   const started = Date.now();
   const q = `
-    SELECT TOP 1
-      d.id_plantilla_def,
-      d.id_plantilla_inspec,
-      d.version,
-      d.json_definicion,
-      d.checksum,
-      d.fecha_creacion,
-      p.codigo_formato,
-      p.nombre_formato,
-      p.version_actual
-    FROM SSOMA.INS_PLANTILLA_DEFINICION d
-    JOIN SSOMA.INS_PLANTILLA_INSPECCION p
-      ON p.id_plantilla_inspec = d.id_plantilla_inspec
-    WHERE d.id_plantilla_inspec = @id
-    ORDER BY
-      CASE WHEN d.version = p.version_actual THEN 0 ELSE 1 END,
-      d.version DESC,
-      d.id_plantilla_def DESC;
+    ${plantillaJsonColumnSelectorSql("d")}
+
+    DECLARE @sql NVARCHAR(MAX) = N'
+      SELECT TOP 1
+        d.id_plantilla_def,
+        p.id_plantilla_inspec,
+        d.version,
+        ' + @jsonExpr + N',
+        d.checksum,
+        COALESCE(d.fecha_creacion, p.fecha_creacion) AS fecha_creacion,
+        p.codigo_formato,
+        p.nombre_formato,
+        p.version_actual
+      FROM SSOMA.INS_PLANTILLA_INSPECCION p
+      LEFT JOIN SSOMA.INS_PLANTILLA_DEFINICION d
+        ON d.id_plantilla_inspec = p.id_plantilla_inspec
+      WHERE p.id_plantilla_inspec = @id
+      ORDER BY
+        CASE WHEN d.id_plantilla_def IS NULL THEN 1 ELSE 0 END,
+        CASE WHEN d.version = p.version_actual THEN 0 ELSE 1 END,
+        d.version DESC,
+        d.id_plantilla_def DESC;';
+
+    EXEC sp_executesql @sql, N'@id INT', @id=@id;
   `;
   console.log("[plantillas.repo] getDefinicion:start", { id_plantilla_inspec });
   const pool = await getPool();
@@ -82,24 +101,28 @@ async function getDefinicion(id_plantilla_inspec) {
   });
   return r.recordset[0] || null;
 }
-
 async function getDefinicionByVersion(id_plantilla_inspec, version) {
   const started = Date.now();
   const q = `
-    SELECT TOP 1
-      d.id_plantilla_def,
-      d.id_plantilla_inspec,
-      d.version,
-      d.json_definicion,
-      d.checksum,
-      d.fecha_creacion,
-      p.codigo_formato,
-      p.nombre_formato,
-      p.version_actual
-    FROM SSOMA.INS_PLANTILLA_DEFINICION d
-    JOIN SSOMA.INS_PLANTILLA_INSPECCION p
-      ON p.id_plantilla_inspec = d.id_plantilla_inspec
-    WHERE d.id_plantilla_inspec = @id AND d.version = @version;
+    ${plantillaJsonColumnSelectorSql("d")}
+
+    DECLARE @sql NVARCHAR(MAX) = N'
+      SELECT TOP 1
+        d.id_plantilla_def,
+        d.id_plantilla_inspec,
+        d.version,
+        ' + @jsonExpr + N',
+        d.checksum,
+        d.fecha_creacion,
+        p.codigo_formato,
+        p.nombre_formato,
+        p.version_actual
+      FROM SSOMA.INS_PLANTILLA_DEFINICION d
+      JOIN SSOMA.INS_PLANTILLA_INSPECCION p
+        ON p.id_plantilla_inspec = d.id_plantilla_inspec
+      WHERE d.id_plantilla_inspec = @id AND d.version = @version;';
+
+    EXEC sp_executesql @sql, N'@id INT, @version INT', @id=@id, @version=@version;
   `;
   console.log("[plantillas.repo] getDefinicionByVersion:start", { id_plantilla_inspec, version });
   const pool = await getPool();
@@ -113,7 +136,6 @@ async function getDefinicionByVersion(id_plantilla_inspec, version) {
   });
   return r.recordset[0] || null;
 }
-
 async function listarCamposPorPlantilla(id_plantilla_inspec, id_plantilla_def = null) {
   const pool = await getPool();
   const reqDef = pool.request();

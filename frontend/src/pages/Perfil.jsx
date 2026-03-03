@@ -5,6 +5,8 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { getUser } from "../auth/auth.storage";
 
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+
 export default function Perfil() {
   const navigate = useNavigate();
   const user = useMemo(() => getUser(), []);
@@ -49,7 +51,7 @@ export default function Perfil() {
 
     const token = localStorage.getItem("inspecciones_token");
 
-    const res = await fetch("http://localhost:3000/api/uploads/firma", {
+    const res = await fetch(`${API_BASE}/api/uploads/firma`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}` },
       body: form
@@ -62,20 +64,18 @@ export default function Perfil() {
     }
 
     const data = await res.json();
-    setFirmaPreview(`http://localhost:3000${data.firma_path}?t=${Date.now()}`);
+    setFirmaPreview(`${API_BASE}${data.firma_path}?t=${Date.now()}`);
     alert("Firma guardada ✅");
 
     // si quieres: mostrar la firma guardada desde backend
     // setFirmaPreview(`http://localhost:3000${data.firma_path}`);
   }
 
-  const API = "http://localhost:3000"; // ideal: env
-
   useEffect(() => {
     (async () => {
       try {
         const token = localStorage.getItem("inspecciones_token");
-        const res = await fetch("http://localhost:3000/api/usuarios/me", {
+        const res = await fetch(`${API_BASE}/api/usuarios/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!res.ok) return;
@@ -83,7 +83,7 @@ export default function Perfil() {
 
         if (me?.firma_path) {
           // cache-bust para que se vea la última
-          setFirmaPreview(`http://localhost:3000${me.firma_path}?t=${Date.now()}`);
+          setFirmaPreview(`${API_BASE}${me.firma_path}?t=${Date.now()}`);
         }
       } catch {}
     })();

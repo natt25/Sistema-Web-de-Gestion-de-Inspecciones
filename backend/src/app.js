@@ -21,16 +21,22 @@ const IS_DEV = process.env.NODE_ENV !== "production";
 
 // Middlewares globales
 // Middlewares globales
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-];
+const allowedOriginsFromEnv = String(process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
+
+function isLocalDevOrigin(origin) {
+  if (typeof origin !== "string") return false;
+  return /^https?:\/\/localhost(?::\d+)?$/i.test(origin) || /^https?:\/\/127\.0\.0\.1(?::\d+)?$/i.test(origin);
+}
 
 const corsOptions = {
   origin(origin, callback) {
     // Permite requests sin Origin (curl/postman/server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (allowedOriginsFromEnv.includes(origin)) return callback(null, true);
+    if (isLocalDevOrigin(origin)) return callback(null, true);
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

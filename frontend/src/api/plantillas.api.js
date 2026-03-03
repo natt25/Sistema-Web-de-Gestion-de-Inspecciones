@@ -10,10 +10,11 @@ export async function obtenerDefinicionPlantilla(id, version, options = {}) {
   const { data } = await http.get(`/api/plantillas/${id}/definicion${qs}`, {
     signal: options.signal,
   });
+  const rawJson = data?.json_definicion ?? data?.json ?? data?.json_template ?? null;
   const json =
-    typeof data?.json_definicion === "string"
-      ? JSON.parse(data.json_definicion)
-      : data?.json_definicion;
+    typeof rawJson === "string"
+      ? JSON.parse(rawJson)
+      : rawJson;
   return { ...data, json };
 }
 

@@ -18,9 +18,11 @@ import {
   deserializeTableRowsFromRespuestas,
   deserializeTablaEppsRowsFromRespuestas,
   normalizePlantillaDef,
+  deserializeTablaKitAntiderramesFromRespuestas
 } from "../utils/plantillaRenderer.js";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
 import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
+import TablaKitAntiderramesForm from "../components/forms/TablaKitAntiderramesForm.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -40,12 +42,14 @@ function pickRendererType(def) {
     .toUpperCase();
 
   // Primero: si el backend ya manda tipo, úsalo
-  if (def?.tipo) return def.tipo;
+  const explicitTipo = String(def?.tipo || def?.json?.tipo || "").trim().toLowerCase();
+  if (explicitTipo) return explicitTipo;
 
   // Fallback por codigo_formato
   if (code === "AQP-SSOMA-FOR-014") return "observaciones_seguridad";
   if (code === "AQP-SSOMA-FOR-034") return "tabla_extintores";
   if (code === "AQP-SSOMA-FOR-033") return "tabla_epps";
+  if (code === "AQP-SSOMA-FOR-035") return "tabla_kit_antiderrames";
 
   return "checklist";
 }
@@ -93,7 +97,10 @@ export default function InspeccionNueva() {
 
   const [cabecera, setCabecera] = useState(CABECERA_EMPTY);
   const [uiNotice, setUiNotice] = useState("");
-
+  const initialKit = useMemo(
+    () => deserializeTablaKitAntiderramesFromRespuestas(def?.json?.respuestas || []),
+    [def]
+  );
   useEffect(() => {
     setCabecera(CABECERA_EMPTY);
     setUiNotice("");
@@ -111,12 +118,6 @@ export default function InspeccionNueva() {
 
       if (!plantillaId || Number.isNaN(plantillaId)) {
         setError("Plantilla invalida: falta ?plantilla=ID en la URL.");
-        return;
-      }
-       if (plantillaId === 1) {
-        setError("Plantilla no disponible.");
-        // opcional: redirigir automáticamente a plantillas
-        setTimeout(() => navigate("/inspecciones/plantillas", { replace: true }), 0);
         return;
       }
 
@@ -179,7 +180,6 @@ export default function InspeccionNueva() {
 
   const rendererType = pickRendererType(def);
   const hasChecklistItems = Boolean(def?.items?.length || def?.json?.secciones?.length);
-  const isPlantilla45 = plantillaId === 4 || plantillaId === 5;
 
   const initialObsAccRows = useMemo(
     () => deserializeTableRowsFromRespuestas(def?.json?.respuestas, "observaciones_acciones"),
@@ -286,7 +286,7 @@ export default function InspeccionNueva() {
         const accMap = new Map((created.acciones || []).map(a => [String(a.item_ref), Number(a.id_accion)]));
 
         // payload.respuestas debe incluir item_ref por cada fila para empatar:
-        const filas = (payload?.rowsWithRef || payload?.rows || []); // como lo manejes tú
+        const filas = (payload?.rowsWithRef || payload?.rows || []);
 
         for (const row of filas) {
           const ref = String(row.item_ref || "").trim();
@@ -355,10 +355,18 @@ export default function InspeccionNueva() {
       );
     }
 
+    if (rendererType === "tabla_kit_antiderrames") {
+      return (
+        <TablaKitAntiderramesForm
+          definicion={def.json}
+          initial={initialKit}
+          onSubmit={handleSubmit}
+        />
+      );
+    }
+
     if (!hasChecklistItems) {
-      const msg = isPlantilla45
-        ? "Plantilla sin campos en BD (INS_PLANTILLA_CAMPO) o sin definicion de items."
-        : "Esta plantilla no tiene items.";
+      const msg = "Plantilla sin campos en BD (INS_PLANTILLA_CAMPO) o sin definicion de items.";
       return <Card title="Sin campos">{msg}</Card>;
     }
 
@@ -372,7 +380,7 @@ export default function InspeccionNueva() {
     initialExtintoresRows,
     initialEppsRows,
     hasChecklistItems,
-    isPlantilla45,
+    initialKit,
   ]);
 
   return (

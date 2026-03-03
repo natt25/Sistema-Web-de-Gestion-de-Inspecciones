@@ -22,7 +22,7 @@ export default function Home() {
         window.location.href = "/login";
       }}
     >
-      Cerrar sesiÃ³n
+      Cerrar sesión
     </Button>
   );
 

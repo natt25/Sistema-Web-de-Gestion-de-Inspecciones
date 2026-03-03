@@ -50,25 +50,20 @@ async function definicion(req, res) {
       return res.status(400).json({ message: "id_plantilla_inspec invalido" });
     }
 
-    // BLOQUEAR SSOMA-FOR-001 (plantilla 1)
-    if (id === 1) {
-      return res.status(404).json({ message: "Plantilla no disponible" });
-      // (puedes usar 410 Gone si quieres, pero 404 está bien)
-    }
-
     const row = version
       ? await repo.getDefinicionByVersion(id, version)
       : await repo.getDefinicion(id);
 
     if (!row) return res.status(404).json({ message: "Definicion no encontrada" });
 
-    let jsonDef = row.json_definicion;
+    const rowJson = row?.json_definicion ?? row?.json ?? row?.json_template ?? null;
+    let jsonDef = rowJson;
     let unmappedItems = [];
     try {
       const parsed =
-        typeof row.json_definicion === "string"
-          ? JSON.parse(row.json_definicion)
-          : row.json_definicion;
+        typeof rowJson === "string"
+          ? JSON.parse(rowJson)
+          : rowJson;
 
       // Sembrar campos SOLO si no hay registros aún (idempotente)
       const nCampos = await repo.countCamposPorDef(row.id_plantilla_def);

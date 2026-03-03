@@ -23,6 +23,35 @@ import { getToken } from "../auth/auth.storage";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
 
+function RenderTablaKitAntiderrames({ respuestas }) {
+  const list = (respuestas || []).filter(r => String(r?.categoria||"").toUpperCase() === "TABLA_KIT_ANTIDERRAMES");
+
+  let meta = null;
+  const rows = [];
+  for (const r of list) {
+    const rd = safeParseJson(r.row_data);
+    if (!rd) continue;
+
+    if (rd.__tipo === "tabla_kit_antiderrames_meta") meta = rd.meta;
+    if (rd.__tipo === "tabla_kit_antiderrames_row") rows.push(rd);
+  }
+  rows.sort((a,b)=>Number(a.rowIndex||0)-Number(b.rowIndex||0));
+
+  return (
+    <div style={{ display:"grid", gap: 12 }}>
+      <Card title="Kit Antiderrames (FOR-035)">
+        <pre style={{ whiteSpace:"pre-wrap" }}>{JSON.stringify(meta, null, 2)}</pre>
+      </Card>
+
+      {rows.map(r => (
+        <Card key={r.item_ref} title={`Item ${r.rowIndex}: ${r.material}`}>
+          <pre style={{ whiteSpace:"pre-wrap" }}>{JSON.stringify(r.checks, null, 2)}</pre>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 function safeParseJson(v) {
   if (!v) return null;
   if (typeof v === "object") return v;
@@ -65,7 +94,7 @@ function RenderTablaExtintores({ respuestas }) {
     {
       titulo: "OTROS COMPONENTES",
       items: [
-        { key: "comp_presion", label: "Presión" },
+        { key: "comp_presion", label: "Presón" },
         { key: "comp_manometro", label: "Manómetro" },
         { key: "comp_boquilla", label: "Boquilla" },
         { key: "comp_manguera", label: "Manguera" },
@@ -307,7 +336,7 @@ function RenderTablaEpps({ respuestas }) {
 async function descargarExcelSeguridad(idInspeccion) {
   const token = getToken(); // como ya lo usas en otras llamadas
 
-  const r = await fetch(`${import.meta.env.VITE_API_URL}/api/inspecciones/${idInspeccion}/export/seguridad-xlsx`, {
+  const r = await fetch(`${API_BASE}/api/inspecciones/${idInspeccion}/export/seguridad-xlsx`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -908,6 +937,34 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
   );
 }
 
+
+function normalizeFormatToken(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase();
+}
+
+function detectTipoPlantilla({ cabecera, definicion, respuestas }) {
+  const explicitTipo = String(
+    definicion?.tipo || definicion?.json?.tipo || cabecera?.tipo || cabecera?.tipo_plantilla || ""
+  ).trim().toLowerCase();
+  if (explicitTipo) return explicitTipo;
+
+  const code = normalizeFormatToken(cabecera?.codigo_formato || definicion?.codigo_formato || definicion?.json?.codigo_formato);
+  if (code.includes("FOR014")) return "observaciones_seguridad";
+  if (code.includes("FOR033")) return "tabla_epps";
+  if (code.includes("FOR034")) return "tabla_extintores";
+  if (code.includes("FOR035")) return "tabla_kit_antiderrames";
+
+  const list = Array.isArray(respuestas) ? respuestas : [];
+  if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_EPPS" || String(r?.row_data?.__tipo || "").toLowerCase() === "tabla_epps")) return "tabla_epps";
+  if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_EXTINTORES" || String(r?.row_data?.__tipo || "").toLowerCase() === "tabla_extintores")) return "tabla_extintores";
+  if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_KIT_ANTIDERRAMES" || String(r?.row_data?.__tipo || "").toLowerCase().includes("tabla_kit_antiderrames"))) return "tabla_kit_antiderrames";
+
+  return "checklist";
+}
 export default function InspeccionDetail() {
   const [preview, setPreview] = useState({ open: false, url: "", name: "" });
   const openPreview = ({ url, name }) => {
@@ -1191,7 +1248,7 @@ export default function InspeccionDetail() {
 
   async function handleDeleteAccEvidence({ evItem, idAccion }) {
     if (!evItem || !idAccion) return;
-    if (!confirm("¿Eliminar evidencia?")) return;
+    if (!confirm("Â¿Eliminar evidencia?")) return;
 
     const pendingPath = String(evItem?.archivo_ruta || "");
     const isPendingOffline = pendingPath.startsWith("PENDING_UPLOAD/");
@@ -1454,13 +1511,12 @@ export default function InspeccionDetail() {
   }
 
   const cab = data?.cabecera;
-  const plantillaId = Number(cab?.id_plantilla_inspec ?? 0);
-  const codigoFormato = String(cab?.codigo_formato || "").toUpperCase();
-  const tipoDef = String(definicion?.tipo || "").toLowerCase();
-  const isFOR014 = codigoFormato.includes("AQP-SSOMA-FOR-014") || plantillaId === 4;
-  const isFOR033 = codigoFormato.includes("AQP-SSOMA-FOR-033") || tipoDef === "tabla_epps" || plantillaId === 3;
-  const isFOR034 = codigoFormato.includes("AQP-SSOMA-FOR-034") || tipoDef === "tabla_extintores";
-  const hideObsUI = isFOR033 || isFOR034 || [3, 4].includes(plantillaId);
+  const tipoPlantilla = detectTipoPlantilla({ cabecera: cab, definicion, respuestas: data?.respuestas });
+  const isFOR014 = tipoPlantilla === "observaciones_seguridad" || tipoPlantilla === "observaciones_acciones";
+  const isFOR033 = tipoPlantilla === "tabla_epps";
+  const isFOR034 = tipoPlantilla === "tabla_extintores";
+  const isFOR035 = tipoPlantilla === "tabla_kit_antiderrames";
+  const hideObsUI = isFOR033 || isFOR034 || isFOR035;
   const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
   const observaciones = data?.observaciones || [];
   const accionByItemRef = useMemo(() => {
@@ -1759,6 +1815,7 @@ export default function InspeccionDetail() {
                   </div>
                 );
               }
+              
               // CASO ESPECIAL: Observaciones/Acciones (tu logica actual)
               const isTablaEpps =
                 String(categoria).toUpperCase() === "TABLA_EPPS" ||
@@ -1772,6 +1829,22 @@ export default function InspeccionDetail() {
                   </div>
                 );
               }
+
+              // CASO ESPECIAL: TABLA_KIT_ANTIDERRAMES (FOR-035)
+              const isTablaKit =
+                String(categoria).toUpperCase() === "TABLA_KIT_ANTIDERRAMES" ||
+                list.some((r) => String(r?.row_data?.__tipo || "").toLowerCase().includes("tabla_kit_antiderrames"));
+
+              if (isTablaKit) {
+                const list = respuestasPorCategoria.get(categoria) || [];
+                return (
+                  <div key={categoria}>
+                    <h4 style={{ margin: "0 0 8px 0" }}>{categoria}</h4>
+                    <RenderTablaKitAntiderrames respuestas={list} />
+                  </div>
+                );
+              }
+
               const isObsAcc = upper === "OBSERVACIONES_ACCIONES";
               return (
                 <div key={categoria}>

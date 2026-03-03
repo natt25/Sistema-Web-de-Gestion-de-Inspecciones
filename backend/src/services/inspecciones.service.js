@@ -256,7 +256,7 @@ async function actualizarEstadoAccion({ id_accion, body }) {
 async function actualizarPorcentajeAccion({ id_accion, body }) {
   const raw = body?.porcentaje_cumplimiento;
 
-  // permitir null para “vaciar”
+  // permitir null para â€œvaciarâ€
   if (raw === "" || raw == null) {
     const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
     if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
@@ -284,6 +284,29 @@ async function actualizarPorcentajeAccion({ id_accion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
+
+function normalizeToken(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase();
+}
+
+function shouldAutoCreateObsAcc({ cabecera, respuestas }) {
+  const tipo = String(cabecera?.tipo || cabecera?.tipo_plantilla || "").trim().toLowerCase();
+  if (tipo === "observaciones_seguridad" || tipo === "observaciones_acciones") return true;
+
+  const code = normalizeToken(cabecera?.codigo_formato);
+  if (code.includes("FOR014")) return true;
+
+  return (Array.isArray(respuestas) ? respuestas : []).some((r) => {
+    const categoria = String(r?.categoria || "").trim().toUpperCase();
+    const rowTipo = String(r?.row_data?.__tipo || "").trim().toLowerCase();
+    return categoria === "OBSERVACIONES_ACCIONES" || rowTipo === "observaciones_acciones";
+  });
+}
+
 function badRequest(message, data) {
   return { ok: false, status: 400, message, data };
 }
@@ -297,7 +320,7 @@ async function crearInspeccionCompleta({ user, body }) {
   if (!cab?.fecha_inspeccion) return badRequest("Falta cabecera.fecha_inspeccion");
   if (!Array.isArray(respuestas) || !respuestas.length) return badRequest("Falta respuestas");
 
-  // ✅ OJO: NO VALIDAMOS id_campo aquí.
+  // âœ… OJO: NO VALIDAMOS id_campo aquí­.
   // Solo validamos que exista un item_ref o id para identificar el item.
   const faltanRefs = respuestas.some((r) => !String(r?.item_ref ?? r?.id ?? r?.item_id ?? "").trim());
   if (faltanRefs) return badRequest("Falta item_ref en una o más respuestas");
@@ -331,10 +354,8 @@ async function crearInspeccionCompleta({ user, body }) {
 
   const id_inspeccion = Number(created?.id_inspeccion);
   let obsAcc = { observaciones: [], acciones: [] };
-  const plantillaId = Number(cabeceraToSave?.id_plantilla_inspec);
-
-  // ✅ si es plantilla 4 (observaciones), crea OBS/ACC y devuelve ids
-  if (id_inspeccion && plantillaId === 4) {
+  // Auto-crea observaciones/acciones para plantillas de seguridad por tipo/codigo.
+  if (id_inspeccion && shouldAutoCreateObsAcc({ cabecera: cabeceraToSave, respuestas })) {
     obsAcc = await crearObsAccDesdeRespuestas({
       id_inspeccion,
       respuestas,
@@ -543,4 +564,3 @@ export default {
   actualizarEstadoAccion,
   actualizarPorcentajeAccion
 };
-

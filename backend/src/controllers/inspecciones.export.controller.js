@@ -8,12 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const templatesDir = path.resolve(__dirname, "..", "templates");
 
-const TEMPLATE_HINTS_BY_PLANTILLA = {
-  1: [/FOR[-_ ]?013/i, /INSPECCION GENERAL/i],
-  4: [/FOR[-_ ]?014/i, /SEGURIDAD/i],
-  5: [/FOR[-_ ]?034/i, /EXTINTOR/i],
-};
-
 function normalizeToken(value) {
   return String(value || "")
     .normalize("NFD")
@@ -22,6 +16,21 @@ function normalizeToken(value) {
     .toUpperCase();
 }
 
+function extractForToken(value) {
+  const token = normalizeToken(value);
+  const match = token.match(/FOR\d{3}/);
+  return match ? match[0] : "";
+}
+
+function templateHintsByFormato(value) {
+  const forToken = extractForToken(value);
+  if (forToken === "FOR013") return [/FOR[-_ ]?013/i, /INSPECCION GENERAL/i];
+  if (forToken === "FOR014") return [/FOR[-_ ]?014/i, /SEGURIDAD/i];
+  if (forToken === "FOR033") return [/FOR[-_ ]?033/i, /EPP/i];
+  if (forToken === "FOR034") return [/FOR[-_ ]?034/i, /EXTINTOR/i];
+  if (forToken === "FOR035") return [/FOR[-_ ]?035/i, /KIT/i, /ANTIDERRAME/i];
+  return [];
+}
 function normalizeEstado(value) {
   const raw = String(value || "").trim().toUpperCase();
   if (["BUENO", "B", "OK", "SI", "SÍ", "TRUE", "1"].includes(raw)) return "BUENO";
@@ -45,13 +54,12 @@ function resolveTemplateForCabecera(cabecera) {
   const files = getTemplateCandidates();
   if (!files.length) return null;
 
-  const plantillaId = Number(cabecera?.id_plantilla_inspec);
   const formatToken = normalizeToken(cabecera?.codigo_formato);
+  const formatHints = templateHintsByFormato(cabecera?.codigo_formato);
 
   let match = null;
-  if (Number.isInteger(plantillaId) && TEMPLATE_HINTS_BY_PLANTILLA[plantillaId]) {
-    const hints = TEMPLATE_HINTS_BY_PLANTILLA[plantillaId];
-    match = files.find((name) => hints.some((rx) => rx.test(name)));
+  if (formatHints.length) {
+    match = files.find((name) => formatHints.some((rx) => rx.test(name)));
   }
 
   if (!match && formatToken) {
@@ -121,7 +129,7 @@ function addCabeceraRows(ws, cabecera, participantes) {
 
 function addRespuestasTable(ws, respuestas) {
   ws.addRow(["Respuestas"]);
-  ws.addRow(["N°", "Categoria/Seccion", "Descripcion", "Estado", "Observacion"]);
+  ws.addRow(["NÂ°", "Categoria/Seccion", "Descripcion", "Estado", "Observacion"]);
   const list = Array.isArray(respuestas) ? respuestas : [];
   list.forEach((r, index) => {
     ws.addRow([
@@ -140,7 +148,7 @@ function addSeguridadRowsTable(ws, respuestas) {
   if (!rows.length) return false;
 
   ws.addRow(["Observaciones y Acciones (Seguridad)"]);
-  ws.addRow(["N°", "Observacion", "Riesgo", "Accion", "Fecha", "Responsable", "%", "Evidencia Obs", "Evidencia Lev"]);
+  ws.addRow(["NÂ°", "Observacion", "Riesgo", "Accion", "Fecha", "Responsable", "%", "Evidencia Obs", "Evidencia Lev"]);
 
   rows.forEach((row, idx) => {
     ws.addRow([
@@ -164,7 +172,7 @@ function addExtintoresRowsTable(ws, respuestas) {
   if (!rows.length) return false;
 
   ws.addRow(["Inspeccion de Extintores"]);
-  ws.addRow(["N°", "Codigo", "Ubicacion", "Tipo", "Capacidad", "Fecha Prueba", "Presion", "Manometro", "Manguera", "Senializacion", "Observaciones", "Evidencias"]);
+  ws.addRow(["NÂ°", "Codigo", "Ubicacion", "Tipo", "Capacidad", "Fecha Prueba", "Presion", "Manometro", "Manguera", "Senializacion", "Observaciones", "Evidencias"]);
 
   rows.forEach((row, idx) => {
     ws.addRow([
@@ -313,3 +321,4 @@ export async function exportXlsx(req, res) {
     });
   }
 }
+

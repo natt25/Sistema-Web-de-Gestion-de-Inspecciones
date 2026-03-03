@@ -49,10 +49,12 @@ function normalizeChecklistSections(json) {
 export function detectPlantillaTipo(json, rawPlantilla) {
   const raw = String(json?.tipo || "").trim().toLowerCase();
 
-  // tipos explícitos (cuando el JSON ya trae "tipo")
+  // tipos explÍ­citos (cuando el JSON ya trae "tipo")
   if (raw === "observaciones_acciones") return "observaciones_acciones";
+  if (raw === "observaciones_seguridad") return "observaciones_seguridad";
   if (raw === "tabla_extintores") return "tabla_extintores";
   if (raw === "tabla_epps") return "tabla_epps";
+  if (raw === "tabla_kit_antiderrames") return "tabla_kit_antiderrames";
 
   // fallback por código formato (cuando el JSON NO trae "tipo")
   const codigo = String(
@@ -62,14 +64,16 @@ export function detectPlantillaTipo(json, rawPlantilla) {
       ""
   ).toUpperCase();
 
+  if (codigo.includes("AQP-SSOMA-FOR-014")) return "observaciones_seguridad";
   if (codigo.includes("AQP-SSOMA-FOR-034")) return "tabla_extintores";
   if (codigo.includes("AQP-SSOMA-FOR-033")) return "tabla_epps";
+  if (codigo.includes("AQP-SSOMA-FOR-035")) return "tabla_kit_antiderrames";
 
   return "checklist";
 }
 
 export function normalizePlantillaDef(raw) {
-  const jsonRaw = raw?.json ?? raw?.json_definicion ?? null;
+  const jsonRaw = raw?.json ?? raw?.json_definicion ?? raw?.json_template ?? null;
   const parsedJson = tryParseJson(jsonRaw);
   const json = parsedJson && typeof parsedJson === "object" ? parsedJson : {};
   const tipo = detectPlantillaTipo(json, raw);
@@ -159,7 +163,7 @@ export function serializeObservacionesAccionesRows(rows) {
         evidencia_lev: evidenciaLevNames,
       },
 
-      // row_data SOLO “safe” (sin File/URL)
+      // row_data SOLO â€œsafeâ€ (sin File/URL)
       row_data: {
         __tipo: "observaciones_acciones",
         rowIndex: idx + 1,
@@ -249,3 +253,52 @@ export function deserializeTablaEppsRowsFromRespuestas(respuestas) {
     })
     .map((x, idx) => normalizeEppsRow(x?.row_data || {}, idx));
 }
+
+
+export function serializeTablaKitAntiderrames({ meta, rows }) {
+  const out = [];
+
+  // meta (días: fecha/realizado/firma)
+  out.push({
+    categoria: "TABLA_KIT_ANTIDERRAMES",
+    item_ref: "meta",
+    valor: null,
+    row_data: { __tipo: "tabla_kit_antiderrames_meta", meta },
+  });
+
+  // filas materiales
+  (rows || []).forEach((r, i) => {
+    out.push({
+      categoria: "TABLA_KIT_ANTIDERRAMES",
+      item_ref: r.item_ref || `m${i + 1}`,
+      valor: null,
+      row_data: { __tipo: "tabla_kit_antiderrames_row", rowIndex: i + 1, ...r },
+    });
+  });
+
+  return out;
+}
+
+export function deserializeTablaKitAntiderramesFromRespuestas(respuestas = []) {
+  const list = Array.isArray(respuestas) ? respuestas : [];
+  const ours = list.filter((r) => String(r?.categoria || "").toUpperCase() === "TABLA_KIT_ANTIDERRAMES");
+
+  let meta = null;
+  const rows = [];
+
+  for (const r of ours) {
+    const rd = r?.row_data;
+    const rowData = typeof rd === "string" ? safeJsonParse(rd) : rd;
+
+    if (rowData?.__tipo === "tabla_kit_antiderrames_meta") meta = rowData?.meta || null;
+    if (rowData?.__tipo === "tabla_kit_antiderrames_row") rows.push(rowData);
+  }
+
+  rows.sort((a, b) => Number(a.rowIndex || 0) - Number(b.rowIndex || 0));
+  return { meta, rows };
+}
+
+function safeJsonParse(s) {
+  try { return JSON.parse(s); } catch { return null; }
+}
+

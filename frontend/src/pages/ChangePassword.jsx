@@ -4,6 +4,8 @@ import { getToken, getUser, setUser, clearAuth } from "../auth/auth.storage";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+
 export default function ChangePassword() {
   const [old_password, setOld] = useState("");
   const [new_password, setNew] = useState("");
@@ -24,7 +26,7 @@ export default function ChangePassword() {
         return;
       }
 
-      const r = await fetch("http://localhost:3000/api/auth/change-password", {
+      const r = await fetch(`${API_BASE}/api/auth/change-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -37,14 +39,14 @@ export default function ChangePassword() {
       const data = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        setMsg(data.message || "No se pudo cambiar la contraseÃ±a");
+        setMsg(data.message || "No se pudo cambiar la contraseña");
         return;
       }
 
       const u = getUser();
       if (u) setUser({ ...u, debe_cambiar_password: false });
 
-      setMsg("ContraseÃ±a actualizada. Redirigiendo...");
+      setMsg("Contraseña actualizada. Redirigiendo...");
       setTimeout(() => navigate("/", { replace: true }), 700);
     } catch (err) {
       setMsg("Error de red o servidor");
@@ -59,18 +61,18 @@ export default function ChangePassword() {
         <section className="auth-left">
           <h1 className="auth-title">SSOMA</h1>
           <p className="auth-subtitle">
-            Por seguridad, actualiza tu contraseÃ±a para continuar.
+            Por seguridad, actualiza tu contraseña para continuar.
           </p>
         </section>
 
         <section className="auth-right">
           <div className="auth-tabs">
-            <div className="auth-tab active">Cambiar contraseÃ±a</div>
+            <div className="auth-tab active">Cambiar contraseña</div>
           </div>
 
           <form className="form" onSubmit={onSubmit}>
             <Input
-              label="ContraseÃ±a actual"
+              label="Contraseña actual"
               type="password"
               value={old_password}
               onChange={(e) => setOld(e.target.value)}
@@ -78,7 +80,7 @@ export default function ChangePassword() {
             />
 
             <Input
-              label="Nueva contraseÃ±a"
+              label="Nueva contraseña"
               type="password"
               value={new_password}
               onChange={(e) => setNew(e.target.value)}
