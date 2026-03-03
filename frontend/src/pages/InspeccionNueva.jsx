@@ -21,12 +21,14 @@ import {
   deserializeTablaKitAntiderramesFromRespuestas,
   deserializeTablaLavaojosFromRespuestas,
   deserializeTablaEppsCalienteRowsFromRespuestas,
+  deserializeTablaBotiquinFromRespuestas,
 } from "../utils/plantillaRenderer.js";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
 import TablaEppsForm from "../components/forms/TablaEppsForm.jsx";
 import TablaKitAntiderramesForm from "../components/forms/TablaKitAntiderramesForm.jsx";
 import TablaLavaojosForm from "../components/forms/TablaLavaojosForm.jsx";
 import TablaEppsCalienteForm from "../components/forms/TablaEppsCalienteForm.jsx";
+import TablaBotiquinForm from "../components/forms/TablaBotiquinForm.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -104,6 +106,7 @@ export default function InspeccionNueva() {
   const [cabecera, setCabecera] = useState(CABECERA_EMPTY);
   const [uiNotice, setUiNotice] = useState("");
   const [tablaRows, setTablaRows] = useState([]);
+  const [botiquinValue, setBotiquinValue] = useState(null);
   const initialKit = useMemo(
     () => deserializeTablaKitAntiderramesFromRespuestas(def?.json?.respuestas || []),
     [def]
@@ -208,10 +211,17 @@ export default function InspeccionNueva() {
     () => deserializeTablaEppsCalienteRowsFromRespuestas(def?.json?.respuestas || []),
     [def]
   );
+  const initialBotiquinValue = useMemo(
+    () => deserializeTablaBotiquinFromRespuestas(def?.json?.respuestas || []),
+    [def]
+  );
 
   useEffect(() => {
     setTablaRows(initialEppsCalienteRows);
   }, [initialEppsCalienteRows, plantillaId]);
+  useEffect(() => {
+    setBotiquinValue(initialBotiquinValue);
+  }, [initialBotiquinValue, plantillaId]);
   const buscarEmpleadosForAutocomplete = useCallback(async (text) => {
     try {
       const rows = await buscarEmpleados(String(text || "").trim());
@@ -344,11 +354,13 @@ export default function InspeccionNueva() {
   const renderFormByTipo = useCallback(() => {
     if (!def) return null;
 
-    if (rendererType === "observaciones_seguridad" || rendererType === "observaciones_acciones") {
+    if (rendererType === "tabla_botiquin") {
       return (
-        <TablaObservacionesSeguridadForm
-          initialRows={initialObsAccRows}
-          buscarEmpleados={buscarEmpleadosForAutocomplete}
+        <TablaBotiquinForm
+          definicion={def?.json || def}
+          participantes={{ inspectores: cabecera?.participantes || [] }}
+          value={botiquinValue}
+          onChange={setBotiquinValue}
           onSubmit={handleSubmit}
         />
       );
@@ -424,6 +436,7 @@ export default function InspeccionNueva() {
     cabecera,
     initialLavaojos,
     tablaRows,
+    botiquinValue,
   ]);
 
   return (

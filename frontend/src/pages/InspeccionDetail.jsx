@@ -23,6 +23,56 @@ import { getToken } from "../auth/auth.storage";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
 
+function RenderTablaBotiquin({ respuestas }) {
+  const list = (respuestas || []).filter(r => String(r?.categoria||"").toUpperCase() === "TABLA_BOTIQUIN");
+  let meta = null;
+  const rows = [];
+
+  for (const r of list) {
+    const rd = safeParseJson(r.row_data);
+    if (!rd) continue;
+    if (rd.__tipo === "tabla_botiquin_meta") meta = rd;
+    if (rd.__tipo === "tabla_botiquin_row") rows.push(rd);
+  }
+  rows.sort((a,b)=>Number(a.rowIndex||0)-Number(b.rowIndex||0));
+
+  return (
+    <div style={{ display:"grid", gap:12 }}>
+      <Card title="Botiquín (FOR-038)">
+        <div style={{ display:"grid", gap:6 }}>
+          <div><b>Mes:</b> {meta?.mes || "-"}</div>
+          <div><b>Fecha:</b> {meta?.fecha || "-"}</div>
+          <div><b>Código:</b> {meta?.codigoBotiquin || "-"}</div>
+          <div><b>Realizado por:</b> {meta?.realizadoPor?.nombre || meta?.realizadoPor?.nombres || "-"}</div>
+          {meta?.firmaUrl && (
+            <img src={meta.firmaUrl} alt="firma" style={{ height:56, borderRadius:10, border:"1px solid rgba(0,0,0,.12)" }} />
+          )}
+        </div>
+      </Card>
+
+      {rows.map((r) => {
+        const isMalo = String(r.estado||"").toUpperCase() === "MALO";
+        return (
+          <Card key={r.item_ref} title={`${r.rowIndex}. ${r.descripcion || ""}`}>
+            <div style={{ display:"grid", gap:6 }}>
+              <div><b>Cant/Unidad:</b> {r.cant || "-"} {r.unidad || ""}</div>
+              <div><b>Estado:</b> {r.estado || "SIN RESPONDER"}</div>
+              {isMalo && (
+                <>
+                  <div><b>Observación:</b> {r.observacion || "-"}</div>
+                  <div><b>Acción - Qué:</b> {r.accion?.que || "-"}</div>
+                  <div><b>Acción - Quién:</b> {r.accion?.quien?.nombre || r.accion?.quien?.nombres || "-"}</div>
+                  <div><b>Acción - Cuándo:</b> {r.accion?.cuando || "-"}</div>
+                </>
+              )}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function RenderTablaLavaojos({ respuestas }) {
   const meta = respuestas.find((r) => r?.categoria === "LAVAOJOS_META")?.row_data;
   const items = respuestas.filter((r) => r?.categoria === "LAVAOJOS_ITEM");

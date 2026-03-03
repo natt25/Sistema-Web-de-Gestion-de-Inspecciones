@@ -57,6 +57,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (raw === "tabla_kit_antiderrames") return "tabla_kit_antiderrames";
   if (raw === "tabla_lavaojos") return "tabla_lavaojos";
   if (raw === "tabla_epps_caliente") return "tabla_epps_caliente";
+  if (raw === "tabla_botiquin") return "tabla_botiquin";
 
   // fallback por código formato (cuando el JSON NO trae "tipo")
   const codigo = String(
@@ -72,6 +73,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (codigo.includes("AQP-SSOMA-FOR-035")) return "tabla_kit_antiderrames";
   if (codigo.includes("AQP-SSOMA-FOR-036")) return "tabla_lavaojos";
   if (codigo.includes("AQP-SSOMA-FOR-037")) return "tabla_epps_caliente";
+  if (codigo.includes("AQP-SSOMA-FOR-038")) return "tabla_botiquin";
   return "checklist";
 }
 
@@ -408,4 +410,63 @@ export function deserializeTablaEppsCalienteRowsFromRespuestas(respuestas = []) 
     delete rest.rowIndex;
     return rest;
   });
+}
+
+// === FOR-038 BOTIQUIN ===
+export function serializeTablaBotiquin({ mes, fecha, realizadoPor, firmaUrl, codigoBotiquin, rows, definicion }) {
+  const meta = {
+    __tipo: "tabla_botiquin_meta",
+    codigo_formato: definicion?.codigo_formato || "AQP-SSOMA-FOR-038",
+    mes,
+    fecha,
+    codigoBotiquin,
+    realizadoPor: realizadoPor || null,
+    firmaUrl: firmaUrl || null,
+  };
+
+  const respuestas = [
+    {
+      categoria: "TABLA_BOTIQUIN",
+      item_ref: "META",
+      valor_texto: null,
+      valor_numero: null,
+      valor_fecha: null,
+      row_data: meta,
+    },
+    ...(rows || []).map((r, i) => ({
+      categoria: "TABLA_BOTIQUIN",
+      item_ref: r.item_ref || `i${String(i + 1).padStart(2, "0")}`,
+      valor_texto: null,
+      valor_numero: null,
+      valor_fecha: null,
+      row_data: {
+        __tipo: "tabla_botiquin_row",
+        rowIndex: i + 1,
+        ...r,
+      },
+    })),
+  ];
+
+  return respuestas;
+}
+
+export function deserializeTablaBotiquinFromRespuestas(respuestas = []) {
+  const list = (respuestas || []).filter(
+    (r) => String(r?.categoria || "").toUpperCase() === "TABLA_BOTIQUIN"
+  );
+
+  let meta = null;
+  const rows = [];
+
+  for (const r of list) {
+    const rd = typeof r.row_data === "string" ? safeParseJson(r.row_data) : r.row_data;
+    if (!rd) continue;
+
+    if (rd.__tipo === "tabla_botiquin_meta") meta = rd;
+    if (rd.__tipo === "tabla_botiquin_row") rows.push(rd);
+  }
+
+  rows.sort((a, b) => Number(a?.rowIndex || 0) - Number(b?.rowIndex || 0));
+
+  return { meta, rows };
 }
