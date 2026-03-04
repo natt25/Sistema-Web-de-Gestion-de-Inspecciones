@@ -58,6 +58,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (raw === "tabla_lavaojos") return "tabla_lavaojos";
   if (raw === "tabla_epps_caliente") return "tabla_epps_caliente";
   if (raw === "tabla_botiquin") return "tabla_botiquin";
+  if (raw === "tabla_epps_corte") return "tabla_epps_corte";
 
   // fallback por código formato (cuando el JSON NO trae "tipo")
   const codigo = String(
@@ -74,6 +75,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (codigo.includes("AQP-SSOMA-FOR-036")) return "tabla_lavaojos";
   if (codigo.includes("AQP-SSOMA-FOR-037")) return "tabla_epps_caliente";
   if (codigo.includes("AQP-SSOMA-FOR-038")) return "tabla_botiquin";
+  if (codigo.includes("AQP-SSOMA-FOR-041")) return "tabla_epps_corte";
   return "checklist";
 }
 
