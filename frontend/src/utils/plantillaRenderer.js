@@ -308,39 +308,127 @@ function safeJsonParse2(s) {
 }
 
 export function serializeTablaEppsCalienteRows(rows = []) {
-  return (rows || []).map((row, idx) => ({
-    categoria: "TABLA_EPPS_CALIENTE",
-    item_ref: `row_${idx + 1}`,
-    row_data: {
-      __tipo: "tabla_epps_caliente",
-      rowIndex: idx + 1,
-      ...row,
-    },
-  }));
+  const safeRows = Array.isArray(rows) ? rows : [];
+
+  function normalizeCell(cellLike) {
+    if (cellLike && typeof cellLike === "object" && !Array.isArray(cellLike)) {
+      return {
+        estado: String(cellLike?.estado || "").toUpperCase(),
+        observacion: String(cellLike?.observacion || ""),
+        accion: {
+          que: String(cellLike?.accion?.que || ""),
+          quien: String(cellLike?.accion?.quien || ""),
+          quien_dni: String(cellLike?.accion?.quien_dni || ""),
+          cuando: String(cellLike?.accion?.cuando || ""),
+        },
+      };
+    }
+
+    if (typeof cellLike === "string") {
+      return {
+        estado: String(cellLike || "").toUpperCase(),
+        observacion: "",
+        accion: { que: "", quien: "", quien_dni: "", cuando: "" },
+      };
+    }
+
+    return {
+      estado: "",
+      observacion: "",
+      accion: { que: "", quien: "", quien_dni: "", cuando: "" },
+    };
+  }
+
+  return safeRows.map((row, idx) => {
+    const eppsRaw = row?.epps && typeof row.epps === "object" ? row.epps : {};
+    const epps = {};
+    Object.keys(eppsRaw).forEach((key) => {
+      epps[key] = normalizeCell(eppsRaw[key]);
+    });
+
+    return {
+      categoria: "TABLA_EPPS_CALIENTE",
+      item_ref: `row_${idx + 1}`,
+      row_data: {
+        __tipo: "tabla_epps_caliente",
+        rowIndex: idx + 1,
+        trabajador: String(row?.trabajador || row?.apellidos_nombres || ""),
+        epps,
+      },
+    };
+  });
 }
 
 export function deserializeTablaEppsCalienteRowsFromRespuestas(respuestas = []) {
-  const rows = (respuestas || [])
-    .filter((r) => String(r?.categoria || "").toUpperCase() === "TABLA_EPPS_CALIENTE")
-    .map((r) => {
-      const rd = r?.row_data || r?.rowData || null;
-      if (rd && typeof rd === "object") return rd;
-      try {
-        return JSON.parse(rd);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean)
-    .sort((a, b) => (a.rowIndex ?? 0) - (b.rowIndex ?? 0));
+  const list = Array.isArray(respuestas) ? respuestas : [];
 
-  // limpiamos helpers internos
-  return rows.map((row) => {
-    const rest = { ...(row || {}) };
-    delete rest.__tipo;
-    delete rest.rowIndex;
-    return rest;
-  });
+  function parseRowData(row) {
+    const raw = row?.row_data ?? row?.rowData ?? null;
+    if (raw && typeof raw === "object") return raw;
+    if (typeof raw !== "string") return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeCell(cellLike) {
+    if (cellLike && typeof cellLike === "object" && !Array.isArray(cellLike)) {
+      return {
+        estado: String(cellLike?.estado || "").toUpperCase(),
+        observacion: String(cellLike?.observacion || ""),
+        accion: {
+          que: String(cellLike?.accion?.que || ""),
+          quien: String(cellLike?.accion?.quien || ""),
+          quien_dni: String(cellLike?.accion?.quien_dni || ""),
+          cuando: String(cellLike?.accion?.cuando || ""),
+        },
+      };
+    }
+
+    if (typeof cellLike === "string") {
+      return {
+        estado: String(cellLike || "").toUpperCase(),
+        observacion: "",
+        accion: { que: "", quien: "", quien_dni: "", cuando: "" },
+      };
+    }
+
+    return {
+      estado: "",
+      observacion: "",
+      accion: { que: "", quien: "", quien_dni: "", cuando: "" },
+    };
+  }
+
+  return list
+    .filter((r) => {
+      const categoria = String(r?.categoria || "").toUpperCase();
+      if (categoria === "TABLA_EPPS_CALIENTE") return true;
+      const rd = parseRowData(r);
+      return String(rd?.__tipo || "").toLowerCase() === "tabla_epps_caliente";
+    })
+    .map((r, idx) => {
+      const rd = parseRowData(r) || {};
+      const sourceEpps = rd?.epps && typeof rd.epps === "object" ? rd.epps : {};
+      const epps = {};
+      Object.keys(sourceEpps).forEach((key) => {
+        epps[key] = normalizeCell(sourceEpps[key]);
+      });
+
+      return {
+        __rowOrder: Number(rd?.rowIndex ?? idx + 1),
+        trabajador: String(rd?.trabajador || rd?.apellidos_nombres || ""),
+        epps,
+      };
+    })
+    .sort((a, b) => a.__rowOrder - b.__rowOrder)
+    .map((row) => {
+      const out = { ...row };
+      delete out.__rowOrder;
+      return out;
+    });
 }
 
 // === FOR-038 BOTIQUIN ===

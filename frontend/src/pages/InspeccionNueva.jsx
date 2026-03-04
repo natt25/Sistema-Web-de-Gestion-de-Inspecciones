@@ -393,6 +393,7 @@ export default function InspeccionNueva() {
           value={tablaRows}
           onChange={setTablaRows}
           onSubmit={handleSubmit}
+          inspectores={cabecera?.participantes || []}
         />
       );
     }
@@ -431,7 +432,7 @@ export default function InspeccionNueva() {
   ]);
 
   return (
-    <DashboardLayout title="Nueva inspeccion">
+    <DashboardLayout title="Nueva inspección">
       <div style={{ display: "grid", gap: 16 }}>
         <Card title="Plantilla seleccionada">
           {loading && <div>Cargando...</div>}
@@ -440,13 +441,13 @@ export default function InspeccionNueva() {
           {!loadingDef && !error && def ? (
             <div style={{ display: "grid", gap: 8 }}>
               <div>
-                <b>Codigo:</b> {def.codigo_formato ?? def.json?.codigo_formato ?? "-"}
+                <b>Código:</b> {def.codigo_formato ?? def.json?.codigo_formato ?? "-"}
               </div>
               <div>
                 <b>Nombre:</b> {def.nombre_formato ?? def.json?.nombre_formato ?? "-"}
               </div>
               <div>
-                <b>Version:</b> {def.version ?? "-"}
+                <b>Versión:</b> {def.version ?? "-"}
               </div>
 
               <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>

@@ -137,7 +137,7 @@ export default function InspeccionesList() {
         {loading ? "Cargando..." : "Refrescar"}
       </Button>
       <Button variant="primary" onClick={() => navigate("/inspecciones/plantillas")}>
-        Nueva inspeccion
+        Nueva inspección
       </Button>
     </div>
   );
