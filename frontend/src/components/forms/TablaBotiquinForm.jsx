@@ -1,411 +1,596 @@
-import { useMemo, useState } from "react";
-import Card from "../ui/Card.jsx";
+// frontend/src/components/forms/TablaBotiquinForm.jsx
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
-import Badge from "../ui/Badge.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
+import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { serializeTablaBotiquin } from "../../utils/plantillaRenderer.js"; // <- si tu archivo usa otro nombre, cámbialo
 
-const DAYS = [
-  { key: "LUNES", label: "Lunes" },
-  { key: "MARTES", label: "Martes" },
-  { key: "MIERCOLES", label: "Miercoles" },
-  { key: "JUEVES", label: "Jueves" },
-  { key: "VIERNES", label: "Viernes" },
-  { key: "SABADO", label: "Sabado" },
-  { key: "DOMINGO", label: "Domingo" },
+const MESES = [
+  { key: "ENERO", label: "Enero" },
+  { key: "FEBRERO", label: "Febrero" },
+  { key: "MARZO", label: "Marzo" },
+  { key: "ABRIL", label: "Abril" },
+  { key: "MAYO", label: "Mayo" },
+  { key: "JUNIO", label: "Junio" },
+  { key: "JULIO", label: "Julio" },
+  { key: "AGOSTO", label: "Agosto" },
+  { key: "SETIEMBRE", label: "Setiembre" },
+  { key: "OCTUBRE", label: "Octubre" },
+  { key: "NOVIEMBRE", label: "Noviembre" },
+  { key: "DICIEMBRE", label: "Diciembre" },
 ];
 
-const ESTADOS = ["", "BUENO", "MALO", "NA"];
+const ESTADO_OPTIONS = ["", "BUENO", "MALO", "NA"];
 
-const DEFAULT_ITEMS = [
-  "Camilla",
-  "Botiquin completo",
-  "Acceso libre",
-  "Senaletica",
-];
+function emptyMesMeta() {
+  return { fecha: "", realizado_por: null, realizado_por_text: "", cargo: "", firma: "" };
+}
 
-function getFirmaUrl(emp) {
-  if (!emp) return null;
-  if (emp.firma_url) return emp.firma_url;
-  if (emp.firma_ruta) {
-    const base = String(import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
-    return `${base}/${String(emp.firma_ruta).replace(/^\/+/, "")}`;
-  }
-  if (emp.id_usuario) {
-    const base = String(import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
-    return `${base}/api/usuarios/${emp.id_usuario}/firma`;
-  }
-  return null;
+function buildEmptyMeta() {
+  const meses = {};
+  MESES.forEach((m) => (meses[m.key] = emptyMesMeta()));
+  return { meses };
 }
 
 function emptyCell() {
   return {
     estado: "",
     observacion: "",
-    accion: { que: "", quien: null, cuando: "" },
+    accion: { que: "", quien: "", quien_dni: "", cuando: "" },
   };
 }
 
-function buildInitial(initial) {
-  const items = Array.isArray(initial?.items) && initial.items.length
-    ? initial.items
-    : DEFAULT_ITEMS.map((desc) => ({ desc }));
+function hasMaloCell(cell) {
+  return String(cell?.estado || "").toUpperCase() === "MALO";
+}
 
-  const days = {};
-  for (const d of DAYS) {
-    const src = initial?.days?.[d.key] || {};
-    const srcItems = Array.isArray(src?.items) ? src.items : [];
-    const cellItems = items.map((_, i) => srcItems[i] || emptyCell());
-    days[d.key] = {
-      fecha: src?.fecha || "",
-      realizado_por: src?.realizado_por || null,
-      items: cellItems,
+function validateCell(cell) {
+  if (!hasMaloCell(cell)) return null;
+  if (!String(cell?.observacion || "").trim()) return "Observación obligatoria.";
+  if (!String(cell?.accion?.que || "").trim()) return "Acción (qué) obligatoria.";
+  if (!String(cell?.accion?.quien || "").trim()) return "Acción (quién) obligatoria.";
+  if (!String(cell?.accion?.cuando || "").trim()) return "Acción (cuándo) obligatoria.";
+  return null;
+}
+
+// Igual que cabecera: Nombre (DNI) — cargo
+function getEmpleadoLabel(e) {
+  const nom = `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim();
+  const dni = e?.dni ? `(${e.dni})` : "";
+  const cargo = e?.cargo ? `— ${e.cargo}` : e?.desc_cargo ? `— ${e.desc_cargo}` : "";
+  return `${nom} ${dni} ${cargo}`.trim();
+}
+
+function getEmpleadoFullName(e) {
+  return `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim() || e?.dni || "";
+}
+
+function getFirmaFromEmpleado(e) {
+  const raw = e?.firma_url || e?.firma_ruta || e?.firma_path || e?.ruta_firma || "";
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  const api = String(import.meta?.env?.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+  const path = s.startsWith("/") ? s : `/${s}`;
+  return `${api}${path}`;
+}
+
+function normalizeRowIndexes(list) {
+  return (Array.isArray(list) ? list : []).map((r, i) => ({
+    ...r,
+    rowIndex: i + 1,
+    item_ref: r?.item_ref || `item_${i + 1}`,
+  }));
+}
+
+function buildBaseItems(definicion) {
+  const rawItems = definicion?.items || definicion?.items_default || definicion?.botiquin?.items || [];
+
+  const fallback = [
+    { item_ref: "i1", descripcion: "Guantes Quirúrgicos / Nitrilo", unidad: "Par", cantidad: "1" },
+    { item_ref: "i2", descripcion: "Yodopovidona (... ml)", unidad: "Uni", cantidad: "1" },
+    { item_ref: "i3", descripcion: "Agua Oxigenada (... ml)", unidad: "Uni", cantidad: "1" },
+  ];
+
+  const finalItems = Array.isArray(rawItems) && rawItems.length ? rawItems : fallback;
+
+  return finalItems.map((it, idx) => {
+    const checks = {};
+    MESES.forEach((m) => (checks[m.key] = emptyCell()));
+    return {
+      rowIndex: idx + 1,
+      item_ref: it?.item_ref ?? it?.id ?? it?.item_id ?? `i${idx + 1}`,
+      descripcion: it?.descripcion ?? it?.desc ?? `Item ${idx + 1}`,
+      cantidad: String(it?.cantidad_default ?? it?.cantidad ?? ""),
+      unidad: it?.unidad ?? "",
+      checks,
+      __locked: true,
     };
-  }
-  return { items, days };
+  });
 }
 
-function empleadoLabel(opt) {
-  if (!opt) return "";
-  if (typeof opt === "string") return opt;
-  return `${opt?.dni ?? ""} - ${opt?.apellido ?? ""} ${opt?.nombre ?? ""}`.trim();
-}
+function mergeInitialWithBase(base, initial) {
+  const incoming = initial?.rows || initial?.items || [];
+  if (!Array.isArray(incoming) || incoming.length === 0) return normalizeRowIndexes(base);
 
-function filterInspectores(inspectores, query) {
-  const q = String(query || "").toLowerCase().trim();
-  const list = Array.isArray(inspectores) ? inspectores : [];
-  if (!q) return list.slice(0, 20);
-  return list
-    .filter((x) => {
-      const dni = String(x?.dni ?? "").toLowerCase();
-      const ap = String(x?.apellido ?? x?.apellidos ?? "").toLowerCase();
-      const no = String(x?.nombre ?? x?.nombres ?? "").toLowerCase();
-      const full = `${ap} ${no}`.trim();
-      return dni.includes(q) || ap.includes(q) || no.includes(q) || full.includes(q);
+  const byRef = new Map(incoming.map((r) => [String(r?.item_ref || r?.item_id || ""), r]));
+  const merged = base.map((b) => {
+    const inc = byRef.get(String(b.item_ref));
+    if (!inc) return b;
+
+    const checks = { ...b.checks };
+    MESES.forEach((m) => {
+      checks[m.key] = { ...emptyCell(), ...(inc?.checks?.[m.key] || inc?.meses?.[m.key] || {}) };
+    });
+
+    return { ...b, ...inc, checks, __locked: true };
+  });
+
+  const baseRefs = new Set(base.map((x) => String(x.item_ref)));
+  const extra = incoming
+    .filter((r) => {
+      const ref = String(r?.item_ref || r?.item_id || "");
+      return ref && !baseRefs.has(ref);
     })
-    .slice(0, 20);
+    .map((r) => {
+      const checks = {};
+      MESES.forEach((m) => (checks[m.key] = { ...emptyCell(), ...(r?.checks?.[m.key] || r?.meses?.[m.key] || {}) }));
+      return {
+        rowIndex: 0,
+        item_ref: r?.item_ref || r?.item_id || `custom_${Date.now()}`,
+        descripcion: r?.descripcion || "",
+        cantidad: String(r?.cantidad ?? ""),
+        unidad: r?.unidad ?? "",
+        checks,
+        __locked: false,
+      };
+    });
+
+  return normalizeRowIndexes([...merged, ...extra]);
 }
 
-export default function TablaBotiquinForm({
-  definicion,
-  initial,
-  inspectores = [],
-  buscarEmpleados,
-  onSubmit,
-}) {
-  const seed = useMemo(() => buildInitial(initial), [initial]);
-  const [items, setItems] = useState(seed.items);
-  const [days, setDays] = useState(seed.days);
-  const [searchMap, setSearchMap] = useState({});
+export default function TablaBotiquinForm({ definicion = {}, initial = null, onSubmit }) {
+  const [codigo, setCodigo] = useState(() => String(initial?.codigo_botiquin || initial?.meta?.codigo_botiquin || ""));
+  const [meta, setMeta] = useState(buildEmptyMeta);
+  const [rows, setRows] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [empOptions, setEmpOptions] = useState([]);
   const [errors, setErrors] = useState({});
 
-  const setItemDesc = (idx, value) => {
-    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, desc: value } : it)));
+  useEffect(() => {
+    const base = buildBaseItems(definicion || {});
+    const nextRows = mergeInitialWithBase(base, initial || null);
+    setRows(nextRows);
+
+    const nextMeta = buildEmptyMeta();
+    MESES.forEach((m) => {
+      nextMeta.meses[m.key] = { ...emptyMesMeta(), ...(initial?.meta?.meses?.[m.key] || {}) };
+    });
+    setMeta(nextMeta);
+  }, [definicion, initial]);
+
+  const filled = useMemo(() => {
+    let n = 0;
+    for (const r of rows || []) for (const m of MESES) if (String(r?.checks?.[m.key]?.estado || "").trim()) n++;
+    return n;
+  }, [rows]);
+
+  const buscarEmpleadosForAutocomplete = useCallback(async (text) => {
+    const q = String(text || "").trim();
+    if (!q) return [];
+    try {
+      setSearching(true);
+      const list = await buscarEmpleados(q);
+      return Array.isArray(list) ? list : [];
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const updateMetaMes = (mesKey, patch) => {
+    setMeta((prev) => ({
+      ...prev,
+      meses: {
+        ...(prev?.meses || {}),
+        [mesKey]: { ...(prev?.meses?.[mesKey] || emptyMesMeta()), ...patch },
+      },
+    }));
   };
 
-  const setDayMeta = (dayKey, patch) => {
-    setDays((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], ...patch } }));
+  const updateRow = (idx, patch) => {
+    setRows((prev) => normalizeRowIndexes((prev || []).map((r, i) => (i === idx ? { ...r, ...patch } : r))));
   };
 
-  const setCell = (dayKey, itemIdx, patch) => {
-    setDays((prev) => {
-      const day = prev[dayKey];
-      const nextItems = day.items.map((cell, i) => (i === itemIdx ? { ...cell, ...patch } : cell));
-      return { ...prev, [dayKey]: { ...day, items: nextItems } };
+  const updateCell = (rowIdx, mesKey, patch) => {
+    setRows((prev) =>
+      (prev || []).map((r, i) => {
+        if (i !== rowIdx) return r;
+        const curr = r?.checks?.[mesKey] || emptyCell();
+        const nextCell = { ...curr, ...patch };
+
+        if (!hasMaloCell(nextCell)) {
+          nextCell.observacion = "";
+          nextCell.accion = { que: "", quien: "", quien_dni: "", cuando: "" };
+        } else {
+          nextCell.accion = {
+            que: nextCell?.accion?.que ?? "",
+            quien: nextCell?.accion?.quien ?? "",
+            quien_dni: nextCell?.accion?.quien_dni ?? "",
+            cuando: nextCell?.accion?.cuando ?? "",
+          };
+        }
+
+        return { ...r, checks: { ...(r?.checks || {}), [mesKey]: nextCell } };
+      })
+    );
+  };
+
+  const validateAll = () => {
+    const next = {};
+    (rows || []).forEach((r, rowIdx) => {
+      MESES.forEach((m) => {
+        const cell = r?.checks?.[m.key] || emptyCell();
+        const msg = validateCell(cell);
+        if (msg) next[`r${rowIdx}:${m.key}`] = msg;
+      });
+    });
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleAddRow = () => {
+    setRows((prev) => {
+      const checks = {};
+      MESES.forEach((m) => (checks[m.key] = emptyCell()));
+      const newRow = {
+        rowIndex: 0,
+        item_ref: `custom_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        descripcion: "",
+        cantidad: "",
+        unidad: "",
+        checks,
+        __locked: false,
+      };
+      return normalizeRowIndexes([...(prev || []), newRow]);
     });
   };
 
-  const addRow = () => {
-    setItems((prev) => [...prev, { desc: "" }]);
-    setDays((prev) => {
-      const next = { ...prev };
-      for (const d of DAYS) {
-        next[d.key] = {
-          ...next[d.key],
-          items: [...next[d.key].items, emptyCell()],
-        };
-      }
+  const handleDeleteRow = (rowIdx) => {
+    const r = rows?.[rowIdx];
+    if (!r) return;
+    if (r.__locked) return;
+
+    const name = String(r.descripcion || "").trim() || `Fila ${rowIdx + 1}`;
+    const ok = window.confirm(`¿Eliminar "${name}"? Esta acción no se puede deshacer.`);
+    if (!ok) return;
+
+    setRows((prev) => normalizeRowIndexes((prev || []).filter((_, i) => i !== rowIdx)));
+
+    setErrors((prevErr) => {
+      const next = { ...(prevErr || {}) };
+      Object.keys(next).forEach((k) => {
+        if (k.startsWith(`r${rowIdx}:`)) delete next[k];
+      });
       return next;
     });
   };
 
-  const validate = () => {
-    const nextErrors = {};
-    for (const d of DAYS) {
-      const row = days[d.key];
-      for (let i = 0; i < row.items.length; i += 1) {
-        const c = row.items[i];
-        if (String(c?.estado || "").toUpperCase() !== "MALO") continue;
-        if (!String(c?.observacion || "").trim()) nextErrors[`obs:${d.key}:${i}`] = "Observacion obligatoria";
-        if (!String(c?.accion?.que || "").trim()) nextErrors[`que:${d.key}:${i}`] = "Que obligatorio";
-        const quienText = typeof c?.accion?.quien === "string"
-          ? c.accion.quien
-          : `${c?.accion?.quien?.dni || ""} ${c?.accion?.quien?.apellido || ""} ${c?.accion?.quien?.nombre || ""}`.trim();
-        if (!String(quienText || "").trim()) nextErrors[`quien:${d.key}:${i}`] = "Quien obligatorio";
-        if (!String(c?.accion?.cuando || "").trim()) nextErrors[`cuando:${d.key}:${i}`] = "Cuando obligatorio";
-      }
-    }
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  };
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!validateAll()) return;
 
-  const getOptions = (fieldKey) => {
-    const q = searchMap[fieldKey] || "";
-    if (fieldKey.startsWith("quien:")) return filterInspectores(inspectores, q);
-    if (typeof buscarEmpleados === "function" && q.trim().length >= 2) return [];
-    return filterInspectores(inspectores, q);
-  };
-
-  const handleGuardar = async () => {
-    if (!validate()) return;
-    const data = {
-      __tipo: "tabla_botiquin",
-      codigo_formato: definicion?.codigo_formato || "AQP-SSOMA-FOR-038",
-      items,
-      days,
-    };
-    await onSubmit?.({
-      __tipo: "tabla_botiquin",
-      data,
+    onSubmit?.({
+      tipo: "tabla_botiquin",
+      respuestas: serializeTablaBotiquin({
+        codigo_botiquin: codigo,
+        meta,
+        rows,
+      }),
+      resumen: { celdas_marcadas: filled, filas: (rows || []).length },
+      meta,
+      rows,
+      codigo_botiquin: codigo,
     });
   };
 
   return (
-    <Card title="FOR-038 | Inspeccion de Botiquin y Camilla">
-      <div style={{ display: "grid", gap: 12 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button onClick={addRow}>Agregar fila</Button>
-          <Button variant="outline" onClick={handleGuardar}>Guardar inspeccion</Button>
+    <form onSubmit={handleSubmit} className="ins-form">
+      <div className="ins-header">
+        <div>
+          <div className="ins-title">Inspección de Botiquín</div>
+          <div className="ins-sub">FOR-038. Si marcas MALO, se exige Observación + Plan de acción (Qué / Quién / Cuándo).</div>
         </div>
-
-        <div style={{ overflowX: "auto", border: "1px solid #eee", borderRadius: 12 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
-            <thead>
-              <tr>
-                <th style={thSticky}>ITEM</th>
-                <th style={thSticky}>DESCRIPCION</th>
-                {DAYS.map((d) => {
-                  const firmaUrl = getFirmaUrl(days[d.key]?.realizado_por);
-                  return (
-                    <th key={d.key} style={thDay}>
-                      <div style={{ fontWeight: 800 }}>{d.label.toUpperCase()}</div>
-                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                        <label style={miniField}>
-                          <span style={miniLabel}>Fecha</span>
-                          <input
-                            type="date"
-                            value={days[d.key]?.fecha || ""}
-                            onChange={(e) => setDayMeta(d.key, { fecha: e.target.value })}
-                            style={miniInput(false)}
-                          />
-                        </label>
-                        <label style={miniField}>
-                          <span style={miniLabel}>Realizado por</span>
-                          <Autocomplete
-                            placeholder="DNI / Apellido / Nombre"
-                            displayValue={empleadoLabel(days[d.key]?.realizado_por)}
-                            onInputChange={(text) => {
-                              setSearchMap((prev) => ({ ...prev, [`realizado:${d.key}`]: text }));
-                              setDayMeta(d.key, { realizado_por: text });
-                            }}
-                            options={getOptions(`realizado:${d.key}`)}
-                            getOptionLabel={empleadoLabel}
-                            onSelect={(emp) => setDayMeta(d.key, { realizado_por: emp || null })}
-                          />
-                        </label>
-                        <div style={{ display: "grid", gap: 6 }}>
-                          <span style={miniLabel}>Firma</span>
-                          {firmaUrl ? (
-                            <img
-                              alt="firma"
-                              src={firmaUrl}
-                              style={{
-                                width: "100%",
-                                maxWidth: 180,
-                                height: 70,
-                                objectFit: "contain",
-                                border: "1px solid #eee",
-                                borderRadius: 10,
-                                background: "#fff",
-                              }}
-                              onError={(e) => { e.currentTarget.style.display = "none"; }}
-                            />
-                          ) : (
-                            <div style={{ opacity: 0.6, fontSize: 12 }}>Sin firma</div>
-                          )}
-                        </div>
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it, idx) => (
-                <tr key={`row-${idx}`}>
-                  <td style={tdSticky}>{idx + 1}</td>
-                  <td style={tdSticky}>
-                    <input
-                      value={it.desc || ""}
-                      onChange={(e) => setItemDesc(idx, e.target.value)}
-                      placeholder="Descripcion..."
-                      style={{ width: "100%", padding: "10px 12px", border: "1px solid #ddd", borderRadius: 10 }}
-                    />
-                  </td>
-                  {DAYS.map((d) => {
-                    const cell = days[d.key]?.items?.[idx] || emptyCell();
-                    const isMalo = String(cell.estado || "").toUpperCase() === "MALO";
-                    return (
-                      <td key={`${d.key}-${idx}`} style={tdCell}>
-                        <div style={{ display: "grid", gap: 8 }}>
-                          <select
-                            value={cell.estado || ""}
-                            onChange={(e) => {
-                              const next = e.target.value;
-                              if (next !== "MALO") {
-                                setCell(d.key, idx, { estado: next, observacion: "", accion: { que: "", quien: null, cuando: "" } });
-                              } else {
-                                setCell(d.key, idx, { estado: next });
-                              }
-                            }}
-                            style={{
-                              padding: "10px 10px",
-                              borderRadius: 12,
-                              border: isMalo ? "2px solid #ef4444" : "1px solid #ddd",
-                              background: isMalo ? "#fff5f5" : "#fff",
-                              width: "100%",
-                            }}
-                          >
-                            {ESTADOS.map((x) => (
-                              <option key={x} value={x}>
-                                {x === "" ? "SIN RESPONDER" : x}
-                              </option>
-                            ))}
-                          </select>
-
-                          {isMalo ? (
-                            <div style={maloBox}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <b style={{ color: "#b91c1c" }}>Observacion (obligatoria)</b>
-                                <Badge variant="danger">MALO</Badge>
-                              </div>
-                              <textarea
-                                value={cell.observacion || ""}
-                                onChange={(e) => setCell(d.key, idx, { observacion: e.target.value })}
-                                placeholder="Detalla observaciones y medidas correctivas..."
-                                style={txtArea(Boolean(errors[`obs:${d.key}:${idx}`]))}
-                              />
-                              <div style={{ marginTop: 8 }}>
-                                <b>Plan de accion (obligatorio)</b>
-                              </div>
-                              <label style={miniField}>
-                                <span style={miniLabel}>Que</span>
-                                <input
-                                  value={cell.accion?.que || ""}
-                                  onChange={(e) => setCell(d.key, idx, { accion: { ...(cell.accion || {}), que: e.target.value } })}
-                                  style={miniInput(Boolean(errors[`que:${d.key}:${idx}`]))}
-                                />
-                              </label>
-                              <label style={miniField}>
-                                <span style={miniLabel}>Quien</span>
-                                <Autocomplete
-                                  placeholder="DNI / Apellido / Nombre"
-                                  displayValue={empleadoLabel(cell.accion?.quien)}
-                                  onInputChange={(text) => {
-                                    setSearchMap((prev) => ({ ...prev, [`quien:${d.key}:${idx}`]: text }));
-                                    setCell(d.key, idx, { accion: { ...(cell.accion || {}), quien: text } });
-                                  }}
-                                  options={getOptions(`quien:${d.key}:${idx}`)}
-                                  getOptionLabel={empleadoLabel}
-                                  onSelect={(emp) => setCell(d.key, idx, { accion: { ...(cell.accion || {}), quien: emp || null } })}
-                                />
-                              </label>
-                              <label style={miniField}>
-                                <span style={miniLabel}>Cuando</span>
-                                <input
-                                  type="date"
-                                  value={cell.accion?.cuando || ""}
-                                  onChange={(e) => setCell(d.key, idx, { accion: { ...(cell.accion || {}), cuando: e.target.value } })}
-                                  style={miniInput(Boolean(errors[`cuando:${d.key}:${idx}`]))}
-                                />
-                              </label>
-                            </div>
-                          ) : null}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="ins-progress">
+          <span>{filled} celdas con estado</span>
+          <Button type="submit">Guardar</Button>
         </div>
       </div>
-    </Card>
+
+      {/* Card superior: SOLO código */}
+      <div className="ins-section">
+        <div className="ins-grid" style={{ gridTemplateColumns: "1fr" }}>
+          <label className="ins-field">
+            <span>Código de Botiquín</span>
+            <input
+              className="ins-input"
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              placeholder="Ej: BOT-001"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="ins-section" style={{ overflowX: "auto" }}>
+        <table className="table" style={{ minWidth: 1700 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 50 }}>#</th>
+              <th style={{ minWidth: 320 }}>Descripción</th>
+              <th style={{ width: 110 }}>Cant.</th>
+              <th style={{ width: 100 }}>Unidad</th>
+
+              {MESES.map((m) => (
+                <th key={m.key} style={{ minWidth: 240 }}>
+                  {m.label}
+                </th>
+              ))}
+
+              <th
+                style={{
+                  width: 70,
+                  minWidth: 70,
+                  textAlign: "center",
+                  position: "sticky",
+                  right: 0,
+                  background: "#fff",
+                  zIndex: 6,
+                }}
+              />
+            </tr>
+          </thead>
+
+          <tbody>
+            {/* FECHA */}
+            <tr>
+              <td colSpan={4} style={{ fontWeight: 900 }}>Fecha</td>
+              {MESES.map((m) => (
+                <td key={`fecha-${m.key}`}>
+                  <input
+                    type="date"
+                    className="ins-input"
+                    value={meta?.meses?.[m.key]?.fecha || ""}
+                    onChange={(e) => updateMetaMes(m.key, { fecha: e.target.value })}
+                  />
+                </td>
+              ))}
+              <td />
+            </tr>
+
+            {/* REALIZADO POR */}
+            <tr>
+              <td colSpan={4} style={{ fontWeight: 900 }}>Realizado por</td>
+              {MESES.map((m) => {
+                const mes = meta?.meses?.[m.key] || emptyMesMeta();
+                return (
+                  <td key={`rp-${m.key}`}>
+                    <Autocomplete
+                      placeholder="DNI / Apellido / Nombre"
+                      displayValue={mes?.realizado_por_text || ""}
+                      options={empOptions}
+                      loading={searching}
+                      getOptionLabel={getEmpleadoLabel}
+                      onInputChange={async (text) => {
+                        updateMetaMes(m.key, { realizado_por_text: text, realizado_por: null, cargo: "", firma: "" });
+                        const opts = await buscarEmpleadosForAutocomplete(text);
+                        setEmpOptions(opts);
+                      }}
+                      onSelect={(it) => {
+                        updateMetaMes(m.key, {
+                          realizado_por: it,
+                          realizado_por_text: getEmpleadoFullName(it),
+                          cargo: it?.cargo ?? it?.desc_cargo ?? "",
+                          firma: getFirmaFromEmpleado(it) || "",
+                        });
+                      }}
+                    />
+                    {mes?.cargo ? <div className="help">Cargo: <b>{mes.cargo}</b></div> : null}
+                  </td>
+                );
+              })}
+              <td />
+            </tr>
+
+            {/* FIRMA */}
+            <tr>
+              <td colSpan={4} style={{ fontWeight: 900 }}>Firma</td>
+              {MESES.map((m) => {
+                const mes = meta?.meses?.[m.key] || emptyMesMeta();
+                const finalSrc = getFirmaFromEmpleado(mes?.realizado_por) || mes?.firma || "";
+                return (
+                  <td key={`firma-${m.key}`}>
+                    {finalSrc ? (
+                      <div style={{ width: "100%", display: "grid", placeItems: "center", padding: 6, border: "1px solid var(--border)", borderRadius: 12, background: "#fff" }}>
+                        <img
+                          src={finalSrc}
+                          alt="firma"
+                          style={{ maxWidth: "100%", height: 64, objectFit: "contain", display: "block" }}
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ height: 74, border: "1px dashed var(--border)", borderRadius: 12, background: "#fff" }} />
+                    )}
+                  </td>
+                );
+              })}
+              <td />
+            </tr>
+
+            {/* ITEMS */}
+            {(rows || []).map((row, idx) => (
+              <tr key={`row-${row?.item_ref || idx}`}>
+                <td>{row?.rowIndex || idx + 1}</td>
+
+                <td>
+                  <input
+                    className="ins-input"
+                    value={row?.descripcion || ""}
+                    onChange={(e) => updateRow(idx, { descripcion: e.target.value })}
+                    placeholder="Descripción"
+                    disabled={row?.__locked}
+                  />
+                </td>
+
+                <td>
+                  <input
+                    className="ins-input"
+                    value={row?.cantidad || ""}
+                    onChange={(e) => updateRow(idx, { cantidad: e.target.value })}
+                    placeholder="Cant."
+                  />
+                </td>
+
+                <td>
+                  <input
+                    className="ins-input"
+                    value={row?.unidad || ""}
+                    onChange={(e) => updateRow(idx, { unidad: e.target.value })}
+                    placeholder="Unidad"
+                  />
+                </td>
+
+                {MESES.map((m) => (
+                  <td key={`${row?.item_ref || idx}-${m.key}`}>
+                    <select
+                      className="ins-input"
+                      value={row?.checks?.[m.key]?.estado || ""}
+                      onChange={(e) => updateCell(idx, m.key, { estado: e.target.value })}
+                    >
+                      {ESTADO_OPTIONS.map((opt) => (
+                        <option key={opt || "empty"} value={opt}>{opt || "-"}</option>
+                      ))}
+                    </select>
+
+                    {hasMaloCell(row?.checks?.[m.key]) ? (
+                      <div style={{ marginTop: 10, padding: 10, border: "1px solid #f3c6c6", borderRadius: 12, background: "#fff5f5" }}>
+                        <div style={{ fontWeight: 900, color: "#b91c1c" }}>Observación (obligatoria)</div>
+                        <textarea
+                          className="ins-note-input"
+                          rows={2}
+                          value={row?.checks?.[m.key]?.observacion || ""}
+                          onChange={(e) => updateCell(idx, m.key, { observacion: e.target.value })}
+                          placeholder="Detalla observaciones y medidas correctivas..."
+                        />
+
+                        <div style={{ marginTop: 10, fontWeight: 900 }}>Plan de acción (obligatorio)</div>
+
+                        <div className="ins-grid">
+                          <label className="ins-field">
+                            <span>Qué</span>
+                            <input
+                              className="ins-input"
+                              value={row?.checks?.[m.key]?.accion?.que || ""}
+                              onChange={(e) =>
+                                updateCell(idx, m.key, {
+                                  accion: { ...(row?.checks?.[m.key]?.accion || {}), que: e.target.value },
+                                })
+                              }
+                            />
+                          </label>
+
+                          <label className="ins-field">
+                            <span>Quién</span>
+                            <Autocomplete
+                              placeholder="DNI / Apellido / Nombre"
+                              displayValue={row?.checks?.[m.key]?.accion?.quien || ""}
+                              options={empOptions}
+                              loading={searching}
+                              getOptionLabel={getEmpleadoLabel}
+                              onInputChange={async (text) => {
+                                updateCell(idx, m.key, {
+                                  accion: { ...(row?.checks?.[m.key]?.accion || {}), quien: text, quien_dni: "" },
+                                });
+                                const opts = await buscarEmpleadosForAutocomplete(text);
+                                setEmpOptions(opts);
+                              }}
+                              onSelect={(it) => {
+                                updateCell(idx, m.key, {
+                                  accion: {
+                                    ...(row?.checks?.[m.key]?.accion || {}),
+                                    quien: getEmpleadoFullName(it),
+                                    quien_dni: String(it?.dni || ""),
+                                  },
+                                });
+                              }}
+                            />
+                          </label>
+
+                          <label className="ins-field">
+                            <span>Cuándo</span>
+                            <input
+                              type="date"
+                              className="ins-input"
+                              value={row?.checks?.[m.key]?.accion?.cuando || ""}
+                              onChange={(e) =>
+                                updateCell(idx, m.key, {
+                                  accion: { ...(row?.checks?.[m.key]?.accion || {}), cuando: e.target.value },
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+
+                        {errors[`r${idx}:${m.key}`] ? (
+                          <div className="ins-error" style={{ marginTop: 8 }}>
+                            {errors[`r${idx}:${m.key}`]}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </td>
+                ))}
+
+                <td
+                  style={{
+                    textAlign: "center",
+                    position: "sticky",
+                    right: 0,
+                    background: "#fff",
+                    zIndex: 5,
+                    pointerEvents: "auto",
+                  }}
+                >
+                  <button
+                    type="button"
+                    title="Eliminar fila"
+                    onClick={() => handleDeleteRow(idx)}
+                    disabled={row?.__locked}
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "#fff",
+                      cursor: row?.__locked ? "not-allowed" : "pointer",
+                      fontSize: 16,
+                      lineHeight: "16px",
+                      opacity: row?.__locked ? 0.35 : 1,
+                      pointerEvents: row?.__locked ? "none" : "auto",
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-start", paddingLeft: 50 }}>
+          <Button type="button" onClick={handleAddRow}>+ Agregar fila</Button>
+        </div>
+      </div>
+    </form>
   );
 }
-
-const thSticky = {
-  position: "sticky",
-  left: 0,
-  zIndex: 3,
-  background: "#111827",
-  color: "white",
-  padding: 12,
-  borderBottom: "1px solid #111",
-  minWidth: 70,
-};
-
-const thDay = {
-  background: "#f97316",
-  color: "white",
-  padding: 12,
-  borderBottom: "1px solid #f59e0b",
-  minWidth: 240,
-  verticalAlign: "top",
-};
-
-const tdSticky = {
-  position: "sticky",
-  left: 0,
-  zIndex: 2,
-  background: "white",
-  padding: 10,
-  borderBottom: "1px solid #eee",
-  borderRight: "1px solid #eee",
-  minWidth: 70,
-};
-
-const tdCell = {
-  padding: 10,
-  borderBottom: "1px solid #eee",
-  borderRight: "1px solid #eee",
-  verticalAlign: "top",
-};
-
-const maloBox = {
-  border: "2px solid #fecaca",
-  background: "#fff5f5",
-  borderRadius: 14,
-  padding: 10,
-  display: "grid",
-  gap: 8,
-};
-
-const miniField = { display: "grid", gap: 6 };
-const miniLabel = { fontSize: 12, opacity: 0.8 };
-const miniInput = (hasErr) => ({
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: hasErr ? "2px solid #ef4444" : "1px solid #ddd",
-  outline: "none",
-});
-
-const txtArea = (hasErr) => ({
-  width: "100%",
-  minHeight: 70,
-  resize: "vertical",
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: hasErr ? "2px solid #ef4444" : "1px solid #ddd",
-  outline: "none",
-});
