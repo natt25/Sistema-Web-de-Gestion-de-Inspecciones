@@ -18,3 +18,10 @@ export async function actualizarPorcentajeAccion(idAccion, porcentaje_cumplimien
   });
   return res.data;
 }
+
+export async function listarInspecciones(params = {}) {
+  const qs = new URLSearchParams();
+  if (params.plantilla) qs.set("plantilla", params.plantilla);
+  const url = `/api/inspecciones${qs.toString() ? `?${qs.toString()}` : ""}`;
+  return http.get(url);
+}

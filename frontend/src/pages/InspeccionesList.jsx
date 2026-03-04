@@ -59,6 +59,9 @@ function getRangeDates(range, customDesde, customHasta) {
 export default function InspeccionesList() {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const plantillaId = params.get("plantilla");
+  const plantillaIdNum = plantillaId ? Number(plantillaId) : null;
 
   const [filters, setFilters] = useState({
     id_area: "",
@@ -83,18 +86,24 @@ export default function InspeccionesList() {
     const p = {};
     if (filters.id_area) p.id_area = Number(filters.id_area);
     if (filters.id_estado_inspeccion) p.id_estado_inspeccion = Number(filters.id_estado_inspeccion);
+    if (Number.isFinite(plantillaIdNum)) p.plantilla = plantillaIdNum;
     const { desde, hasta } = getRangeDates(filters.range, filters.desde, filters.hasta);
     if (desde) p.desde = desde;
     if (hasta) p.hasta = hasta;
     return p;
-  }, [filters]);
+  }, [filters, plantillaIdNum]);
 
   async function load() {
     setError("");
     setLoading(true);
     try {
       const data = await listarInspecciones(queryParams);
-      setItems(normalizeArray(data));
+      const list = normalizeArray(data);
+      const next =
+        Number.isFinite(plantillaIdNum)
+          ? list.filter((it) => Number(it?.id_plantilla_inspec) === plantillaIdNum)
+          : list;
+      setItems(next);
     } catch (err) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.message;
@@ -145,6 +154,11 @@ export default function InspeccionesList() {
   return (
     <DashboardLayout title="Inspecciones" actions={actions}>
       <Card title="Filtros">
+        {Number.isFinite(plantillaIdNum) ? (
+          <div style={{ marginBottom: 10 }}>
+            <Badge>Filtrando por plantilla: {plantillaIdNum}</Badge>
+          </div>
+        ) : null}
         <div className="grid-cards filters-grid">
           <Input label="id_area" name="id_area" value={filters.id_area} onChange={onChange} placeholder="Ej: 1" />
           <Input label="id_estado_inspeccion" name="id_estado_inspeccion" value={filters.id_estado_inspeccion} onChange={onChange} placeholder="Ej: 1" />
