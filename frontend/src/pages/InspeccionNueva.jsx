@@ -464,9 +464,6 @@ export default function InspeccionNueva() {
 
               <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <Button onClick={() => navigate("/inspecciones/plantillas")}>Cambiar plantilla</Button>
-                <Button variant="outline" onClick={() => navigate("/inspecciones")}>
-                  Volver al listado
-                </Button>
               </div>
             </div>
           ) : null}
