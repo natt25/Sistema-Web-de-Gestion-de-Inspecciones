@@ -39,6 +39,7 @@ function rangeToDias(range) {
   if (range === "3m") return 90;
   if (range === "6m") return 180;
   if (range === "1y") return 365;
+  if (range === "all") return null;
   return 7;
 }
 
@@ -50,7 +51,8 @@ export default function Pendientes() {
     range: "7d",
     desde: "",
     hasta: "",
-    soloMias: 1, 
+    soloMias: 1,
+    estado: "ALL",
   });
 
   const [rows, setRows] = useState([]);
@@ -86,12 +88,29 @@ export default function Pendientes() {
     setLoading(true);
     setMsg("");
     try {
-      const data = await listarPendientes({
-      dias: diasComputed,                 // puede ser null
-      solo_mias: filters.soloMias,
-      estado: filters.estado,             // ✅ NUEVO
-    });
-      setRows(Array.isArray(data) ? data : []);
+      try {
+        const data = await listarPendientes({
+          dias: diasComputed,
+          solo_mias: filters.soloMias,
+          estado: filters.estado,
+        });
+        setRows(Array.isArray(data) ? data : []);
+      } catch (e) {
+        const isWideRange =
+          filters.range === "3m" ||
+          filters.range === "6m" ||
+          filters.range === "1y" ||
+          filters.range === "all";
+
+        if (!isWideRange) throw e;
+
+        const data = await listarPendientes({
+          dias: null,
+          solo_mias: filters.soloMias,
+          estado: filters.estado,
+        });
+        setRows(Array.isArray(data) ? data : []);
+      }
     } catch {
       setMsg("No se pudo cargar pendientes.");
     } finally {
@@ -132,6 +151,34 @@ export default function Pendientes() {
   const columns = [
     { key: "id_accion", label: "ID Acción" },
     { key: "id_observacion", label: "Obs", render: (a) => a.id_observacion ?? "-" },
+    {
+      key: "inspeccion",
+      label: "Inspección",
+      render: (a) => {
+        const id = a?.id_inspeccion ?? a?.id_inspec ?? a?.id;
+        const label = a?.codigo_formato ?? `#${id ?? "-"}`;
+
+        if (!id) return "-";
+
+        return (
+          <button
+            type="button"
+            onClick={() => navigate(`/inspecciones/${id}`)}
+            style={{
+              padding: 0,
+              border: 0,
+              background: "transparent",
+              color: "#2563eb",
+              textDecoration: "underline",
+              cursor: "pointer",
+              fontWeight: 800,
+            }}
+          >
+            {label}
+          </button>
+        );
+      },
+    },
     {
       key: "desc_accion",
       label: "Descripción",
@@ -200,7 +247,11 @@ export default function Pendientes() {
   ];
 
   const hint = useMemo(() => {
-    if (filters.range !== "custom") return `Mostrando por: ${rangeLabel} (≈ ${diasComputed} días)`;
+    if (filters.range !== "custom") {
+      return diasComputed == null
+        ? `Mostrando por: ${rangeLabel} (sin límite de días)`
+        : `Mostrando por: ${rangeLabel} (≈ ${diasComputed} días)`;
+    }
     if (!filters.desde || !filters.hasta) return "Elige 'desde' y 'hasta' para el rango personalizado.";
     return `Rango: ${filters.desde} → ${filters.hasta} (≈ ${diasComputed} días)`;
   }, [filters.range, filters.desde, filters.hasta, rangeLabel, diasComputed]);
