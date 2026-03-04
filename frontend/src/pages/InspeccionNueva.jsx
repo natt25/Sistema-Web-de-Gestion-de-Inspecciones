@@ -30,6 +30,7 @@ import {
   serializeTablaBotiquin,
 } from "../utils/plantillaRenderer.js";
 import { uploadEvidenciaObs, uploadEvidenciaAcc } from "../api/uploads.api.js";
+import TablaCamillaForm from "../components/forms/TablaCamillaForm.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -346,6 +347,7 @@ export default function InspeccionNueva() {
 
   const renderFormByTipo = useCallback(() => {
     if (!def) return null;
+    const safeDef = def || {};
 
     if (rendererType === "observaciones_seguridad" || rendererType === "observaciones_acciones") {
       return (
@@ -360,7 +362,7 @@ export default function InspeccionNueva() {
     if (rendererType === "tabla_extintores") {
       return (
         <TablaExtintoresForm
-          definicion={def.json}
+          definicion={safeDef.json}
           initialRows={initialExtintoresRows}
           onSubmit={handleSubmit}
         />
@@ -372,13 +374,13 @@ export default function InspeccionNueva() {
     }
 
     if (rendererType === "tabla_kit_antiderrames") {
-      return <TablaKitAntiderramesForm definicion={def.json} initial={initialKit} onSubmit={handleSubmit} />;
+      return <TablaKitAntiderramesForm definicion={safeDef.json} initial={initialKit} onSubmit={handleSubmit} />;
     }
 
     if (rendererType === "tabla_lavaojos") {
       return (
         <TablaLavaojosForm
-          definicion={def.json}
+          definicion={safeDef.json}
           initial={initialLavaojos}
           onSubmit={handleSubmit}
           inspectores={cabecera?.inspectores || cabecera?.participantes || []}
@@ -389,7 +391,7 @@ export default function InspeccionNueva() {
     if (rendererType === "tabla_epps_caliente") {
       return (
         <TablaEppsCalienteForm
-          definicion={def?.json || def}
+          definicion={safeDef?.json || safeDef}
           value={tablaRows}
           onChange={setTablaRows}
           onSubmit={handleSubmit}
@@ -401,10 +403,20 @@ export default function InspeccionNueva() {
     if (rendererType === "tabla_botiquin") {
       return (
         <TablaBotiquinForm
-          definicion={def?.json || {}}
+          definicion={safeDef?.json || {}}
           initial={initialBotiquin}
           inspectores={cabecera?.participantes || []}
           buscarEmpleados={buscarEmpleadosForAutocomplete}
+          onSubmit={handleSubmit}
+        />
+      );
+    }
+
+    if (rendererType === "tabla_camilla") {
+      return (
+        <TablaCamillaForm
+          definicion={safeDef?.json || safeDef}
+          initial={null}
           onSubmit={handleSubmit}
         />
       );

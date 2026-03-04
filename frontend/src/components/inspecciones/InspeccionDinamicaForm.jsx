@@ -3,6 +3,7 @@ import Button from "../ui/Button.jsx";
 import Badge from "../ui/Badge.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import TablaCamillaForm from "../forms/TablaCamillaForm.jsx";
 
 export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit }) {
   const sections = useMemo(() => {

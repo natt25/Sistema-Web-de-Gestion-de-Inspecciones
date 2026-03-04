@@ -59,6 +59,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (raw === "tabla_epps_caliente") return "tabla_epps_caliente";
   if (raw === "tabla_botiquin") return "tabla_botiquin";
   if (raw === "tabla_epps_corte") return "tabla_epps_corte";
+  if (raw === "tabla_camilla") return "tabla_camilla";
 
   // fallback por código formato (cuando el JSON NO trae "tipo")
   const codigo = String(
@@ -76,6 +77,7 @@ export function detectPlantillaTipo(json, rawPlantilla) {
   if (codigo.includes("AQP-SSOMA-FOR-037")) return "tabla_epps_caliente";
   if (codigo.includes("AQP-SSOMA-FOR-038")) return "tabla_botiquin";
   if (codigo.includes("AQP-SSOMA-FOR-041")) return "tabla_epps_corte";
+  if (codigo.includes("AQP-SSOMA-FOR-043")) return "tabla_camilla";
   return "checklist";
 }
 
@@ -524,3 +526,19 @@ export function deserializeTablaLavaojosFromRespuestas(respuestas = []) {
 function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
+
+export function serializeTablaCamilla({ codigo_camilla, meta, rows }) {
+  return {
+    codigo_camilla: String(codigo_camilla || ""),
+    meta: meta || {},
+    rows: Array.isArray(rows)
+      ? rows.map((r) => ({
+          item_ref: r?.item_ref || null,
+          descripcion: r?.descripcion ?? r?.desc ?? "",
+          __locked: Boolean(r?.__locked),
+          checks: r?.checks || {},
+        }))
+      : [],
+  };
+}
+
