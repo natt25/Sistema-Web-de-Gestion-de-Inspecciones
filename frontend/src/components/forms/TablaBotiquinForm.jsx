@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
-import { serializeTablaBotiquin } from "../../utils/plantillaRenderer.js"; // <- si tu archivo usa otro nombre, cámbialo
+import { serializeTablaBotiquin } from "../../utils/plantillaRenderer.js";
 
 const MESES = [
   { key: "ENERO", label: "Enero" },
@@ -20,7 +20,30 @@ const MESES = [
   { key: "DICIEMBRE", label: "Diciembre" },
 ];
 
+const DAYS = MESES;
 const ESTADO_OPTIONS = ["", "BUENO", "MALO", "NA"];
+
+const DEFAULT_ITEMS = [
+  { desc: "Guantes Quirúrgicos / Nitrilo", cant: "", unidad: "Par" },
+  { desc: "Yodopovidona ( ...... ml)", cant: "", unidad: "Uni" },
+  { desc: "Agua Oxigenada ( ...... ml)", cant: "", unidad: "Uni" },
+  { desc: "Alcohol ( ...... ml)", cant: "", unidad: "Uni" },
+  { desc: "Apósitos Esterilizados", cant: "", unidad: "Uni" },
+  { desc: "Gasas Esterilizadas ...... x ...... cm", cant: "", unidad: "Uni" },
+  { desc: "Esparadrapos ...... cm x ...... cm", cant: "", unidad: "Rollo" },
+  { desc: "Vendas Elásticas ...... pulg x ...... yardas", cant: "", unidad: "Uni" },
+  { desc: "Algodón ...... gramos", cant: "", unidad: "Uni" },
+  { desc: "Vendas Triangulares", cant: "", unidad: "Uni" },
+  { desc: "Paleta Baja Lengua (Entablillado de Dedos)", cant: "", unidad: "Uni" },
+  { desc: "Tijera Punta Roma", cant: "", unidad: "Uni" },
+  { desc: "Pinza", cant: "", unidad: "Uni" },
+  { desc: "Bandas Adhesivas", cant: "", unidad: "Uni" },
+  { desc: "Gel Antibacterial ( ...... ml)", cant: "", unidad: "Uni" },
+  { desc: "Gasa Tipo Jalonet", cant: "", unidad: "Uni" },
+  { desc: "Colirio ( ...... ml)", cant: "", unidad: "Uni" },
+  { desc: "Guía de Primeros Auxilios", cant: "", unidad: "Uni" },
+  { desc: "Estuche / Gabinete", cant: "", unidad: "Uni" },
+];
 
 function emptyMesMeta() {
   return { fecha: "", realizado_por: null, realizado_por_text: "", cargo: "", firma: "" };
@@ -53,7 +76,6 @@ function validateCell(cell) {
   return null;
 }
 
-// Igual que cabecera: Nombre (DNI) — cargo
 function getEmpleadoLabel(e) {
   const nom = `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim();
   const dni = e?.dni ? `(${e.dni})` : "";
@@ -83,74 +105,100 @@ function normalizeRowIndexes(list) {
   }));
 }
 
-function buildBaseItems(definicion) {
-  const rawItems = definicion?.items || definicion?.items_default || definicion?.botiquin?.items || [];
+function resolveBaseItems(definicion) {
+  const fromJson =
+    definicion?.items ||
+    definicion?.json?.items ||
+    definicion?.json_definicion?.items ||
+    [];
 
-  const fallback = [
-    { item_ref: "i1", descripcion: "Guantes Quirúrgicos / Nitrilo", unidad: "Par", cantidad: "1" },
-    { item_ref: "i2", descripcion: "Yodopovidona (... ml)", unidad: "Uni", cantidad: "1" },
-    { item_ref: "i3", descripcion: "Agua Oxigenada (... ml)", unidad: "Uni", cantidad: "1" },
-  ];
+  const base =
+    Array.isArray(fromJson) && fromJson.length
+      ? fromJson.map((x) => ({
+          desc: x?.desc ?? x?.descripcion ?? x?.nombre ?? "",
+          cant: "",
+          unidad: x?.unidad ?? x?.um ?? "",
+        }))
+      : DEFAULT_ITEMS.map((x) => ({ desc: x.desc, cant: "", unidad: x.unidad || "" }));
 
-  const finalItems = Array.isArray(rawItems) && rawItems.length ? rawItems : fallback;
-
-  return finalItems.map((it, idx) => {
-    const checks = {};
-    MESES.forEach((m) => (checks[m.key] = emptyCell()));
-    return {
-      rowIndex: idx + 1,
-      item_ref: it?.item_ref ?? it?.id ?? it?.item_id ?? `i${idx + 1}`,
-      descripcion: it?.descripcion ?? it?.desc ?? `Item ${idx + 1}`,
-      cantidad: String(it?.cantidad_default ?? it?.cantidad ?? ""),
-      unidad: it?.unidad ?? "",
-      checks,
-      __locked: true,
-    };
-  });
+  return base.map((x) => ({
+    desc: String(x?.desc ?? "").trim(),
+    cant: x?.cant == null ? "" : String(x.cant),
+    unidad: String(x?.unidad ?? "").trim(),
+  }));
 }
 
-function mergeInitialWithBase(base, initial) {
-  const incoming = initial?.rows || initial?.items || [];
-  if (!Array.isArray(incoming) || incoming.length === 0) return normalizeRowIndexes(base);
+function buildInitial(definicion, initial) {
+  const baseItems = resolveBaseItems(definicion);
 
-  const byRef = new Map(incoming.map((r) => [String(r?.item_ref || r?.item_id || ""), r]));
-  const merged = base.map((b) => {
-    const inc = byRef.get(String(b.item_ref));
+  const incomingRows = Array.isArray(initial?.rows) ? initial.rows : [];
+  const incomingItems = Array.isArray(initial?.items) ? initial.items : incomingRows;
+
+  const mergedItems = baseItems.map((b, i) => {
+    const inc = incomingItems[i];
     if (!inc) return b;
-
-    const checks = { ...b.checks };
-    MESES.forEach((m) => {
-      checks[m.key] = { ...emptyCell(), ...(inc?.checks?.[m.key] || inc?.meses?.[m.key] || {}) };
-    });
-
-    return { ...b, ...inc, checks, __locked: true };
+    return {
+      desc: inc?.desc ?? inc?.descripcion ?? b.desc,
+      cant: inc?.cant ?? inc?.cantidad ?? b.cant ?? "",
+      unidad: inc?.unidad ?? b.unidad ?? "",
+    };
   });
 
-  const baseRefs = new Set(base.map((x) => String(x.item_ref)));
-  const extra = incoming
-    .filter((r) => {
-      const ref = String(r?.item_ref || r?.item_id || "");
-      return ref && !baseRefs.has(ref);
-    })
-    .map((r) => {
-      const checks = {};
-      MESES.forEach((m) => (checks[m.key] = { ...emptyCell(), ...(r?.checks?.[m.key] || r?.meses?.[m.key] || {}) }));
-      return {
-        rowIndex: 0,
-        item_ref: r?.item_ref || r?.item_id || `custom_${Date.now()}`,
-        descripcion: r?.descripcion || "",
-        cantidad: String(r?.cantidad ?? ""),
-        unidad: r?.unidad ?? "",
-        checks,
-        __locked: false,
-      };
+  const days = {};
+  for (const d of DAYS) {
+    const srcByDays = initial?.days?.[d.key] || {};
+    const srcByMeta = initial?.meta?.meses?.[d.key] || {};
+    const srcItems = Array.isArray(srcByDays?.items)
+      ? srcByDays.items
+      : incomingRows.map((r) => r?.checks?.[d.key] || emptyCell());
+    const cellItems = mergedItems.map((_, i) => srcItems[i] || emptyCell());
+
+    days[d.key] = {
+      fecha: srcByDays?.fecha || srcByMeta?.fecha || "",
+      realizado_por: srcByDays?.realizado_por || srcByMeta?.realizado_por || null,
+      realizado_por_text: srcByDays?.realizado_por_text || srcByMeta?.realizado_por_text || "",
+      cargo: srcByDays?.cargo || srcByMeta?.cargo || "",
+      firma: srcByDays?.firma || srcByMeta?.firma || "",
+      items: cellItems,
+    };
+  }
+
+  const rows = mergedItems.map((it, i) => {
+    const checks = {};
+    MESES.forEach((m) => {
+      checks[m.key] = days[m.key]?.items?.[i] || emptyCell();
     });
 
-  return normalizeRowIndexes([...merged, ...extra]);
+    return {
+      rowIndex: i + 1,
+      item_ref: incomingRows[i]?.item_ref || `i${i + 1}`,
+      descripcion: String(it?.desc ?? ""),
+      cantidad: it?.cant == null ? "" : String(it.cant),
+      unidad: String(it?.unidad ?? ""),
+      checks,
+      __locked: i < DEFAULT_ITEMS.length,
+    };
+  });
+
+  const meta = buildEmptyMeta();
+  MESES.forEach((m) => {
+    meta.meses[m.key] = {
+      ...emptyMesMeta(),
+      ...(days[m.key] || {}),
+    };
+    delete meta.meses[m.key].items;
+  });
+
+  return {
+    codigo: String(initial?.codigo_botiquin || initial?.meta?.codigo_botiquin || ""),
+    rows: normalizeRowIndexes(rows),
+    meta,
+  };
 }
 
 export default function TablaBotiquinForm({ definicion = {}, initial = null, onSubmit }) {
-  const [codigo, setCodigo] = useState(() => String(initial?.codigo_botiquin || initial?.meta?.codigo_botiquin || ""));
+  const seed = useMemo(() => buildInitial(definicion, initial), [definicion, initial]);
+  const [codigo, setCodigo] = useState(() => seed.codigo);
   const [meta, setMeta] = useState(buildEmptyMeta);
   const [rows, setRows] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -158,16 +206,10 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    const base = buildBaseItems(definicion || {});
-    const nextRows = mergeInitialWithBase(base, initial || null);
-    setRows(nextRows);
-
-    const nextMeta = buildEmptyMeta();
-    MESES.forEach((m) => {
-      nextMeta.meses[m.key] = { ...emptyMesMeta(), ...(initial?.meta?.meses?.[m.key] || {}) };
-    });
-    setMeta(nextMeta);
-  }, [definicion, initial]);
+    setCodigo(seed.codigo);
+    setRows(seed.rows);
+    setMeta(seed.meta);
+  }, [seed]);
 
   const filled = useMemo(() => {
     let n = 0;
@@ -306,7 +348,6 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
         </div>
       </div>
 
-      {/* Card superior: SOLO código */}
       <div className="ins-section">
         <div className="ins-grid" style={{ gridTemplateColumns: "1fr" }}>
           <label className="ins-field">
@@ -351,7 +392,6 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
           </thead>
 
           <tbody>
-            {/* FECHA */}
             <tr>
               <td colSpan={4} style={{ fontWeight: 900 }}>Fecha</td>
               {MESES.map((m) => (
@@ -367,7 +407,6 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
               <td />
             </tr>
 
-            {/* REALIZADO POR */}
             <tr>
               <td colSpan={4} style={{ fontWeight: 900 }}>Realizado por</td>
               {MESES.map((m) => {
@@ -401,7 +440,6 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
               <td />
             </tr>
 
-            {/* FIRMA */}
             <tr>
               <td colSpan={4} style={{ fontWeight: 900 }}>Firma</td>
               {MESES.map((m) => {
@@ -427,7 +465,6 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
               <td />
             </tr>
 
-            {/* ITEMS */}
             {(rows || []).map((row, idx) => (
               <tr key={`row-${row?.item_ref || idx}`}>
                 <td>{row?.rowIndex || idx + 1}</td>
@@ -435,18 +472,17 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                 <td>
                   <input
                     className="ins-input"
-                    value={row?.descripcion || ""}
-                    onChange={(e) => updateRow(idx, { descripcion: e.target.value })}
+                    value={row?.descripcion || row?.desc || ""}
+                    onChange={(e) => updateRow(idx, { descripcion: e.target.value, desc: e.target.value })}
                     placeholder="Descripción"
-                    disabled={row?.__locked}
                   />
                 </td>
 
                 <td>
                   <input
                     className="ins-input"
-                    value={row?.cantidad || ""}
-                    onChange={(e) => updateRow(idx, { cantidad: e.target.value })}
+                    value={row?.cantidad ?? row?.cant ?? ""}
+                    onChange={(e) => updateRow(idx, { cantidad: e.target.value, cant: e.target.value })}
                     placeholder="Cant."
                   />
                 </td>
@@ -563,7 +599,7 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                 >
                   <button
                     type="button"
-                    title="Eliminar fila"
+                    title={row?.__locked ? "Fila de plantilla (no se puede eliminar)" : "Eliminar fila"}
                     onClick={() => handleDeleteRow(idx)}
                     disabled={row?.__locked}
                     style={{
@@ -572,11 +608,10 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                       borderRadius: 10,
                       border: "1px solid var(--border)",
                       background: "#fff",
-                      cursor: row?.__locked ? "not-allowed" : "pointer",
+                      cursor: "pointer",
                       fontSize: 16,
                       lineHeight: "16px",
-                      opacity: row?.__locked ? 0.35 : 1,
-                      pointerEvents: row?.__locked ? "none" : "auto",
+                      pointerEvents: "auto",
                     }}
                   >
                     🗑️
