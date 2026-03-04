@@ -1,5 +1,6 @@
 // frontend/src/pages/Pendientes.jsx
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { listarPendientes } from "../api/pendientes.api";
 import { getUser } from "../auth/auth.storage";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -42,13 +43,14 @@ function rangeToDias(range) {
 }
 
 export default function Pendientes() {
+  const navigate = useNavigate();
   const user = getUser();
 
   const [filters, setFilters] = useState({
     range: "7d",
     desde: "",
     hasta: "",
-    soloMias: 0,
+    soloMias: 1,
   });
 
   const [rows, setRows] = useState([]);
@@ -94,10 +96,14 @@ export default function Pendientes() {
   }
 
   useEffect(() => {
-    // carga inicial (7 días)
+    if (filters.range === "custom" && (!filters.desde || !filters.hasta)) {
+      setMsg("Completa 'desde' y 'hasta' para el rango personalizado.");
+      return;
+    }
+    setMsg("");
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [diasComputed, filters.soloMias, filters.range, filters.desde, filters.hasta]);
 
   function onChange(e) {
     const { name, value, type, checked } = e.target;
@@ -110,18 +116,83 @@ export default function Pendientes() {
     setFilters((p) => ({ ...p, [name]: value }));
   }
 
+  function estadoBadge(estadoRaw) {
+    const estado = String(estadoRaw || "").trim().toUpperCase();
+    if (estado.includes("VENC")) return { text: estadoRaw || "VENCIDO", bg: "#fee2e2", color: "#b91c1c" };
+    if (estado.includes("PEND")) return { text: estadoRaw || "PENDIENTE", bg: "#fef3c7", color: "#92400e" };
+    if (estado.includes("PROG")) return { text: estadoRaw || "EN PROGRESO", bg: "#dbeafe", color: "#1d4ed8" };
+    if (estado.includes("CERR") || estado.includes("COMPLE")) return { text: estadoRaw || "COMPLETADO", bg: "#dcfce7", color: "#166534" };
+    return { text: estadoRaw || "-", bg: "#e5e7eb", color: "#374151" };
+  }
+
   const columns = [
     { key: "id_accion", label: "ID Acción" },
     { key: "id_observacion", label: "Obs", render: (a) => a.id_observacion ?? "-" },
-    { key: "desc_accion", label: "Descripción", render: (a) => a.desc_accion ?? a.descripcion ?? "-" },
+    {
+      key: "desc_accion",
+      label: "Descripción",
+      render: (a) => {
+        const id = a?.id_inspeccion ?? a?.id_inspec ?? a?.id;
+        const text = a?.desc_accion ?? a?.descripcion ?? "-";
+        if (!id) return text;
+        return (
+          <button
+            type="button"
+            onClick={() => navigate(`/inspecciones/${id}`)}
+            style={{
+              padding: 0,
+              border: 0,
+              background: "transparent",
+              color: "#2563eb",
+              textDecoration: "underline",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+            title="Abrir inspección"
+          >
+            {text}
+          </button>
+        );
+      },
+    },
     { key: "responsable", label: "Responsable", render: (a) => a.responsable ?? "-" },
     {
       key: "fecha_compromiso",
       label: "Fecha",
       render: (a) => (a.fecha_compromiso ? String(a.fecha_compromiso).slice(0, 10) : "-"),
     },
-    { key: "estado", label: "Estado", render: (a) => a.estado ?? "-" },
-    { key: "dias_restantes", label: "Días", render: (a) => a.dias_restantes ?? "-" },
+    {
+      key: "estado",
+      label: "Estado",
+      render: (a) => {
+        const ui = estadoBadge(a?.estado);
+        return (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: ui.bg,
+              color: ui.color,
+              fontWeight: 800,
+              fontSize: 12,
+            }}
+          >
+            {ui.text}
+          </span>
+        );
+      },
+    },
+    {
+      key: "dias_restantes",
+      label: "Días",
+      render: (a) => {
+        const val = Number(a?.dias_restantes);
+        if (!Number.isFinite(val)) return a?.dias_restantes ?? "-";
+        const color = val < 0 ? "#b91c1c" : val > 0 ? "#166534" : "#92400e";
+        return <span style={{ color, fontWeight: 800 }}>{val}</span>;
+      },
+    },
   ];
 
   const hint = useMemo(() => {
@@ -164,47 +235,43 @@ export default function Pendientes() {
             </>
           )}
 
-          <label className="input-row" style={{ alignSelf: "end" }}>
-            <span className="label">Solo mis acciones</span>
-            <input
-              className="input"
-              type="checkbox"
-              name="soloMias"
-              checked={filters.soloMias === 1}
-              onChange={onChange}
-            />
-          </label>
+          <div className="ins-field" style={{ alignSelf: "end" }}>
+            <span>Solo mis acciones</span>
+            <button
+              type="button"
+              onClick={() => setFilters((p) => ({ ...p, soloMias: p.soloMias === 1 ? 0 : 1 }))}
+              style={{
+                marginTop: 6,
+                height: 40,
+                borderRadius: 999,
+                border: "1px solid var(--border)",
+                padding: "0 14px",
+                fontWeight: 800,
+                cursor: "pointer",
+                background: filters.soloMias === 1 ? "#dcfce7" : "#fff",
+                color: filters.soloMias === 1 ? "#166534" : "#374151",
+              }}
+              title="Mostrar solo acciones asignadas a mí"
+            >
+              {filters.soloMias === 1 ? "Activo: solo mías" : "Mostrar todas"}
+            </button>
+          </div>
         </div>
 
         <div className="actions" style={{ marginTop: 12, gap: 10 }}>
           <Button
-            variant="primary"
-            onClick={() => {
-              // validación mínima en personalizado
-              if (filters.range === "custom" && (!filters.desde || !filters.hasta)) {
-                setMsg("Completa 'desde' y 'hasta' para el rango personalizado.");
-                return;
-              }
-              load();
-            }}
-            disabled={loading}
-          >
-            {loading ? "Cargando..." : "Aplicar filtros"}
-          </Button>
-
-          <Button
             variant="outline"
             type="button"
             onClick={() => {
-              setFilters({ range: "7d", desde: "", hasta: "", soloMias: 0 });
+              setFilters({ range: "7d", desde: "", hasta: "", soloMias: 1 });
               setMsg("");
-              setTimeout(load, 0);
             }}
             disabled={loading}
           >
             Limpiar
           </Button>
 
+          {loading ? <Badge>Actualizando...</Badge> : null}
           {msg ? <Badge>{msg}</Badge> : null}
         </div>
 
