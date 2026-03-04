@@ -52,7 +52,14 @@ function buildEmptyRow(cols) {
   cols.forEach((c) => {
     epps[c.key] = emptyCell();
   });
-  return { trabajador: "", epps };
+
+  return {
+    trabajador: "",
+    trabajador_text: "",
+    trabajador_obj: null,
+    trabajador_dni: "",
+    epps,
+  };
 }
 
 function normalizeRow(row, cols) {
@@ -63,8 +70,13 @@ function normalizeRow(row, cols) {
     epps[c.key] = normalizeCell(raw?.epps?.[c.key]);
   });
 
+  const trabajadorText = String(raw?.trabajador_text || raw?.trabajador || raw?.apellidos_nombres || "");
+
   return {
-    trabajador: String(raw?.trabajador || raw?.apellidos_nombres || ""),
+    trabajador: trabajadorText,
+    trabajador_text: trabajadorText,
+    trabajador_obj: raw?.trabajador_obj && typeof raw.trabajador_obj === "object" ? raw.trabajador_obj : null,
+    trabajador_dni: String(raw?.trabajador_dni || ""),
     epps,
   };
 }
@@ -142,6 +154,9 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
   const [uiError, setUiError] = useState("");
   const [searching, setSearching] = useState(false);
   const [empOptions, setEmpOptions] = useState([]);
+  const [searchingTrabajador, setSearchingTrabajador] = useState(false);
+  const [empOptionsTrabajador, setEmpOptionsTrabajador] = useState([]);
+  const [activeRowIdx, setActiveRowIdx] = useState(null);
 
   const setRows = useCallback(
     (updater) => {
@@ -172,6 +187,18 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
       return Array.isArray(list) ? list : [];
     } finally {
       setSearching(false);
+    }
+  }, []);
+
+  const buscarEmpleadosForTrabajador = useCallback(async (text) => {
+    try {
+      setSearchingTrabajador(true);
+      const list = await buscarEmpleados(String(text || "").trim());
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    } finally {
+      setSearchingTrabajador(false);
     }
   }, []);
 
@@ -223,11 +250,41 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
 
   const handleDeleteRow = (rowIdx) => {
     const row = rows?.[rowIdx];
-    const name = String(row?.trabajador || "").trim() || `Fila ${rowIdx + 1}`;
+    const name = String(row?.trabajador_text || row?.trabajador || "").trim() || `Fila ${rowIdx + 1}`;
     const ok = window.confirm(`¿Eliminar "${name}"? Esta accion no se puede deshacer.`);
     if (!ok) return;
     setRows((prev) => prev.filter((_, i) => i !== rowIdx));
   };
+
+  const handleTrabajadorInputChange = useCallback(
+    async (rowIdx, text) => {
+      setActiveRowIdx(rowIdx);
+      updateRow(rowIdx, {
+        trabajador: text,
+        trabajador_text: text,
+        trabajador_obj: null,
+        trabajador_dni: "",
+      });
+
+      const opts = await buscarEmpleadosForTrabajador(text);
+      setEmpOptionsTrabajador(opts);
+    },
+    [updateRow, buscarEmpleadosForTrabajador]
+  );
+
+  const handleTrabajadorSelect = useCallback(
+    (rowIdx, emp) => {
+      const fullName = getEmpleadoFullName(emp);
+      updateRow(rowIdx, {
+        trabajador: fullName,
+        trabajador_text: fullName,
+        trabajador_obj: emp || null,
+        trabajador_dni: String(emp?.dni || "").trim(),
+      });
+      setEmpOptionsTrabajador([]);
+    },
+    [updateRow]
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -292,11 +349,26 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
             {rows.map((row, rowIdx) => (
               <tr key={`row-${rowIdx}`}>
                 <td style={{ verticalAlign: "top" }}>
-                  <input
-                    className="ins-input"
-                    value={row?.trabajador || ""}
-                    placeholder="Apellidos y nombres"
-                    onChange={(e) => updateRow(rowIdx, { trabajador: e.target.value })}
+                  <Autocomplete
+                    placeholder="DNI / Apellido / Nombre"
+                    displayValue={row?.trabajador_text || row?.trabajador || ""}
+                    options={activeRowIdx === rowIdx ? empOptionsTrabajador : []}
+                    loading={activeRowIdx === rowIdx && searchingTrabajador}
+                    getOptionLabel={getEmpleadoLabel}
+                    onFocus={async () => {
+                      setActiveRowIdx(rowIdx);
+                      const currentText = String(row?.trabajador_text || row?.trabajador || "").trim();
+                      if (!currentText) {
+                        const opts = await buscarEmpleadosForTrabajador("");
+                        setEmpOptionsTrabajador(opts);
+                      }
+                    }}
+                    onInputChange={async (text) => {
+                      await handleTrabajadorInputChange(rowIdx, text);
+                    }}
+                    onSelect={(emp) => {
+                      handleTrabajadorSelect(rowIdx, emp);
+                    }}
                   />
                 </td>
 
