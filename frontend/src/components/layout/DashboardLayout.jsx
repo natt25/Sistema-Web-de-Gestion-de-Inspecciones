@@ -77,14 +77,6 @@ export default function DashboardLayout({ title, actions, children }) {
         {online ? "Conectado" : "Sin conexion"}
       </span>
       <span className="badge">Pendientes: {pending.total}</span>
-      <button
-        type="button"
-        className="btn btn-outline"
-        onClick={handleSync}
-        disabled={!online || pending.total <= 0 || syncing}
-      >
-        {syncing ? "Sincronizando..." : "Sincronizar"}
-      </button>
       {actions}
     </div>
   );
