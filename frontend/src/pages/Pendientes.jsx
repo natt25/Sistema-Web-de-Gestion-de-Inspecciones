@@ -50,7 +50,7 @@ export default function Pendientes() {
     range: "7d",
     desde: "",
     hasta: "",
-    soloMias: 1,
+    soloMias: 1, 
   });
 
   const [rows, setRows] = useState([]);
@@ -67,7 +67,7 @@ export default function Pendientes() {
 
   const diasComputed = useMemo(() => {
     if (filters.range === "custom") return diffDays(filters.desde, filters.hasta);
-    return rangeToDias(filters.range);
+    return rangeToDias(filters.range); // puede devolver null (all)
   }, [filters.range, filters.desde, filters.hasta]);
 
   const rangeLabel = useMemo(() => {
@@ -86,7 +86,11 @@ export default function Pendientes() {
     setLoading(true);
     setMsg("");
     try {
-      const data = await listarPendientes({ dias: diasComputed, solo_mias: filters.soloMias });
+      const data = await listarPendientes({
+      dias: diasComputed,                 // puede ser null
+      solo_mias: filters.soloMias,
+      estado: filters.estado,             // ✅ NUEVO
+    });
       setRows(Array.isArray(data) ? data : []);
     } catch {
       setMsg("No se pudo cargar pendientes.");
@@ -103,7 +107,7 @@ export default function Pendientes() {
     setMsg("");
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diasComputed, filters.soloMias, filters.range, filters.desde, filters.hasta]);
+  }, [diasComputed, filters.soloMias, filters.estado, filters.range, filters.desde, filters.hasta]);
 
   function onChange(e) {
     const { name, value, type, checked } = e.target;
@@ -189,7 +193,7 @@ export default function Pendientes() {
       render: (a) => {
         const val = Number(a?.dias_restantes);
         if (!Number.isFinite(val)) return a?.dias_restantes ?? "-";
-        const color = val < 0 ? "#b91c1c" : val > 0 ? "#166534" : "#92400e";
+        const color = val < 0 ? "#b91c1c" : val > 0 ? "#22c55e" : "#92400e";
         return <span style={{ color, fontWeight: 800 }}>{val}</span>;
       },
     },
@@ -217,6 +221,22 @@ export default function Pendientes() {
             </select>
           </label>
 
+          <label className="ins-field">
+            <span>Estado</span>
+            <select
+              className="ins-input"
+              name="estado"
+              value={filters.estado}
+              onChange={onChange}
+            >
+              <option value="ALL">Todos</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="EN_PROCESO">En progreso</option>
+              <option value="VENCIDO">Vencido</option>
+              <option value="COMPLETADO">Completado</option>
+            </select>
+          </label>
+
           {filters.range === "custom" ? (
             <>
               <Input label="Desde" type="date" name="desde" value={filters.desde} onChange={onChange} />
@@ -237,24 +257,45 @@ export default function Pendientes() {
 
           <div className="ins-field" style={{ alignSelf: "end" }}>
             <span>Solo mis acciones</span>
-            <button
-              type="button"
-              onClick={() => setFilters((p) => ({ ...p, soloMias: p.soloMias === 1 ? 0 : 1 }))}
-              style={{
-                marginTop: 6,
-                height: 40,
-                borderRadius: 999,
-                border: "1px solid var(--border)",
-                padding: "0 14px",
-                fontWeight: 800,
-                cursor: "pointer",
-                background: filters.soloMias === 1 ? "#dcfce7" : "#fff",
-                color: filters.soloMias === 1 ? "#166534" : "#374151",
-              }}
-              title="Mostrar solo acciones asignadas a mí"
-            >
-              {filters.soloMias === 1 ? "Activo: solo mías" : "Mostrar todas"}
-            </button>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={filters.soloMias === 1}
+                onChange={(e) => setFilters((p) => ({ ...p, soloMias: e.target.checked ? 1 : 0 }))}
+                style={{ display: "none" }}
+              />
+
+              <span
+                style={{
+                  width: 44,
+                  height: 26,
+                  borderRadius: 999,
+                  background: filters.soloMias === 1 ? "rgba(34,197,94,.35)" : "rgba(0,0,0,.15)",
+                  position: "relative",
+                  transition: "0.2s",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 3,
+                    left: filters.soloMias === 1 ? 21 : 3,
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "0.2s",
+                    boxShadow: "0 2px 8px rgba(0,0,0,.18)",
+                  }}
+                />
+              </span>
+
+              <span style={{ fontWeight: 900, color: filters.soloMias === 1 ? "#166534" : "#374151" }}>
+                {filters.soloMias === 1 ? "Activado" : "Desactivado"}
+              </span>
+            </label>
           </div>
         </div>
 
@@ -263,7 +304,7 @@ export default function Pendientes() {
             variant="outline"
             type="button"
             onClick={() => {
-              setFilters({ range: "7d", desde: "", hasta: "", soloMias: 1 });
+              setFilters({ range: "7d", desde: "", hasta: "", soloMias: 1, estado: "ALL" });
               setMsg("");
             }}
             disabled={loading}
