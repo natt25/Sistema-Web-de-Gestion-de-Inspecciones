@@ -223,7 +223,7 @@ export default function Home() {
   );
 
   return (
-    <DashboardLayout title="Dashboard" actions={actions}>
+    <DashboardLayout title="Home" actions={actions}>
       <div className="grid-cards" style={{ marginBottom: 14 }}>
         {kpiCards.map((c) => (
           <Card key={c.title} title={c.title}>
