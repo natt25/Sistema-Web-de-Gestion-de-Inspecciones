@@ -1,5 +1,9 @@
 import { sql, getPool } from "../config/database.js";
 
+function normalizeDni(dni) {
+  return String(dni ?? "").trim();
+}
+
 async function list() {
   const query = `
     SELECT
@@ -140,4 +144,131 @@ async function buscar(q) {
   return r.recordset;
 }
 
-export default { list, create, update, setEstado, resetPassword, updateFirma, getById, buscar };
+async function findByDni(dni) {
+  const query = `
+    SELECT TOP 1 id_usuario, dni, id_rol, id_estado_usuario, debe_cambiar_password
+    FROM SSOMA.INS_USUARIO
+    WHERE LTRIM(RTRIM(dni)) = LTRIM(RTRIM(@dni));
+  `;
+
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("dni", sql.NVarChar(15), normalizeDni(dni));
+
+  const result = await req.query(query);
+
+  return result.recordset[0] || null;
+}
+
+async function getInspectorRoleId(tx = null) {
+  const query = `
+    SELECT TOP 1 id_rol
+    FROM SSOMA.INS_CAT_ROL
+    ORDER BY
+      CASE
+        WHEN UPPER(LTRIM(RTRIM(CAST(nombre_rol AS NVARCHAR(120))))) = 'INSPECTOR' THEN 0
+        WHEN UPPER(LTRIM(RTRIM(CAST(nombre_rol AS NVARCHAR(120))))) LIKE '%INSPECT%' THEN 1
+        ELSE 99
+      END,
+      id_rol;
+  `;
+
+  if (tx) {
+    const r = await new sql.Request(tx).query(query);
+    return Number(r.recordset?.[0]?.id_rol || 0) || null;
+  }
+
+  const pool = await getPool();
+  const r = await pool.request().query(query);
+  return Number(r.recordset?.[0]?.id_rol || 0) || null;
+}
+
+async function ensureInspectorUserByDni({
+  dni,
+  password_hash,
+  debe_cambiar_password = 1,
+  id_estado_usuario = 1,
+  password_expires_at = null,
+} = {}) {
+  const cleanDni = normalizeDni(dni);
+  if (!cleanDni) throw new Error("dni requerido");
+
+  const pool = await getPool();
+  const tx = new sql.Transaction(pool);
+  await tx.begin();
+
+  try {
+    const id_rol_inspector = await getInspectorRoleId(tx);
+    if (!id_rol_inspector) {
+      throw new Error("No se pudo resolver el rol INSPECTOR");
+    }
+
+    const existing = await new sql.Request(tx)
+      .input("dni", sql.NVarChar(15), cleanDni)
+      .query(`
+        SELECT TOP 1 id_usuario, id_rol
+        FROM SSOMA.INS_USUARIO
+        WHERE LTRIM(RTRIM(dni)) = LTRIM(RTRIM(@dni));
+      `);
+
+    const row = existing.recordset?.[0] || null;
+
+    if (row?.id_usuario) {
+      if (Number(row.id_rol) !== Number(id_rol_inspector)) {
+        await new sql.Request(tx)
+          .input("id_usuario", sql.Int, Number(row.id_usuario))
+          .input("id_rol", sql.Int, id_rol_inspector)
+          .query(`
+            UPDATE SSOMA.INS_USUARIO
+            SET id_rol = @id_rol
+            WHERE id_usuario = @id_usuario;
+          `);
+      }
+
+      await tx.commit();
+      return Number(row.id_usuario);
+    }
+
+    if (!password_hash) {
+      throw new Error("password_hash requerido para crear usuario inspector");
+    }
+
+    const created = await new sql.Request(tx)
+      .input("dni", sql.NVarChar(15), cleanDni)
+      .input("id_rol", sql.Int, id_rol_inspector)
+      .input("id_estado_usuario", sql.Int, id_estado_usuario)
+      .input("password_hash", sql.NVarChar(255), password_hash)
+      .input("debe_cambiar_password", sql.Bit, debe_cambiar_password ? 1 : 0)
+      .input("password_expires_at", sql.DateTime2, password_expires_at ?? null)
+      .query(`
+        INSERT INTO SSOMA.INS_USUARIO
+          (dni, id_rol, id_estado_usuario, password_hash, debe_cambiar_password, password_updated_at, password_expires_at)
+        OUTPUT INSERTED.id_usuario
+        VALUES
+          (@dni, @id_rol, @id_estado_usuario, @password_hash, @debe_cambiar_password, SYSDATETIME(), @password_expires_at);
+      `);
+
+    const id_usuario = Number(created.recordset?.[0]?.id_usuario || 0) || null;
+    if (!id_usuario) throw new Error("No se pudo crear usuario inspector");
+
+    await tx.commit();
+    return id_usuario;
+  } catch (err) {
+    try { await tx.rollback(); } catch {}
+    throw err;
+  }
+}
+
+export default {
+  list,
+  create,
+  update,
+  setEstado,
+  resetPassword,
+  updateFirma,
+  getById,
+  buscar,
+  findByDni,
+  getInspectorRoleId,
+  ensureInspectorUserByDni
+};

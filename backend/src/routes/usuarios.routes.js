@@ -21,6 +21,13 @@ router.post(
   usuariosController.create
 );
 
+router.post(
+  "/ensure-inspector",
+  roleMiddleware(["ADMIN_PRINCIPAL", "ADMIN"]),
+  audit("USUARIO_ENSURE_INSPECTOR", { entity: "INS_USUARIO", entityIdFrom: "body.dni" }),
+  usuariosController.ensureInspector
+);
+
 router.put(
   "/:id",
   roleMiddleware(["ADMIN_PRINCIPAL", "ADMIN"]),

@@ -51,4 +51,11 @@ async function buscar(req, res) {
   }
 }
 
-export default { list, create, update, changeStatus, resetPassword, me, buscar };
+async function ensureInspector(req, res) {
+  const dni = String(req.body?.dni || "").trim();
+  const r = await usuariosService.ensureUserForInspectorByDni(dni);
+  if (!r.ok) return res.status(r.status).json({ message: r.message });
+  return res.status(r.status).json(r.data);
+}
+
+export default { list, create, ensureInspector, update, changeStatus, resetPassword, me, buscar };

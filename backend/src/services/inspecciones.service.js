@@ -1,6 +1,7 @@
 import repo from "../repositories/inspecciones.repository.js";
 import observacionesRepo from "../repositories/observaciones.repository.js";
 import plantillasRepo from "../repositories/plantillas.repository.js";
+import usuariosService from "./usuarios.service.js";
 
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
   const esCatalogo = (id_otro == null) && (id_cliente != null) && (id_servicio != null);
@@ -311,6 +312,28 @@ function badRequest(message, data) {
   return { ok: false, status: 400, message, data };
 }
 
+async function ensureInspectorUsers(participantes = []) {
+  if (!Array.isArray(participantes) || participantes.length === 0) return [];
+
+  const out = [];
+  for (const p of participantes) {
+    const dni = String(p?.dni || "").trim();
+    if (!dni) {
+      out.push(p);
+      continue;
+    }
+
+    const ensured = await usuariosService.ensureUserForInspectorByDni(dni);
+    if (!ensured.ok) {
+      throw new Error(`No se pudo asegurar usuario inspector para DNI ${dni}: ${ensured.message}`);
+    }
+
+    out.push({ ...p, id_usuario: ensured.data.id_usuario });
+  }
+
+  return out;
+}
+
 async function crearInspeccionCompleta({ user, body }) {
   const cab = body?.cabecera;
   const { cabecera, participantes, respuestas } = body;
@@ -339,9 +362,11 @@ async function crearInspeccionCompleta({ user, body }) {
     id_usuario: user?.id_usuario ?? null,
   };
 
+  const participantesNormalizados = await ensureInspectorUsers(participantes);
+
   const json_respuestas = JSON.stringify({
     cabecera: cabeceraToSave,
-    participantes,
+    participantes: participantesNormalizados,
     respuestas,
     meta: { schema: "v1-json", savedAt: new Date().toISOString() },
   });
@@ -349,7 +374,7 @@ async function crearInspeccionCompleta({ user, body }) {
   const created = await repo.crearInspeccionYGuardarJSON({
     cabecera: cabeceraToSave,
     json_respuestas,
-    participantes,
+    participantes: participantesNormalizados,
   });
 
   const id_inspeccion = Number(created?.id_inspeccion);

@@ -23,6 +23,34 @@ async function create({ dni, id_rol, id_estado_usuario, password }) {
   return { ok: true, status: 201, data: { id_usuario } };
 }
 
+async function ensureUserForInspectorByDni(dniRaw) {
+  const dni = String(dniRaw ?? "").trim();
+  if (!dni) return { ok: false, status: 400, message: "dni requerido" };
+
+  try {
+    const password_hash = await hashPassword(dni);
+    const id_usuario = await usuariosRepo.ensureInspectorUserByDni({
+      dni,
+      password_hash,
+      id_estado_usuario: 1,
+      debe_cambiar_password: 1,
+      password_expires_at: buildExpiryDate(90),
+    });
+
+    return {
+      ok: true,
+      status: 200,
+      data: { id_usuario, dni },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 500,
+      message: err?.message || "No se pudo asegurar usuario inspector",
+    };
+  }
+}
+
 async function update(id_usuario, payload) {
   await usuariosRepo.update(id_usuario, payload);
   return { ok: true, status: 200 };
@@ -51,4 +79,12 @@ async function buscar(q) {
   return usuariosRepo.buscar(q);
 }
 
-export default { list, create, update, changeStatus, adminResetPassword, buscar };
+export default {
+  list,
+  create,
+  ensureUserForInspectorByDni,
+  update,
+  changeStatus,
+  adminResetPassword,
+  buscar
+};
