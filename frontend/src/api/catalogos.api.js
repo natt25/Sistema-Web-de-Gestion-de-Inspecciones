@@ -1,15 +1,36 @@
 import http from "./http.js";
 
+export async function listarClientes() {
+  const res = await http.get("/api/catalogos/clientes");
+  return Array.isArray(res?.data) ? res.data : [];
+}
+
+export async function listarAreas() {
+  const res = await http.get("/api/catalogos/areas");
+  return Array.isArray(res?.data) ? res.data : [];
+}
+
+export async function listarServicios() {
+  const res = await http.get("/api/catalogos/servicios");
+  return Array.isArray(res?.data) ? res.data : [];
+}
+
+export async function listarLugares(id_area) {
+  const config = {};
+  if (id_area) {
+    config.params = { id_area };
+  }
+  const res = await http.get("/api/catalogos/lugares", config);
+  return Array.isArray(res?.data) ? res.data : [];
+}
+
 export async function listarCatalogosInspeccion() {
   const [clientes, servicios, areas, lugares] = await Promise.all([
-    http.get("/api/catalogos/clientes").then((r) => r.data),
-    http.get("/api/catalogos/servicios").then((r) => r.data),
-    http.get("/api/catalogos/areas").then((r) => r.data),
-    http
-      .get("/api/catalogos/lugares")
-      .then((r) => r.data)
+    listarClientes(),
+    listarServicios(),
+    listarAreas(),
+    listarLugares()
       .catch((e) => {
-        // si no existe, no rompas todo
         if (e?.response?.status === 404) return [];
         throw e;
       }),

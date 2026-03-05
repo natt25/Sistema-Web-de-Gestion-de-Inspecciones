@@ -257,14 +257,29 @@ async function listarInspecciones(filtros) {
     request.input("plantilla", sql.Int, filtros.plantilla);
   }
 
+  if (filtros.id_cliente) {
+    where.push("LTRIM(RTRIM(i.id_cliente)) = LTRIM(RTRIM(@id_cliente))");
+    request.input("id_cliente", sql.NVarChar(30), filtros.id_cliente);
+  }
+
   if (filtros.id_area) {
     where.push("i.id_area = @id_area");
     request.input("id_area", sql.Int, filtros.id_area);
   }
 
+  if (filtros.id_servicio) {
+    where.push("i.id_servicio = @id_servicio");
+    request.input("id_servicio", sql.Int, filtros.id_servicio);
+  }
+
   if (filtros.id_estado_inspeccion) {
     where.push("i.id_estado_inspeccion = @id_estado_inspeccion");
     request.input("id_estado_inspeccion", sql.Int, filtros.id_estado_inspeccion);
+  }
+
+  if (filtros.estado && filtros.estado.toUpperCase() !== "ALL") {
+    where.push("UPPER(LTRIM(RTRIM(ei.nombre_estado))) = UPPER(LTRIM(RTRIM(@estado)))");
+    request.input("estado", sql.NVarChar(80), filtros.estado);
   }
 
   if (filtros.id_usuario) {
@@ -280,6 +295,14 @@ async function listarInspecciones(filtros) {
   if (filtros.hasta) {
     where.push(`${fechaExpr} < DATEADD(day, 1, @hasta)`);
     request.input("hasta", sql.DateTime2, filtros.hasta);
+  }
+
+  if (filtros.id_lugar) {
+    const colsInspeccion = await getColumns("SSOMA", "INS_INSPECCION");
+    if (colsInspeccion.has("id_lugar")) {
+      where.push("i.id_lugar = @id_lugar");
+      request.input("id_lugar", sql.Int, filtros.id_lugar);
+    }
   }
 
   const hasOtroCatalog = (await objectExists("SSOMA.INS_OTRO_CLIENTE_SERVICIO", "U"))

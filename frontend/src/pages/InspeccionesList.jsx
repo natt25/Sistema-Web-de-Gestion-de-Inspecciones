@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { listarInspecciones } from "../api/inspecciones.api";
+import { listarClientes, listarAreas, listarLugares, listarServicios } from "../api/catalogos.api";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
@@ -69,6 +70,8 @@ function getEstadoLabel(it) {
   return it?.estado_inspeccion || it?.nombre_estado_inspeccion || "-";
 }
 
+const DEFAULT_ESTADOS = ["BORRADOR", "PENDIENTE", "EN PROGRESO", "CERRADA"];
+
 export default function InspeccionesList() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -76,12 +79,19 @@ export default function InspeccionesList() {
   const plantillaIdNum = plantillaId ? Number(plantillaId) : null;
 
   const [filters, setFilters] = useState({
+    id_cliente: "",
     id_area: "",
-    id_estado_inspeccion: "",
+    id_lugar: "",
+    id_servicio: "",
     range: "7d",
     desde: "",
     hasta: "",
   });
+  const [estadoTabla, setEstadoTabla] = useState("ALL");
+  const [clientes, setClientes] = useState([]);
+  const [areas, setAreas] = useState([]);
+  const [lugares, setLugares] = useState([]);
+  const [servicios, setServicios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [items, setItems] = useState([]);
@@ -95,16 +105,69 @@ export default function InspeccionesList() {
     timeoutMs: 8000,
   });
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [clientesData, areasData, serviciosData] = await Promise.all([
+          listarClientes(),
+          listarAreas(),
+          listarServicios(),
+        ]);
+        if (!mounted) return;
+        setClientes(Array.isArray(clientesData) ? clientesData : []);
+        setAreas(Array.isArray(areasData) ? areasData : []);
+        setServicios(Array.isArray(serviciosData) ? serviciosData : []);
+      } catch {
+        if (mounted) setError("No se pudieron cargar los catálogos de filtros.");
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!filters.id_area) {
+        if (mounted) setLugares([]);
+        return;
+      }
+      try {
+        const data = await listarLugares(Number(filters.id_area));
+        if (!mounted) return;
+        setLugares(Array.isArray(data) ? data : []);
+      } catch {
+        if (mounted) setLugares([]);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [filters.id_area]);
+
+  const estadoOptions = useMemo(() => {
+    const discovered = [...new Set(items.map((it) => String(getEstadoLabel(it) || "").trim()).filter(Boolean))];
+    const merged = [...DEFAULT_ESTADOS, ...discovered.filter((v) => !DEFAULT_ESTADOS.includes(v.toUpperCase()))];
+    return ["ALL", ...merged];
+  }, [items]);
+
   const queryParams = useMemo(() => {
     const p = {};
+    if (filters.id_cliente) p.id_cliente = filters.id_cliente;
     if (filters.id_area) p.id_area = Number(filters.id_area);
-    if (filters.id_estado_inspeccion) p.id_estado_inspeccion = Number(filters.id_estado_inspeccion);
+    if (filters.id_lugar) p.id_lugar = Number(filters.id_lugar);
+    if (filters.id_servicio) p.id_servicio = Number(filters.id_servicio);
+    if (estadoTabla && estadoTabla !== "ALL") p.estado = estadoTabla;
     if (Number.isFinite(plantillaIdNum)) p.plantilla = plantillaIdNum;
     const { desde, hasta } = getRangeDates(filters.range, filters.desde, filters.hasta);
     if (desde) p.desde = desde;
     if (hasta) p.hasta = hasta;
     return p;
-  }, [filters, plantillaIdNum]);
+  }, [filters, estadoTabla, plantillaIdNum]);
 
   async function load() {
     try {
@@ -144,7 +207,12 @@ export default function InspeccionesList() {
 
   function onChange(e) {
     const { name, value } = e.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
+    setFilters((prev) => {
+      if (name === "id_area") {
+        return { ...prev, id_area: value, id_lugar: "" };
+      }
+      return { ...prev, [name]: value };
+    });
   }
 
   const columns = [
@@ -167,7 +235,23 @@ export default function InspeccionesList() {
     },
     {
       key: "estado",
-      label: "ESTADO",
+      label: (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span>ESTADO</span>
+          <select
+            className="ins-input"
+            value={estadoTabla}
+            onChange={(e) => setEstadoTabla(e.target.value)}
+            style={{ minWidth: 120, height: 30, padding: "0 10px" }}
+          >
+            {estadoOptions.map((estado) => (
+              <option key={estado} value={estado}>
+                {estado}
+              </option>
+            ))}
+          </select>
+        </div>
+      ),
       render: (it) => {
         const label = getEstadoLabel(it);
         return <Badge variant={getEstadoVariant(label)}>{label}</Badge>;
@@ -196,14 +280,60 @@ export default function InspeccionesList() {
           </div>
         ) : null}
         <div className="grid-cards filters-grid">
-          <Input label="id_area" name="id_area" value={filters.id_area} onChange={onChange} placeholder="Ej: 1" />
-          <Input
-            label="id_estado_inspeccion"
-            name="id_estado_inspeccion"
-            value={filters.id_estado_inspeccion}
-            onChange={onChange}
-            placeholder="Ej: 1"
-          />
+          <label className="ins-field">
+            <span>Cliente</span>
+            <select className="ins-input" name="id_cliente" value={filters.id_cliente} onChange={onChange}>
+              <option value="">Todos</option>
+              {clientes.map((c) => (
+                <option key={String(c.id_cliente)} value={String(c.id_cliente)}>
+                  {c.raz_social || c.id_cliente}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ins-field">
+            <span>Área</span>
+            <select className="ins-input" name="id_area" value={filters.id_area} onChange={onChange}>
+              <option value="">Todas</option>
+              {areas.map((a) => (
+                <option key={String(a.id_area)} value={String(a.id_area)}>
+                  {a.desc_area || a.id_area}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ins-field">
+            <span>Lugar</span>
+            <select
+              className="ins-input"
+              name="id_lugar"
+              value={filters.id_lugar}
+              onChange={onChange}
+              disabled={!filters.id_area}
+            >
+              {!filters.id_area ? <option value="">Selecciona área</option> : <option value="">Todos</option>}
+              {lugares.map((l) => (
+                <option key={String(l.id_lugar)} value={String(l.id_lugar)}>
+                  {l.desc_lugar || l.id_lugar}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ins-field">
+            <span>Servicio</span>
+            <select className="ins-input" name="id_servicio" value={filters.id_servicio} onChange={onChange}>
+              <option value="">Todos</option>
+              {servicios.map((s) => (
+                <option key={String(s.id_servicio)} value={String(s.id_servicio)}>
+                  {s.nombre_servicio || s.id_servicio}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label className="ins-field">
             <span>Rango</span>
             <select className="ins-input" name="range" value={filters.range} onChange={onChange}>
@@ -215,6 +345,7 @@ export default function InspeccionesList() {
               <option value="custom">Personalizado</option>
             </select>
           </label>
+
           {filters.range === "custom" ? (
             <>
               <Input label="desde" type="date" name="desde" value={toInputDate(filters.desde)} onChange={onChange} />

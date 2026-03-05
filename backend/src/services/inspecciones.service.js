@@ -83,7 +83,11 @@ function parseDateOnlyLocal(s, endOfDay = false) {
 async function listarInspecciones({ query }) {
   const filtros = {
     plantilla: query.plantilla ? Number(query.plantilla) : null,
+    id_cliente: query.id_cliente ? String(query.id_cliente).trim() : null,
     id_area: query.id_area ? Number(query.id_area) : null,
+    id_lugar: query.id_lugar ? Number(query.id_lugar) : null,
+    id_servicio: query.id_servicio ? Number(query.id_servicio) : null,
+    estado: query.estado ? String(query.estado).trim() : null,
     id_estado_inspeccion: query.id_estado_inspeccion ? Number(query.id_estado_inspeccion) : null,
     desde: query.desde ? parseDateOnlyLocal(query.desde, false) : null,
     hasta: query.hasta ? parseDateOnlyLocal(query.hasta, true) : null,
