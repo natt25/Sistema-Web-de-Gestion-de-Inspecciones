@@ -981,3 +981,41 @@
     grid-template-columns: 1fr;
   }
 }
+
+.auth-brand{
+  display:flex;
+  align-items:flex-start;
+  gap:22px;
+}
+
+/* logo grande limpio */
+.auth-logo{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+/* título */
+.auth-title{
+  font-size:42px;
+  font-weight:900;
+  line-height:1.1;
+  color:#0f1115;
+}
+
+/* subtítulo */
+.auth-subtitle{
+  margin-top:12px;
+  font-size:16px;
+  color:#5b6573;
+}
+
+.aqp-logo{
+  position: absolute;
+  top: 30px;
+  left: 40px;
+  height: 55px;
+  width: auto;
+  z-index: 5;
+  opacity: 0.95;
+}
