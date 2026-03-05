@@ -72,6 +72,57 @@ function getEstadoLabel(it) {
 
 const DEFAULT_ESTADOS = ["BORRADOR", "PENDIENTE", "EN PROGRESO", "CERRADA"];
 
+function EstadoCompactDropdown({ value, options, onChange, getVariant }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function onDocClick(e) {
+      // cerrar si clic fuera del dropdown
+      if (!e.target.closest?.(".estado-dd")) setOpen(false);
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
+
+  const currentVariant = value === "ALL" ? "outline" : getVariant(value);
+
+  return (
+    <div className="estado-dd" style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="estado-dd-trigger"
+        aria-label="Filtrar por estado"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className={`estado-dd-dot ${currentVariant}`} />
+        <span className={`estado-dd-tri ${open ? "open" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="estado-dd-menu">
+          {options.map((op) => {
+            const v = op;
+            const variant = v === "ALL" ? "outline" : getVariant(v);
+            return (
+              <button
+                key={v}
+                type="button"
+                className="estado-dd-item"
+                onClick={() => {
+                  onChange(v);
+                  setOpen(false);
+                }}
+              >
+                <Badge variant={variant}>{v}</Badge>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function InspeccionesList() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -238,18 +289,12 @@ export default function InspeccionesList() {
       label: (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <span>ESTADO</span>
-          <select
-            className="ins-input"
+          <EstadoCompactDropdown
             value={estadoTabla}
-            onChange={(e) => setEstadoTabla(e.target.value)}
-            style={{ minWidth: 120, height: 30, padding: "0 10px" }}
-          >
-            {estadoOptions.map((estado) => (
-              <option key={estado} value={estado}>
-                {estado}
-              </option>
-            ))}
-          </select>
+            options={estadoOptions}
+            onChange={setEstadoTabla}
+            getVariant={getEstadoVariant}
+          />
         </div>
       ),
       render: (it) => {

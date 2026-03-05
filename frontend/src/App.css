@@ -1081,3 +1081,73 @@
   line-height: 1.15;
   letter-spacing: .6px;
 }
+
+/* ===== Estado dropdown compacto (tabla) ===== */
+.estado-dd-trigger{
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.estado-dd-trigger:hover{
+  border-color: rgba(255,106,0,.45);
+  background: rgba(255,106,0,.06);
+}
+
+/* puntito que mantiene el color del badge */
+.estado-dd-dot{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,.12);
+}
+.estado-dd-dot.gray{ background:#9ca3af; border-color:#d1d5db; }
+.estado-dd-dot.yellow{ background:#f59e0b; border-color:#fcd34d; }
+.estado-dd-dot.blue{ background:#2563eb; border-color:#93c5fd; }
+.estado-dd-dot.green{ background:#16a34a; border-color:#86efac; }
+.estado-dd-dot.red{ background:#dc2626; border-color:#fca5a5; }
+.estado-dd-dot.outline{ background: transparent; border-color: rgba(0,0,0,.20); }
+
+/* triangulito único (invertido) */
+.estado-dd-tri{
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid rgba(0,0,0,.55);
+  transform: translateY(1px);
+  transition: transform .12s ease;
+}
+.estado-dd-tri.open{
+  transform: rotate(180deg) translateY(-1px);
+}
+
+/* menú dropdown */
+.estado-dd-menu{
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 200px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 45px rgba(17,24,39,.14);
+  overflow: hidden;
+  z-index: 30;
+}
+.estado-dd-item{
+  width: 100%;
+  text-align: left;
+  padding: 10px 10px;
+  border: 0;
+  background: #fff;
+  cursor: pointer;
+}
+.estado-dd-item:hover{
+  background: rgba(255,106,0,.08);
+}
