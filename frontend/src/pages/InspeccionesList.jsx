@@ -9,6 +9,7 @@ import Input from "../components/ui/Input";
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
 import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
+import { listarPlantillas } from "../api/plantillas.api";
 
 function normalizeArray(payload) {
   if (Array.isArray(payload)) return payload;
@@ -62,7 +63,6 @@ export default function InspeccionesList() {
   const params = new URLSearchParams(location.search);
   const plantillaId = params.get("plantilla");
   const plantillaIdNum = plantillaId ? Number(plantillaId) : null;
-
   const [filters, setFilters] = useState({
     id_area: "",
     id_estado_inspeccion: "",
@@ -70,10 +70,11 @@ export default function InspeccionesList() {
     desde: "",
     hasta: "",
   });
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [items, setItems] = useState([]);
+  const [pageTitle, setPageTitle] = useState("Inspecciones");
+
   useLoadingWatchdog({
     loading,
     setLoading,
@@ -94,29 +95,49 @@ export default function InspeccionesList() {
   }, [filters, plantillaIdNum]);
 
   async function load() {
-    setError("");
-    setLoading(true);
     try {
-      const data = await listarInspecciones(queryParams);
-      const list = normalizeArray(data);
+      setLoading(true);
+
+      const plantillaIdNum = Number.isFinite(Number(plantillaId)) ? Number(plantillaId) : null;
+
+      // 1) Traer inspecciones como ya haces
+      const list = await listarInspecciones(); // o tu llamada actual con filtros
       const next =
-        Number.isFinite(plantillaIdNum)
+        plantillaIdNum != null
           ? list.filter((it) => Number(it?.id_plantilla_inspec) === plantillaIdNum)
           : list;
+
       setItems(next);
-    } catch (err) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message;
 
-      if (status === 401) setError("Sesion expirada (401). Vuelve a iniciar sesion.");
-      else if (status === 403) setError("No tienes permisos (403).");
-      else if (status === 404) setError("Endpoint no encontrado (404).");
-      else if (status === 500) setError("Error interno del servidor (500).");
-      else setError(msg || "No se pudo cargar el listado. Revisa backend/CORS.");
+      // 2) Título: si hay items, usa eso
+      if (plantillaIdNum != null && next.length > 0) {
+        const nombre = next[0]?.nombre_formato || "Inspecciones";
+        const cod = String(next[0]?.codigo_formato ?? "").trim();
+        const codigo = cod ? ` (${cod})` : "";
+        setPageTitle(`${nombre}${codigo}`);
+        return;
+      }
 
-      if (status === 401) {
-        clearToken();
-        navigate("/login", { replace: true });
+      // 3) Si NO hay items, igual resuelve título desde tabla de plantillas
+      if (plantillaIdNum != null) {
+        // 1) traer plantilla desde catálogo (siempre)
+        const plantillas = await listarPlantillas();
+        const p = plantillas.find((x) => Number(x?.id_plantilla_inspec) === plantillaIdNum);
+
+        // helper
+        const buildTitle = (nombreRaw) => String(nombreRaw ?? "Inspecciones").trim();
+
+        // 2) preferir catálogo de plantillas (más confiable)
+        if (p) {
+          setPageTitle(buildTitle(p.nombre_formato));
+        } else if (next.length > 0) {
+          // 3) fallback: usar lo que venga en el listado
+          setPageTitle(buildTitle(next[0]?.nombre_formato));
+        } else {
+          setPageTitle(`Inspecciones (Plantilla ${plantillaIdNum})`);
+        }
+      } else {
+        setPageTitle("Inspecciones");
       }
     } finally {
       setLoading(false);
@@ -150,7 +171,7 @@ export default function InspeccionesList() {
   ];
 
   return (
-    <DashboardLayout title="Inspecciones">
+    <DashboardLayout title={pageTitle}>
       <Card title="Filtros">
         {Number.isFinite(plantillaIdNum) ? (
           <div style={{ marginBottom: 10 }}>
