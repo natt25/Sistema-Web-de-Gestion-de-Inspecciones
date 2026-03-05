@@ -1019,3 +1019,29 @@
   z-index: 5;
   opacity: 0.95;
 }
+
+.sidebar-logo{
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+
+  /* ✅ ya no cuadro naranja */
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.10);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-brand{
+  padding: 14px 10px;
+  gap: 14px;
+  align-items: flex-start; /* ✅ para que logo y texto alineen arriba */
+}
+
+.sidebar-title{
+  font-size: 14px;
+  line-height: 1.15;
+  letter-spacing: .6px;
+}

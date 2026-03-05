@@ -80,9 +80,32 @@ export default function Sidebar({ onNavigate }) {
   return (
     <>
       <div className="sidebar-brand">
-        <div className="sidebar-logo">SI</div>
+        <div className="sidebar-logo">
+          <svg viewBox="0 0 64 64" width="28" height="28">
+            <rect x="10" y="6" width="34" height="50" rx="8" fill="rgba(255,122,26,.15)" />
+            <rect x="14" y="10" width="34" height="50" rx="8" fill="rgba(255,122,26,.25)" />
+
+            <rect x="20" y="18" width="18" height="4" rx="2" fill="#ff7a1a"/>
+            <rect x="20" y="28" width="14" height="4" rx="2" fill="#ff7a1a"/>
+            <rect x="20" y="38" width="10" height="4" rx="2" fill="#ff7a1a"/>
+
+            <circle cx="48" cy="44" r="10" fill="#ff7a1a"/>
+            <path
+              d="M42 44l3 3 6-7"
+              fill="none"
+              stroke="#fff"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
         <div>
-          <div className="sidebar-title">SISTEMA DE GESTIÓN DE INSPECCIONES</div>
+          <div className="sidebar-title">
+            SISTEMA DE <br />
+            GESTIÓN DE <br />
+            INSPECCIONES
+          </div>
         </div>
       </div>
 
