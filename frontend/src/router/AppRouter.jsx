@@ -13,6 +13,7 @@ import ChangePassword from "../pages/ChangePassword";
 import Pendientes from "../pages/Pendientes";
 import AdminUsuarios from "../pages/AdminUsuarios";
 import Perfil from "../pages/Perfil";
+import Home from "../pages/Home";
 
 export default function AppRouter() {
   return (
@@ -20,9 +21,12 @@ export default function AppRouter() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
+        {/* ✅ Rutas protegidas */}
         <Route path="/" element={<RequireAuth />}>
-          <Route index element={<Navigate to="/inspecciones/plantillas" replace />} />
+          {/* ✅ primera pantalla al logear */}
+          <Route index element={<Navigate to="home" replace />} />
 
+          <Route path="home" element={<Home />} />
           <Route path="change-password" element={<ChangePassword />} />
           <Route path="pendientes" element={<Pendientes />} />
           <Route path="perfil" element={<Perfil />} />
@@ -31,7 +35,6 @@ export default function AppRouter() {
           <Route path="inspecciones/nueva" element={<InspeccionNueva />} />
           <Route path="inspecciones/nueva/:idPlantilla" element={<InspeccionForm />} />
 
-          {/* Historial (listado) */}
           <Route path="inspecciones" element={<InspeccionesList />} />
           <Route path="inspecciones/:id" element={<InspeccionDetail />} />
 
@@ -40,7 +43,8 @@ export default function AppRouter() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* ✅ Fallback */}
+        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </BrowserRouter>
   );

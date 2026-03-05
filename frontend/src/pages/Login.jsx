@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { login } from "../auth/auth.service";
 import { clearAuth, getToken, setToken, setUser, getUser } from "../auth/auth.storage";
 import Input from "../components/ui/Input";
@@ -9,12 +9,10 @@ const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3000").repla
 
 export default function Login() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [dni, setDni] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-
-  const redirectTo = location.state?.from?.pathname || "/inspecciones/plantillas";
+  const HOME_ROUTE = "/home";
 
   useEffect(() => {
     const token = getToken();
@@ -29,9 +27,9 @@ export default function Login() {
     if (user.debe_cambiar_password) {
       navigate("/change-password", { replace: true });
     } else {
-      navigate(redirectTo, { replace: true });
+      navigate(HOME_ROUTE, { replace: true });
     }
-  }, [navigate, redirectTo]);
+  }, [navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -45,7 +43,7 @@ export default function Login() {
       if (data.usuario?.debe_cambiar_password) {
         navigate("/change-password", { replace: true });
       } else {
-        navigate(redirectTo, { replace: true });
+        navigate(HOME_ROUTE, { replace: true });
       }
     } catch (err) {
       const status = err?.response?.status;

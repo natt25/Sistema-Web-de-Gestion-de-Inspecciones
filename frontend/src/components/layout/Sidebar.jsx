@@ -5,7 +5,7 @@ import { clearAuth } from "../../auth/auth.storage";
 import { listarPendientes } from "../../api/pendientes.api";
 
 const items = [
-  { to: "/", label: "Home", icon: "🏠" },
+  { to: "/home", label: "Home", icon: "🏠" },
   { to: "/inspecciones/plantillas", label: "Inspecciones", icon: "📋" },
   { to: "/pendientes", label: "Pendientes", icon: "⏰" },
   { to: "/admin/usuarios", label: "Usuarios", icon: "👥" },
@@ -27,7 +27,7 @@ export default function Sidebar({ onNavigate }) {
 
   const isActive = (to) => {
     const p = location.pathname;
-    if (to === "/") return p === "/";
+    if (to === "/home") return p === "/home";
     if (to === "/inspecciones/plantillas") return p.startsWith("/inspecciones");
     return p === to || p.startsWith(`${to}/`);
   };
