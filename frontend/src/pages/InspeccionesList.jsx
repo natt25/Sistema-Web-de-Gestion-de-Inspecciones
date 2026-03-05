@@ -140,19 +140,8 @@ export default function InspeccionesList() {
     { key: "usuario", label: "Usuario", render: (it) => it.id_usuario ?? "-" }, // si no estás trayendo nombre aún
   ];
 
-  const actions = (
-    <div style={{ display: "flex", gap: 10 }}>
-      <Button variant="outline" onClick={() => load()} disabled={loading}>
-        {loading ? "Cargando..." : "Refrescar"}
-      </Button>
-      <Button variant="primary" onClick={() => navigate("/inspecciones/plantillas")}>
-        Nueva inspección
-      </Button>
-    </div>
-  );
-
   return (
-    <DashboardLayout title="Inspecciones" actions={actions}>
+    <DashboardLayout title="Inspecciones">
       <Card title="Filtros">
         {Number.isFinite(plantillaIdNum) ? (
           <div style={{ marginBottom: 10 }}>
@@ -169,7 +158,7 @@ export default function InspeccionesList() {
               <option value="1m">1 mes</option>
               <option value="3m">3 meses</option>
               <option value="6m">6 meses</option>
-              <option value="1y">1 ano</option>
+              <option value="1y">1 año</option>
               <option value="custom">Personalizado</option>
             </select>
           </label>
@@ -181,23 +170,6 @@ export default function InspeccionesList() {
           ) : null}
         </div>
 
-        <div className="actions" style={{ marginTop: 12 }}>
-          <Button variant="primary" onClick={load} disabled={loading}>
-            Aplicar filtros
-          </Button>
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => {
-              setFilters({ id_area: "", id_estado_inspeccion: "", range: "7d", desde: "", hasta: "" });
-              setTimeout(load, 0);
-            }}
-            disabled={loading}
-          >
-            Limpiar
-          </Button>
-          {error && <Badge>{error}</Badge>}
-        </div>
       </Card>
 
       <Card title="Listado">
@@ -205,18 +177,6 @@ export default function InspeccionesList() {
           columns={columns}
           data={items}
           emptyText={loading ? "Cargando..." : "Sin registros."}
-          renderActions={(it) => (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                const id = it.id_inspeccion ?? it.id;
-                if (!id) return;
-                navigate(`/inspecciones/${id}`);
-              }}
-            >
-              Ver detalle
-            </Button>
-          )}
         />
       </Card>
     </DashboardLayout>
