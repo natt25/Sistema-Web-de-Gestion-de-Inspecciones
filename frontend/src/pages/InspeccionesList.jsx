@@ -134,10 +134,19 @@ export default function InspeccionesList() {
 
   const columns = [
     { key: "id", label: "ID", render: (it) => it.id_inspeccion ?? "-" },
-    { key: "fecha", label: "Fecha", render: (it) => it.fecha_inspeccion ?? it.created_at ?? "-" },
+
+    {
+      key: "fecha",
+      label: "Fecha",
+      render: (it) => {
+        const raw = it.fecha_inspeccion ?? it.created_at ?? "";
+        return raw ? String(raw).slice(0, 10) : "-";
+      },
+    },
+
     { key: "area", label: "Area", render: (it) => it.desc_area ?? it.id_area ?? "-" },
     { key: "estado", label: "Estado", render: (it) => it.estado_inspeccion ?? it.id_estado_inspeccion ?? "-" },
-    { key: "usuario", label: "Usuario", render: (it) => it.id_usuario ?? "-" }, // si no estás trayendo nombre aún
+
   ];
 
   return (
@@ -177,6 +186,23 @@ export default function InspeccionesList() {
           columns={columns}
           data={items}
           emptyText={loading ? "Cargando..." : "Sin registros."}
+          renderActions={(it) => (
+            <button
+              type="button"
+              onClick={() => navigate(`/inspecciones/${it.id_inspeccion}`)}
+              style={{
+                padding: 0,
+                border: 0,
+                background: "transparent",
+                color: "#f97316",
+                textDecoration: "none", // 👈 sin subrayado
+                cursor: "pointer",
+                fontWeight: 900,
+              }}
+            >
+              Ver detalle
+            </button>
+          )}
         />
       </Card>
     </DashboardLayout>

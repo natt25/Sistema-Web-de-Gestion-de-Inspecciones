@@ -149,69 +149,39 @@ export default function Pendientes() {
   }
 
   const columns = [
-    { key: "id_accion", label: "ID Acción" },
-    { key: "id_observacion", label: "Obs", render: (a) => a.id_observacion ?? "-" },
+    // ID Inspección
+    {
+      key: "id_inspeccion",
+      label: "ID",
+      render: (a) => a?.id_inspeccion ?? "-",
+    },
+
+    // Inspección
     {
       key: "inspeccion",
       label: "Inspección",
       render: (a) => {
-        const id = a?.id_inspeccion ?? a?.id_inspec ?? a?.id;
-        const label = a?.codigo_formato ?? `#${id ?? "-"}`;
-
-        if (!id) return "-";
-
-        return (
-          <button
-            type="button"
-            onClick={() => navigate(`/inspecciones/${id}`)}
-            style={{
-              padding: 0,
-              border: 0,
-              background: "transparent",
-              color: "#2563eb",
-              textDecoration: "underline",
-              cursor: "pointer",
-              fontWeight: 800,
-            }}
-          >
-            {label}
-          </button>
-        );
+        const nombre = a?.nombre_formato || "Inspección";
+        const codigo = a?.codigo_formato || "-";
+        return `${nombre} (${codigo})`;
       },
     },
+
+    // Descripción
     {
       key: "desc_accion",
       label: "Descripción",
-      render: (a) => {
-        const id = a?.id_inspeccion ?? a?.id_inspec ?? a?.id;
-        const text = a?.desc_accion ?? a?.descripcion ?? "-";
-        if (!id) return text;
-        return (
-          <button
-            type="button"
-            onClick={() => navigate(`/inspecciones/${id}`)}
-            style={{
-              padding: 0,
-              border: 0,
-              background: "transparent",
-              color: "#2563eb",
-              textDecoration: "underline",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-            title="Abrir inspección"
-          >
-            {text}
-          </button>
-        );
-      },
+      render: (a) => <span>{a?.desc_accion ?? a?.descripcion ?? "-"}</span>,
     },
+
     { key: "responsable", label: "Responsable", render: (a) => a.responsable ?? "-" },
+
     {
       key: "fecha_compromiso",
       label: "Fecha",
       render: (a) => (a.fecha_compromiso ? String(a.fecha_compromiso).slice(0, 10) : "-"),
     },
+
     {
       key: "estado",
       label: "Estado",
@@ -234,6 +204,7 @@ export default function Pendientes() {
         );
       },
     },
+
     {
       key: "dias_restantes",
       label: "Días",
@@ -242,6 +213,33 @@ export default function Pendientes() {
         if (!Number.isFinite(val)) return a?.dias_restantes ?? "-";
         const color = val < 0 ? "#b91c1c" : val > 0 ? "#22c55e" : "#92400e";
         return <span style={{ color, fontWeight: 800 }}>{val}</span>;
+      },
+    },
+
+    // Acción: link
+    {
+      key: "accion",
+      label: "Acción",
+      render: (a) => {
+        const idIns = a?.id_inspeccion;
+        if (!idIns) return "-";
+        return (
+          <button
+            type="button"
+            onClick={() => navigate(`/inspecciones/${idIns}`)}
+            style={{
+              padding: 0,
+              border: 0,
+              background: "transparent",
+              color: "#f97316",
+              textDecoration: "none", // 👈 sin subrayado
+              cursor: "pointer",
+              fontWeight: 900,
+            }}
+          >
+            Ver detalle
+          </button>
+        );
       },
     },
   ];
