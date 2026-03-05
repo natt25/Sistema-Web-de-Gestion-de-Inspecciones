@@ -39,18 +39,6 @@ export default function Home() {
   const [pendientesError, setPendientesError] = useState("");
   const [inspeccionesError, setInspeccionesError] = useState("");
 
-  const actions = (
-    <Button
-      variant="outline"
-      onClick={() => {
-        clearAuth();
-        window.location.href = "/login";
-      }}
-    >
-      Cerrar sesion
-    </Button>
-  );
-
   useEffect(() => {
     let alive = true;
 
@@ -223,7 +211,7 @@ export default function Home() {
   );
 
   return (
-    <DashboardLayout title="Home" actions={actions}>
+    <DashboardLayout title="Home">
       <div className="grid-cards" style={{ marginBottom: 14 }}>
         {kpiCards.map((c) => (
           <Card key={c.title} title={c.title}>
