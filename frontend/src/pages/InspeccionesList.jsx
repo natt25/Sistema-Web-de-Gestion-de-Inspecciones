@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { listarInspecciones } from "../api/inspecciones.api";
-import { clearToken } from "../auth/auth.storage";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
@@ -13,19 +11,10 @@ import { listarPlantillas } from "../api/plantillas.api";
 
 function normalizeArray(payload) {
   if (Array.isArray(payload)) return payload;
-
-  // si backend devuelve { data: [...] }
   if (Array.isArray(payload?.data)) return payload.data;
-
-  // si backend devuelve { ok:true, data:[...] }
   if (payload?.ok === true && Array.isArray(payload?.data)) return payload.data;
-
-  // si backend devuelve { rows: [...] }
   if (Array.isArray(payload?.rows)) return payload.rows;
-
-  // si backend devuelve { recordset: [...] }
   if (Array.isArray(payload?.recordset)) return payload.recordset;
-
   return [];
 }
 
@@ -57,12 +46,35 @@ function getRangeDates(range, customDesde, customHasta) {
   return { desde: formatDateISO(from), hasta: end };
 }
 
+function formatDateOnly(raw) {
+  if (!raw) return "-";
+  const str = String(raw);
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toISOString().slice(0, 10);
+}
+
+function getEstadoVariant(nombreEstado) {
+  const e = String(nombreEstado || "").toUpperCase().trim();
+  if (!e) return "gray";
+  if (e.includes("BORRADOR")) return "gray";
+  if (e.includes("PENDIENTE")) return "yellow";
+  if (e.includes("PROGRESO")) return "blue";
+  if (e.includes("CERRADA") || e.includes("CERRADO") || e.includes("FINALIZ")) return "green";
+  return "gray";
+}
+
+function getEstadoLabel(it) {
+  return it?.estado_inspeccion || it?.nombre_estado_inspeccion || "-";
+}
+
 export default function InspeccionesList() {
-  const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const plantillaId = params.get("plantilla");
   const plantillaIdNum = plantillaId ? Number(plantillaId) : null;
+
   const [filters, setFilters] = useState({
     id_area: "",
     id_estado_inspeccion: "",
@@ -98,41 +110,23 @@ export default function InspeccionesList() {
     try {
       setLoading(true);
 
-      const plantillaIdNum = Number.isFinite(Number(plantillaId)) ? Number(plantillaId) : null;
+      const payload = await listarInspecciones(queryParams);
+      const list = normalizeArray(payload);
+      setItems(list);
 
-      // 1) Traer inspecciones como ya haces
-      const list = await listarInspecciones(); // o tu llamada actual con filtros
-      const next =
-        plantillaIdNum != null
-          ? list.filter((it) => Number(it?.id_plantilla_inspec) === plantillaIdNum)
-          : list;
-
-      setItems(next);
-
-      // 2) Título: si hay items, usa eso
-      if (plantillaIdNum != null && next.length > 0) {
-        const nombre = next[0]?.nombre_formato || "Inspecciones";
-        const cod = String(next[0]?.codigo_formato ?? "").trim();
+      if (Number.isFinite(plantillaIdNum) && list.length > 0) {
+        const nombre = list[0]?.nombre_formato || "Inspecciones";
+        const cod = String(list[0]?.codigo_formato ?? "").trim();
         const codigo = cod ? ` (${cod})` : "";
         setPageTitle(`${nombre}${codigo}`);
         return;
       }
 
-      // 3) Si NO hay items, igual resuelve título desde tabla de plantillas
-      if (plantillaIdNum != null) {
-        // 1) traer plantilla desde catálogo (siempre)
+      if (Number.isFinite(plantillaIdNum)) {
         const plantillas = await listarPlantillas();
         const p = plantillas.find((x) => Number(x?.id_plantilla_inspec) === plantillaIdNum);
-
-        // helper
-        const buildTitle = (nombreRaw) => String(nombreRaw ?? "Inspecciones").trim();
-
-        // 2) preferir catálogo de plantillas (más confiable)
         if (p) {
-          setPageTitle(buildTitle(p.nombre_formato));
-        } else if (next.length > 0) {
-          // 3) fallback: usar lo que venga en el listado
-          setPageTitle(buildTitle(next[0]?.nombre_formato));
+          setPageTitle(String(p.nombre_formato ?? "Inspecciones").trim());
         } else {
           setPageTitle(`Inspecciones (Plantilla ${plantillaIdNum})`);
         }
@@ -146,7 +140,7 @@ export default function InspeccionesList() {
 
   useEffect(() => {
     load();
-  }, [location.key]);
+  }, [location.key, queryParams]);
 
   function onChange(e) {
     const { name, value } = e.target;
@@ -155,19 +149,42 @@ export default function InspeccionesList() {
 
   const columns = [
     { key: "id", label: "ID", render: (it) => it.id_inspeccion ?? "-" },
-
     {
       key: "fecha",
-      label: "Fecha",
+      label: "FECHA",
+      render: (it) => formatDateOnly(it.fecha_inspeccion || it.created_at),
+    },
+    {
+      key: "cliente",
+      label: "CLIENTE",
+      render: (it) => it.raz_social || it.otro_cliente_texto || "-",
+    },
+    { key: "area", label: "AREA", render: (it) => it.desc_area || "-" },
+    {
+      key: "servicio",
+      label: "SERVICIO",
+      render: (it) => it.nombre_servicio || it.servicio_detalle || it.otro_servicio_texto || "-",
+    },
+    {
+      key: "estado",
+      label: "ESTADO",
       render: (it) => {
-        const raw = it.fecha_inspeccion ?? it.created_at ?? "";
-        return raw ? String(raw).slice(0, 10) : "-";
+        const label = getEstadoLabel(it);
+        return <Badge variant={getEstadoVariant(label)}>{label}</Badge>;
       },
     },
-
-    { key: "area", label: "Area", render: (it) => it.desc_area ?? it.id_area ?? "-" },
-    { key: "estado", label: "Estado", render: (it) => it.estado_inspeccion ?? it.id_estado_inspeccion ?? "-" },
-
+    {
+      key: "accion",
+      label: "ACCIÓN",
+      render: (it) => (
+        <Link
+          to={`/inspecciones/${it.id_inspeccion}`}
+          style={{ color: "#f97316", textDecoration: "none", fontWeight: 900 }}
+        >
+          Ver detalle
+        </Link>
+      ),
+    },
   ];
 
   return (
@@ -180,7 +197,13 @@ export default function InspeccionesList() {
         ) : null}
         <div className="grid-cards filters-grid">
           <Input label="id_area" name="id_area" value={filters.id_area} onChange={onChange} placeholder="Ej: 1" />
-          <Input label="id_estado_inspeccion" name="id_estado_inspeccion" value={filters.id_estado_inspeccion} onChange={onChange} placeholder="Ej: 1" />
+          <Input
+            label="id_estado_inspeccion"
+            name="id_estado_inspeccion"
+            value={filters.id_estado_inspeccion}
+            onChange={onChange}
+            placeholder="Ej: 1"
+          />
           <label className="ins-field">
             <span>Rango</span>
             <select className="ins-input" name="range" value={filters.range} onChange={onChange}>
@@ -199,33 +222,16 @@ export default function InspeccionesList() {
             </>
           ) : null}
         </div>
-
       </Card>
 
       <Card title="Listado">
-        <Table
-          columns={columns}
-          data={items}
-          emptyText={loading ? "Cargando..." : "Sin registros."}
-          renderActions={(it) => (
-            <button
-              type="button"
-              onClick={() => navigate(`/inspecciones/${it.id_inspeccion}`)}
-              style={{
-                padding: 0,
-                border: 0,
-                background: "transparent",
-                color: "#f97316",
-                textDecoration: "none", // 👈 sin subrayado
-                cursor: "pointer",
-                fontWeight: 900,
-              }}
-            >
-              Ver detalle
-            </button>
-          )}
-        />
+        <Table columns={columns} data={items} emptyText={loading ? "Cargando..." : "Sin registros."} />
       </Card>
+      {error ? (
+        <div style={{ marginTop: 10 }}>
+          <Badge variant="red">{error}</Badge>
+        </div>
+      ) : null}
     </DashboardLayout>
   );
 }

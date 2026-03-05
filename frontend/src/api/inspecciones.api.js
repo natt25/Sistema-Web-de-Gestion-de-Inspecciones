@@ -1,17 +1,22 @@
 import http from "./http";
 
-export async function listarInspecciones(params = {}) {
-  const res = await http.get("/api/inspecciones", {
-    params: { ...params, _ts: Date.now() }, // 👈 cache buster
+export async function listarInspecciones(params) {
+  const config = {
     headers: {
       "Cache-Control": "no-cache",
       Pragma: "no-cache",
     },
-  });
+  };
+
+  if (params && Object.keys(params).length > 0) {
+    config.params = params;
+  }
+
+  const res = await http.get("/api/inspecciones", config);
   return res.data;
 }
 
-// crear inspección + respuestas
+// crear inspeccion + respuestas
 export async function crearInspeccion(payload) {
   const res = await http.post("/api/inspecciones", payload);
   return res.data;

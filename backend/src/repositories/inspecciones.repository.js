@@ -247,8 +247,16 @@ async function listarInspecciones(filtros) {
   const where = [];
   const pool = await getPool();
   const request = pool.request();
+  let otroJoin = "";
+  let otroClienteSelect = "NULL AS otro_cliente_texto";
+  let otroServicioSelect = "NULL AS otro_servicio_texto";
 
   // filtros opcionales
+  if (filtros.plantilla) {
+    where.push("i.id_plantilla_inspec = @plantilla");
+    request.input("plantilla", sql.Int, filtros.plantilla);
+  }
+
   if (filtros.id_area) {
     where.push("i.id_area = @id_area");
     request.input("id_area", sql.Int, filtros.id_area);
@@ -272,6 +280,34 @@ async function listarInspecciones(filtros) {
   if (filtros.hasta) {
     where.push(`${fechaExpr} < DATEADD(day, 1, @hasta)`);
     request.input("hasta", sql.DateTime2, filtros.hasta);
+  }
+
+  const hasOtroCatalog = (await objectExists("SSOMA.INS_OTRO_CLIENTE_SERVICIO", "U"))
+    || (await objectExists("SSOMA.INS_OTRO_CLIENTE_SERVICIO", "V"));
+
+  if (hasOtroCatalog) {
+    const cols = await getColumns("SSOMA", "INS_OTRO_CLIENTE_SERVICIO");
+    const idCol = cols.has("id_otro") ? "id_otro" : cols.has("id") ? "id" : null;
+    const clienteCol = cols.has("otro_cliente_texto")
+      ? "otro_cliente_texto"
+      : cols.has("cliente_texto")
+        ? "cliente_texto"
+        : cols.has("desc_otro_cliente")
+          ? "desc_otro_cliente"
+          : null;
+    const servicioCol = cols.has("otro_servicio_texto")
+      ? "otro_servicio_texto"
+      : cols.has("servicio_texto")
+        ? "servicio_texto"
+        : cols.has("desc_otro_servicio")
+          ? "desc_otro_servicio"
+          : null;
+
+    if (idCol) {
+      otroJoin = `LEFT JOIN SSOMA.INS_OTRO_CLIENTE_SERVICIO ocs ON ocs.${idCol} = i.id_otro`;
+      if (clienteCol) otroClienteSelect = `ocs.${clienteCol} AS otro_cliente_texto`;
+      if (servicioCol) otroServicioSelect = `ocs.${servicioCol} AS otro_servicio_texto`;
+    }
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -300,7 +336,9 @@ async function listarInspecciones(filtros) {
       s.nombre_servicio,
 
       i.id_otro,
-      i.servicio_detalle
+      i.servicio_detalle,
+      ${otroClienteSelect},
+      ${otroServicioSelect}
     FROM SSOMA.INS_INSPECCION i
     JOIN SSOMA.INS_AREA a ON a.id_area = i.id_area
     JOIN SSOMA.INS_CAT_ESTADO_INSPECCION ei ON ei.id_estado_inspeccion = i.id_estado_inspeccion
@@ -308,6 +346,7 @@ async function listarInspecciones(filtros) {
     JOIN SSOMA.INS_PLANTILLA_INSPECCION p ON p.id_plantilla_inspec = i.id_plantilla_inspec
     LEFT JOIN SSOMA.V_CLIENTE c ON LTRIM(RTRIM(c.id_cliente)) = LTRIM(RTRIM(i.id_cliente))
     LEFT JOIN SSOMA.V_SERVICIO s ON s.id_servicio = i.id_servicio
+    ${otroJoin}
     ${whereSql}
     ORDER BY ${fechaExpr} DESC, i.id_inspeccion DESC;
   `;

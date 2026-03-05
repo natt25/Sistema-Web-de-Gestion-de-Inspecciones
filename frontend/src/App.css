@@ -202,6 +202,42 @@
   color: var(--orange-700);
 }
 
+.badge.badge-gray{
+  color: #374151;
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.badge.badge-yellow{
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.badge.badge-blue{
+  color: #1e3a8a;
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.badge.badge-green{
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.badge.badge-red{
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.badge.badge-outline{
+  color: var(--text);
+  background: transparent;
+  border-color: var(--border);
+}
+
 .table-wrap{
   width: 100%;
   overflow-x: auto;
