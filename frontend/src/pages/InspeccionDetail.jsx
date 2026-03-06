@@ -23,6 +23,23 @@ import { getToken } from "../auth/auth.storage";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
 
+function getEstadoClass(estado) {
+  const s = String(estado || "").toUpperCase();
+  if (s === "BUENO") return "resp-state resp-state-good";
+  if (s === "MALO") return "resp-state resp-state-bad";
+  if (s === "NA" || s === "N/A") return "resp-state resp-state-na";
+  return "resp-state resp-state-pending";
+}
+
+function getResponsableAccion(accion) {
+  if (!accion) return "-";
+  if (typeof accion?.quien === "string" && accion.quien.trim()) return accion.quien.trim();
+  if (typeof accion?.responsable?.nombre === "string" && accion.responsable.nombre.trim()) {
+    return accion.responsable.nombre.trim();
+  }
+  return "-";
+}
+
 function RenderTablaBotiquin({ respuestas }) {
   const list = (respuestas || []).filter(r => String(r?.categoria||"").toUpperCase() === "TABLA_BOTIQUIN");
   let meta = null;
@@ -1677,7 +1694,10 @@ export default function InspeccionDetail() {
   const isFOR033 = tipoPlantilla === "tabla_epps";
   const isFOR034 = tipoPlantilla === "tabla_extintores";
   const isFOR035 = tipoPlantilla === "tabla_kit_antiderrames";
-  const hideObsUI = isFOR033 || isFOR034 || isFOR035;
+  const isChecklist = tipoPlantilla === "checklist";
+
+  // ocultar la UI inferior cuando la observación/acción ya forma parte natural de la plantilla
+  const hideObsUI = isChecklist || isFOR033 || isFOR034 || isFOR035;
   const inspectores = useMemo(() => {
     if (Array.isArray(data?.inspectores)) return data.inspectores;
     if (!Array.isArray(data?.participantes)) return [];
@@ -2165,34 +2185,46 @@ export default function InspeccionDetail() {
                       const desc = r?.descripcion || "-";
                       const obs = (r?.observacion || "").trim();
                       const accion = parseAccionJson(r?.accion) || r?.accion || null;
+                      const isMalo = estado === "MALO";
 
                       return (
-                        <div
+                        <article
                           key={`${itemRef || "item"}-${idx}`}
-                          style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fff" }}
+                          className={`resp-item-card ${isMalo ? "is-malo" : ""}`}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                            <div>
-                              <b style={{ color: "#111" }}>{itemRef || "-"}</b>{" "}
-                              <span style={{ color: "rgba(0,0,0,.75)" }}>{desc}</span>
-                            </div>
-                            <Badge>{estado || "SIN RESPUESTA"}</Badge>
-                          </div>
-
-                          {estado === "MALO" && (
-                            <div style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid rgba(220,38,38,.25)", background: "rgba(220,38,38,.06)" }}>
-                              <div style={{ fontWeight: 900, color: "#b91c1c", marginBottom: 8 }}>Observacion</div>
-                              <div style={{ whiteSpace: "pre-wrap" }}>{obs || "-"}</div>
-
-                              <div style={{ marginTop: 10, fontWeight: 900, color: "#111" }}>Accion correctiva</div>
-                              <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
-                                <div><b>Que:</b> {accion?.que || "-"}</div>
-                                <div><b>Quien:</b> {accion?.quien || accion?.responsable?.nombre || "-"}</div>
-                                <div><b>Cuando:</b> {accion?.cuando || "-"}</div>
+                          <div className="resp-item-head">
+                            <div className="resp-item-main">
+                              <div className="resp-item-refline">
+                                <span className="resp-item-ref">{itemRef || "-"}</span>
+                                <span className="resp-item-desc">{desc}</span>
                               </div>
                             </div>
-                          )}
-                        </div>
+
+                            <span className={getEstadoClass(estado)}>
+                              {estado || "SIN RESPUESTA"}
+                            </span>
+                          </div>
+
+                          {isMalo ? (
+                            <div className="resp-detail-panels">
+                              <section className="resp-panel resp-panel-danger">
+                                <div className="resp-panel-title">Observación</div>
+                                <div className="resp-panel-body">
+                                  {obs || "-"}
+                                </div>
+                              </section>
+
+                              <section className="resp-panel resp-panel-success">
+                                <div className="resp-panel-title">Acción correctiva</div>
+                                <div className="resp-action-grid">
+                                  <div><b>Qué:</b> {accion?.que || "-"}</div>
+                                  <div><b>Quién:</b> {getResponsableAccion(accion)}</div>
+                                  <div><b>Cuándo:</b> {accion?.cuando || "-"}</div>
+                                </div>
+                              </section>
+                            </div>
+                          ) : null}
+                        </article>
                       );
                     })}
                   </div>
@@ -2200,8 +2232,8 @@ export default function InspeccionDetail() {
               );
             })}
           </div>
-          )}
-        </Card>
+        )}
+      </Card>
 
       {!hideObsUI && (
         <Card title="Crear observacion">

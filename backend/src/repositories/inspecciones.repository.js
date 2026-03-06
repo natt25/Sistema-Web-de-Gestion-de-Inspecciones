@@ -501,10 +501,19 @@ async function listarInspectoresPorInspeccion(id_inspeccion) {
     colsUsuario.has("nombres") ? "nombres" :
     colsUsuario.has("nombre") ? "nombre" :
     colsUsuario.has("nombres_usuario") ? "nombres_usuario" : null;
+  const cApellidoPaternoUsuario =
+    colsUsuario.has("apellido_paterno") ? "apellido_paterno" :
+    colsUsuario.has("ape_paterno") ? "ape_paterno" :
+    colsUsuario.has("ape_pat") ? "ape_pat" :
+    colsUsuario.has("apepat") ? "apepat" : null;
+  const cApellidoMaternoUsuario =
+    colsUsuario.has("apellido_materno") ? "apellido_materno" :
+    colsUsuario.has("ape_materno") ? "ape_materno" :
+    colsUsuario.has("ape_mat") ? "ape_mat" :
+    colsUsuario.has("apemat") ? "apemat" : null;
   const cApellidosUsuario =
     colsUsuario.has("apellidos") ? "apellidos" :
-    colsUsuario.has("apellido") ? "apellido" :
-    colsUsuario.has("apellido_paterno") ? "apellido_paterno" : null;
+    colsUsuario.has("apellido") ? "apellido" : null;
   const cFirmaUsuario =
     colsUsuario.has("firma_path") ? "firma_path" :
     colsUsuario.has("firma_ruta") ? "firma_ruta" :
@@ -543,7 +552,15 @@ async function listarInspectoresPorInspeccion(id_inspeccion) {
         ? `NULLIF(LTRIM(RTRIM(CAST(ve.${cApellidoPaternoVe} AS NVARCHAR(150)))), '')`
         : "NULL";
   const nombresUsrExpr = cNombresUsuario ? `CAST(u.${cNombresUsuario} AS NVARCHAR(150))` : "NULL";
-  const apellidosUsrExpr = cApellidosUsuario ? `CAST(u.${cApellidosUsuario} AS NVARCHAR(150))` : "NULL";
+
+  const apellidosUsrExpr =
+    cApellidoPaternoUsuario && cApellidoMaternoUsuario
+      ? `NULLIF(LTRIM(RTRIM(CONCAT(CAST(u.${cApellidoPaternoUsuario} AS NVARCHAR(150)), ' ', CAST(u.${cApellidoMaternoUsuario} AS NVARCHAR(150))))), '')`
+      : cApellidoPaternoUsuario
+        ? `NULLIF(LTRIM(RTRIM(CAST(u.${cApellidoPaternoUsuario} AS NVARCHAR(150)))), '')`
+        : cApellidosUsuario
+          ? `NULLIF(LTRIM(RTRIM(CAST(u.${cApellidosUsuario} AS NVARCHAR(150)))), '')`
+        : "NULL";  
   const nombresExpr = `
     NULLIF(
       LTRIM(RTRIM(
@@ -552,14 +569,14 @@ async function listarInspectoresPorInspeccion(id_inspeccion) {
       ''
     )
   `;
-const apellidosExpr = `
-  NULLIF(
-    LTRIM(RTRIM(
-      COALESCE(${apellidosVeExpr}, ${apellidosUsrExpr}, '')
-    )),
-    ''
-  )
-`;
+  const apellidosExpr = `
+    NULLIF(
+      LTRIM(RTRIM(
+        COALESCE(${apellidosVeExpr}, ${apellidosUsrExpr}, '')
+      )),
+      ''
+    )
+  `;
   const firmaExpr = cFirmaUsuario ? `NULLIF(LTRIM(RTRIM(CAST(u.${cFirmaUsuario} AS NVARCHAR(300)))), '')` : "NULL";
   const dniExpr = cDniUsuario ? `CAST(u.${cDniUsuario} AS NVARCHAR(20))` : "NULL";
 
@@ -618,7 +635,6 @@ const apellidosExpr = `
 
     const nombreCompleto =
       [nombres, apellidos].filter(Boolean).join(" ").trim() ||
-      [apellidos, nombres].filter(Boolean).join(" ").trim() ||
       "SIN NOMBRE";
 
     return {

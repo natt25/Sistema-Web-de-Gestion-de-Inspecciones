@@ -230,13 +230,21 @@ async function buscarEmpleados(q) {
     cols.has("nombres_empleado") ? "nombres_empleado" :
     cols.has("nom") ? "nom" : null;
 
-  const cApellidos =
-    cols.has("apellidos") ? "apellidos" :
-    cols.has("apellido") ? "apellido" :
+  const cApellidoPaterno =
     cols.has("apellido_paterno") ? "apellido_paterno" :
     cols.has("ape_paterno") ? "ape_paterno" :
     cols.has("ape_pat") ? "ape_pat" :
     cols.has("apepat") ? "apepat" : null;
+
+  const cApellidoMaterno =
+    cols.has("apellido_materno") ? "apellido_materno" :
+    cols.has("ape_materno") ? "ape_materno" :
+    cols.has("ape_mat") ? "ape_mat" :
+    cols.has("apemat") ? "apemat" : null;
+
+  const cApellidos =
+    cols.has("apellidos") ? "apellidos" :
+    cols.has("apellido") ? "apellido" : null;
 
   // si tu vista ya trae cargo en una columna directa
   const cCargo =
@@ -253,6 +261,8 @@ async function buscarEmpleados(q) {
   const selectParts = [
     `${cDni} AS dni`,
     cNombres ? `${cNombres} AS nombres` : `CAST('' AS NVARCHAR(150)) AS nombres`,
+    cApellidoPaterno ? `${cApellidoPaterno} AS apellido_paterno` : `CAST('' AS NVARCHAR(150)) AS apellido_paterno`,
+    cApellidoMaterno ? `${cApellidoMaterno} AS apellido_materno` : `CAST('' AS NVARCHAR(150)) AS apellido_materno`,
     cApellidos ? `${cApellidos} AS apellidos` : `CAST('' AS NVARCHAR(150)) AS apellidos`,
     cCargo ? `${cCargo} AS cargo` : `CAST('' AS NVARCHAR(150)) AS cargo`,
   ].join(", ");
@@ -265,6 +275,8 @@ async function buscarEmpleados(q) {
   if ((q || "").trim()) {
     whereParts.push(`CAST(${cDni} AS VARCHAR(20)) LIKE @q`);
     if (cNombres) whereParts.push(`${cNombres} LIKE @q`);
+    if (cApellidoPaterno) whereParts.push(`${cApellidoPaterno} LIKE @q`);
+    if (cApellidoMaterno) whereParts.push(`${cApellidoMaterno} LIKE @q`);
     if (cApellidos) whereParts.push(`${cApellidos} LIKE @q`);
   }
 
@@ -282,12 +294,19 @@ async function buscarEmpleados(q) {
   `);
 
   return (result.recordset || []).map((r) => {
-    const nombres = r.nombres || "";
-    const apellidos = r.apellidos || "";
-    const nombreCompleto = `${apellidos} ${nombres}`.trim() || (r.dni ? String(r.dni) : "");
+    const nombres = String(r.nombres || "").trim();
+    const apellido_paterno = String(r.apellido_paterno || "").trim();
+    const apellido_materno = String(r.apellido_materno || "").trim();
+    const apellidos = String(r.apellidos || "").trim();
+    const nombreCompleto =
+      [nombres, apellido_paterno, apellido_materno].filter(Boolean).join(" ").trim() ||
+      [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+      (r.dni ? String(r.dni) : "");
     return {
       dni: r.dni ? String(r.dni) : "",
       nombres,
+      apellido_paterno,
+      apellido_materno,
       apellidos,
       cargo: r.cargo || "",
       nombreCompleto,

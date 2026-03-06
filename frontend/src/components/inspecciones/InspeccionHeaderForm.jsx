@@ -15,6 +15,22 @@ import {
 
 const DEBOUNCE_MS = 250;
 
+function buildNombreCompletoEmpleado(e) {
+  const apellidoPaterno = String(e?.apellido_paterno ?? "").trim();
+  const apellidoMaterno = String(e?.apellido_materno ?? "").trim();
+  const apellidos = String(e?.apellidos ?? "").trim();
+  const nombres = String(e?.nombres ?? e?.nombre ?? "").trim();
+  const dni = String(e?.dni ?? "").trim();
+
+  return (
+    [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ").trim() ||
+    [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+    String(e?.nombre_completo ?? "").trim() ||
+    dni ||
+    "SIN NOMBRE"
+  );
+}
+
 export default function InspeccionHeaderForm({
   headerDef,
   user,
@@ -47,7 +63,6 @@ export default function InspeccionHeaderForm({
   const [tLugar, setTLugar] = useState(false);
   const [tColab, setTColab] = useState(false);
 
-  // ✅ solo 1 vez, dentro del componente
   const [dupMsg, setDupMsg] = useState("");
 
   const setField = useCallback(
@@ -82,9 +97,8 @@ export default function InspeccionHeaderForm({
     [user?.nombreCompleto, user?.nombre, user?.dni, user?.cargo, user?.firma_ruta]
   );
 
-  // ✅ mejor usar IDs (si no hay id, no habilites cascada)
   const canServicio = Boolean(value?.id_cliente);
-  const canArea = Boolean(value?.id_servicio);
+  const canArea = Boolean(value?.id_cliente);
   const canLugar = Boolean(value?.id_area);
 
   const didInitRef = useRef(false);
@@ -345,11 +359,7 @@ export default function InspeccionHeaderForm({
                 onChange((prev) => ({
                   ...(prev || {}),
                   id_servicio: null,
-                  id_area: null,
-                  id_lugar: null,
                   servicio_text: txt,
-                  area_text: "",
-                  lugar_text: "",
                 }));
               }}
               onFocus={() => {
@@ -364,11 +374,7 @@ export default function InspeccionHeaderForm({
                 onChange((prev) => ({
                   ...(prev || {}),
                   id_servicio: null,
-                  id_area: null,
-                  id_lugar: null,
                   servicio_text: text,
-                  area_text: "",
-                  lugar_text: "",
                 }));
               }}
               onSelect={(s) => {
@@ -376,10 +382,6 @@ export default function InspeccionHeaderForm({
                   ...prev,
                   id_servicio: Number(s.id_servicio),
                   servicio_text: s.nombre_servicio ?? "",
-                  id_area: null,
-                  id_lugar: null,
-                  area_text: "",
-                  lugar_text: "",
                 }));
               }}
             />
@@ -397,7 +399,7 @@ export default function InspeccionHeaderForm({
         <div className="ins-grid">
           <Field label="Area">
             <Autocomplete
-              placeholder={canArea ? "Escribe para buscar..." : "Selecciona servicio primero"}
+              placeholder={canArea ? "Escribe para buscar..." : "Selecciona cliente primero"}
               disabled={!canArea}
               displayValue={value?.area_text ?? ""}
               onInputChange={(txt) => {
@@ -497,7 +499,6 @@ export default function InspeccionHeaderForm({
           </Field>
         </div>
 
-        {/* REALIZADO POR (Creador + Participantes) */}
         <div style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <b>Realizado por</b>
@@ -505,13 +506,74 @@ export default function InspeccionHeaderForm({
           </div>
 
           <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
-            <div className="ins-grid">
-              <Field label="Nombre">
-                <Input value={value?.realizado_por ?? ""} disabled />
-              </Field>
-              <Field label="Cargo">
-                <Input value={value?.cargo ?? ""} disabled />
-              </Field>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Nombres y Apellidos completos</th>
+                    <th>Cargo</th>
+                    <th>Firma</th>
+                    <th>Accion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <span>
+                          <Badge className="badge-creator-header">
+                            INSPECCION CREADA POR:
+                          </Badge>
+                        </span>
+                        <span style={{ fontWeight: 800 }}>
+                          {value?.realizado_por || "SIN NOMBRE"}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td>{value?.cargo || "-"}</td>
+
+                    <td>
+                      {value?.firma_ruta ? (
+                        <img
+                          src={value.firma_ruta}
+                          alt="Firma creador"
+                          className="firma-img"
+                        />
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+
+                    <td>-</td>
+                  </tr>
+
+                  {(value?.participantes || []).map((p, idx) => (
+                    <tr key={`${p.dni || p.nombreCompleto || "p"}-${idx}`}>
+                      <td>
+                        <span style={{ fontWeight: 800 }}>
+                          {p?.nombreCompleto || p?.nombre || p?.dni || "SIN NOMBRE"}
+                        </span>
+                      </td>
+
+                      <td>{p?.cargo || "-"}</td>
+
+                      <td>{p?.firma_url ? <img src={p.firma_url} alt="Firma inspector" className="firma-img" /> : "-"}</td>
+
+                      <td>
+                        <button
+                          type="button"
+                          className="menu-btn"
+                          onClick={() => onRemoveParticipante?.(idx)}
+                          style={{ width: 140 }}
+                        >
+                          Quitar inspector
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -540,15 +602,16 @@ export default function InspeccionHeaderForm({
                   loading={loadingColab}
                   options={optColabs}
                   getOptionLabel={(e) => {
-                    const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                    const dni = e.dni ? `(${e.dni})` : "";
-                    const cargo = e.cargo ? `— ${e.cargo}` : "";
-                    return `${nom} ${dni} ${cargo}`.trim();
+                    const nom = buildNombreCompletoEmpleado(e);
+                    const dni = String(e?.dni ?? "").trim();
+                    const cargo = String(e?.cargo ?? "").trim();
+                    return `${nom}${dni ? ` (${dni})` : ""}${cargo ? ` — ${cargo}` : ""}`.trim();
                   }}
                   onSelect={(e) => {
                     const dni = String(e.dni ?? "").trim();
-                    const nombre = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
+                    const nombreCompleto = buildNombreCompletoEmpleado(e);
                     const cargo = e.cargo ?? "";
+                    const firmaUrl = e.firma_url || e.firma_ruta || null;
 
                     const ya = (value?.participantes || []).some(
                       (x) => String(x?.dni ?? "").trim() === dni
@@ -562,36 +625,19 @@ export default function InspeccionHeaderForm({
                     }
 
                     setDupMsg("");
-                    onAddParticipante?.({ dni, nombre, cargo });
+                    onAddParticipante?.({
+                      dni,
+                      nombre: nombreCompleto,
+                      nombreCompleto,
+                      cargo,
+                      firma_url: firmaUrl,
+                    });
                     setQColab("");
                     setOptColabs([]);
                   }}
                 />
               </Field>
             </div>
-
-            {(value?.participantes || []).length ? (
-              <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                {value.participantes.map((p, idx) => (
-                  <div
-                    key={`${p.dni || p.nombre || "p"}-${idx}`}
-                    style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
-                  >
-                    <div>
-                      <b>{p.nombre}</b> {p.cargo ? <span className="help">• {p.cargo}</span> : null}
-                    </div>
-                    <button
-                      type="button"
-                      className="menu-btn"
-                      onClick={() => onRemoveParticipante?.(idx)}
-                      style={{ width: 120 }}
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </div>
 
           {dupMsg ? (

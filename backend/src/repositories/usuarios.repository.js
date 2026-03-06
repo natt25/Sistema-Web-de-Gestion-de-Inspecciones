@@ -4,6 +4,23 @@ function normalizeDni(dni) {
   return String(dni ?? "").trim();
 }
 
+async function getColumns(schema, tableOrView) {
+  try {
+    const pool = await getPool();
+    const r = await pool.request()
+      .input("schema", sql.NVarChar, schema)
+      .input("name", sql.NVarChar, tableOrView)
+      .query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @name
+      `);
+    return new Set((r.recordset || []).map((x) => String(x.COLUMN_NAME || "").toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
 async function list() {
   const query = `
     SELECT
@@ -144,6 +161,81 @@ async function buscar(q) {
   return r.recordset;
 }
 
+async function buscarEmpleados(q) {
+  const pool = await getPool();
+  const cols = await getColumns("SSOMA", "V_EMPLEADO");
+
+  const cDni =
+    cols.has("dni") ? "dni" :
+    cols.has("num_doc") ? "num_doc" :
+    cols.has("documento") ? "documento" : null;
+
+  const cNombres =
+    cols.has("nombres") ? "nombres" :
+    cols.has("nombre") ? "nombre" :
+    cols.has("nombres_empleado") ? "nombres_empleado" :
+    cols.has("nom") ? "nom" : null;
+
+  const cApellidoPaterno =
+    cols.has("apellido_paterno") ? "apellido_paterno" :
+    cols.has("ape_paterno") ? "ape_paterno" :
+    cols.has("ape_pat") ? "ape_pat" :
+    cols.has("apepat") ? "apepat" : null;
+
+  const cApellidoMaterno =
+    cols.has("apellido_materno") ? "apellido_materno" :
+    cols.has("ape_materno") ? "ape_materno" :
+    cols.has("ape_mat") ? "ape_mat" :
+    cols.has("apemat") ? "apemat" : null;
+
+  const cApellidos =
+    cols.has("apellidos") ? "apellidos" :
+    cols.has("apellido") ? "apellido" : null;
+
+  const cCargo =
+    cols.has("cargo") ? "cargo" :
+    cols.has("desc_cargo") ? "desc_cargo" :
+    cols.has("nombre_cargo") ? "nombre_cargo" : null;
+
+  if (!cDni) return [];
+
+  const selectParts = [
+    `${cDni} AS dni`,
+    cNombres ? `${cNombres} AS nombres` : `CAST('' AS NVARCHAR(150)) AS nombres`,
+    cApellidoPaterno ? `${cApellidoPaterno} AS apellido_paterno` : `CAST('' AS NVARCHAR(150)) AS apellido_paterno`,
+    cApellidoMaterno ? `${cApellidoMaterno} AS apellido_materno` : `CAST('' AS NVARCHAR(150)) AS apellido_materno`,
+    cApellidos ? `${cApellidos} AS apellidos` : `CAST('' AS NVARCHAR(150)) AS apellidos`,
+    cCargo ? `${cCargo} AS cargo` : `CAST('' AS NVARCHAR(150)) AS cargo`,
+  ];
+
+  const like = `%${String(q || "").trim()}%`;
+  const whereParts = [];
+  if (String(q || "").trim()) {
+    whereParts.push(`CAST(${cDni} AS VARCHAR(20)) LIKE @q`);
+    if (cNombres) whereParts.push(`${cNombres} LIKE @q`);
+    if (cApellidoPaterno) whereParts.push(`${cApellidoPaterno} LIKE @q`);
+    if (cApellidoMaterno) whereParts.push(`${cApellidoMaterno} LIKE @q`);
+    if (cApellidos) whereParts.push(`${cApellidos} LIKE @q`);
+  }
+
+  const whereSql = whereParts.length ? `WHERE (${whereParts.join(" OR ")})` : "";
+  const orderSql = cApellidos
+    ? `ORDER BY ${cApellidos}, ${cNombres || cDni}`
+    : `ORDER BY ${cNombres || cDni}`;
+
+  const request = pool.request();
+  request.input("q", sql.NVarChar, like);
+
+  const result = await request.query(`
+    SELECT TOP (20) ${selectParts.join(", ")}
+    FROM SSOMA.V_EMPLEADO
+    ${whereSql}
+    ${orderSql};
+  `);
+
+  return result.recordset || [];
+}
+
 async function findByDni(dni) {
   const query = `
     SELECT TOP 1 id_usuario, dni, id_rol, id_estado_usuario, debe_cambiar_password
@@ -268,6 +360,7 @@ export default {
   updateFirma,
   getById,
   buscar,
+  buscarEmpleados,
   findByDni,
   getInspectorRoleId,
   ensureInspectorUserByDni
