@@ -1,12 +1,18 @@
 const VARIANT_CLASS = {
-  gray: "badge-gray",
-  yellow: "badge-yellow",
-  blue: "badge-blue",
-  green: "badge-green",
-  red: "badge-red",
-  success: "badge-green",
-  danger: "badge-red",
-  outline: "badge-outline",
+  gray: "badge badge-gray",
+  yellow: "badge badge-yellow",
+  blue: "badge badge-blue",
+  green: "badge badge-green",
+  red: "badge badge-red",
+  outline: "badge badge-outline",
+
+  "status-draft": "badge badge-status-draft",
+  "status-pending": "badge badge-status-pending",
+  "status-progress": "badge badge-status-progress",
+  "status-expired": "badge badge-status-expired",
+  "status-closed": "badge badge-status-closed",
+
+  "meta-primary": "badge badge-meta-primary",
 };
 
 export default function Badge({ children, variant, className = "" }) {

@@ -1639,3 +1639,41 @@
     padding-top: 12px;
   }
 }
+
+/* ===== Badges estados ===== */
+.badge-status-draft{
+  background: #e8edf5;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-status-pending{
+  background: #f8efe3;
+  color: #8a5a16;
+  border: 1px solid #ead3b3;
+}
+
+.badge-status-progress{
+  background: #e7f0fb;
+  color: #295b9a;
+  border: 1px solid #bfd3f2;
+}
+
+.badge-status-expired{
+  background: #f9e8e8;
+  color: #b04a4a;
+  border: 1px solid #efc2c2;
+}
+
+.badge-status-closed{
+  background: #e6f6ee;
+  color: #2f7d5b;
+  border: 1px solid #bfe6d2;
+}
+
+/* ===== Badges meta: modo, codigo, version ===== */
+.badge-meta-primary{
+  background: #eee9ff;
+  color: #5b34b1;
+  border: 1px solid #cfc2ff;
+}

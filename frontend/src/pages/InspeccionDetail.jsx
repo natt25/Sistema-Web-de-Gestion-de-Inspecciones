@@ -1174,6 +1174,41 @@ function detectTipoPlantilla({ cabecera, definicion, respuestas }) {
   if (list.some((r) => String(r?.categoria || "").toUpperCase() === "TABLA_LAVAOJOS" || String(r?.row_data?.__tipo || "").toLowerCase().includes("tabla_lavaojos"))) return "tabla_lavaojos";
   return "checklist";
 }
+
+function fmtDateOnly(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("es-PE");
+}
+
+function pickFirst(...values) {
+  for (const v of values) {
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  }
+  return "-";
+}
+
+function getEstadoBadgeVariant(estado) {
+  const s = String(estado || "").trim().toUpperCase();
+
+  if (s === "BORRADOR") return "status-draft";
+  if (s === "PENDIENTE") return "status-pending";
+  if (s === "EN PROGRESO") return "status-progress";
+  if (s === "VENCIDA" || s === "RECHAZADA") return "status-expired";
+  if (s === "CERRADA" || s === "CERRADO") return "status-closed";
+
+  return "status-draft";
+}
+
+function getMetaBadgeVariant() {
+  return "meta-primary";
+}
+
+function getAprobacionBadgeVariant(fechaAprobacion) {
+  return fechaAprobacion ? "green" : "gray";
+}
+
 export default function InspeccionDetail() {
   const [preview, setPreview] = useState({ open: false, url: "", name: "" });
   const openPreview = ({ url, name }) => {
@@ -1768,8 +1803,63 @@ export default function InspeccionDetail() {
 }, [data?.observaciones]);
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
   const visiblePageError = online ? pageError : "";
+  const nombreTipoInspeccion = pickFirst(
+    cab?.nombre_formato,
+    cab?.nombre_tipo_inspeccion,
+    definicion?.nombre_formato,
+    definicion?.json?.nombre_formato,
+    cab?.codigo_formato,
+    "Inspeccion"
+  );
+
+  const fechaInspeccionSoloFecha = fmtDateOnly(cab?.fecha_inspeccion);
+
+  const clienteUnidadMinera = pickFirst(
+    cab?.raz_social,
+    cab?.nombre_cliente,
+    cab?.cliente_nombre,
+    cab?.unidad_minera,
+    cab?.nombre_unidad_minera,
+    cab?.desc_cliente
+  );
+
+  const areaTexto = pickFirst(
+    cab?.desc_area,
+    cab?.area,
+    cab?.nombre_area
+  );
+
+  const lugarTexto = pickFirst(
+    cab?.lugar,
+    cab?.nombre_lugar,
+    cab?.ubicacion,
+    cab?.desc_lugar
+  );
+
+  const servicioTexto = pickFirst(
+    cab?.nombre_servicio,
+    cab?.servicio,
+    cab?.desc_servicio
+  );
+
+  const versionTexto = pickFirst(
+    cab?.version_actual,
+    cab?.version
+  );
+
+  const fechaAprobacionTexto = pickFirst(
+    cab?.fecha_aprobacion,
+    cab?.fechaAprobacion,
+    cab?.approved_at
+  );
+
+  const codigoFormatoTexto = pickFirst(
+    cab?.codigo_formato,
+    definicion?.codigo_formato,
+    definicion?.json?.codigo_formato
+  );
   const respuestas = Array.isArray(data?.respuestas) ? data.respuestas : [];
-  const respuestasOrdenadas = [...respuestas].sort((a, b) => {
+  respuestas.sort((a, b) => {
     // 1) primero por numero de item
     const na = getItemNumber(a?.item_id);
     const nb = getItemNumber(b?.item_id);
@@ -1950,7 +2040,9 @@ export default function InspeccionDetail() {
         </div>
       </Card>
 
-      <h2 style={{ margin: 0 }}>Inspeccion #{id}</h2>
+      <h2 style={{ margin: 0 }}>
+        {`Inspeccion #${id} : ${nombreTipoInspeccion}`}
+      </h2>
 
       {visiblePageError && (
         <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
@@ -1962,25 +2054,40 @@ export default function InspeccionDetail() {
         {!cab ? (
           <p style={{ opacity: 0.7 }}>Sin cabecera.</p>
         ) : (
-          <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "grid", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Badge>Estado: {cab.estado_inspeccion}</Badge>
-              <Badge>Modo: {cab.modo_registro}</Badge>
-              <Badge>Area: {cab.desc_area}</Badge>
-              <Badge>
-                Formato: {cab.codigo_formato} v{cab.version_actual}
+              <Badge variant={getEstadoBadgeVariant(cab?.estado_inspeccion)}>
+                Estado: {pickFirst(cab?.estado_inspeccion)}
+              </Badge>
+
+              <Badge variant={getMetaBadgeVariant()}>
+                Modo: {pickFirst(cab?.modo_registro)}
+              </Badge>
+
+              <Badge variant={getMetaBadgeVariant()}>
+                Codigo: {codigoFormatoTexto}
+              </Badge>
+
+              <Badge variant={getMetaBadgeVariant()}>
+                Version: {versionTexto}
               </Badge>
             </div>
 
-            <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ display: "grid", gap: 6 }}>
               <div>
-                <b>Fecha inspeccion:</b> {fmtDate(cab.fecha_inspeccion)}
+                <b>Fecha inspección:</b> {fechaInspeccionSoloFecha}
               </div>
               <div>
-                <b>Servicio:</b> {cab.nombre_servicio} {cab.servicio_detalle ? `- ${cab.servicio_detalle}` : ""}
+                <b>Cliente/Unidad Minera:</b> {clienteUnidadMinera}
               </div>
               <div>
-                <b>Cliente:</b> {cab.id_cliente} {cab.raz_social ? `- ${cab.raz_social}` : ""}
+                <b>Area:</b> {areaTexto}
+              </div>
+              <div>
+                <b>Lugar:</b> {lugarTexto}
+              </div>
+              <div>
+                <b>Servicio:</b> {servicioTexto}
               </div>
             </div>
           </div>
