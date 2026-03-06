@@ -108,7 +108,6 @@ export default function Login() {
         <section className="auth-right">
           <div className="auth-tabs">
             <div className="auth-tab active">Login</div>
-            <div className="auth-tab">Registrarse</div>
           </div>
 
           <form className="form" onSubmit={handleSubmit}>
@@ -132,10 +131,6 @@ export default function Login() {
             />
 
             <div className="actions">
-              <Button variant="ghost" type="button" onClick={() => navigate("/change-password")}>
-                Cambiar contrasena
-              </Button>
-
               <Button variant="primary" type="submit">
                 Ingresar
               </Button>
