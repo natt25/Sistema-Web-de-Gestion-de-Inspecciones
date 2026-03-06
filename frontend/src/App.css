@@ -1062,6 +1062,12 @@
   display:flex;
   align-items:flex-start;
   gap:22px;
+  min-width: 0;
+}
+
+.auth-brand > div:last-child{
+  min-width: 0;
+  flex: 1;
 }
 
 /* logo grande limpio */
@@ -1122,6 +1128,117 @@
     left: 12px;
     width: min(148px, 44vw);
     max-width: 44vw;
+  }
+}
+
+@media (max-width: 900px){
+  .auth-card{
+    grid-template-columns: 1fr;
+    max-width: 560px;
+  }
+
+  .auth-left{
+    padding: 18px 16px;
+  }
+
+  .auth-right{
+    padding: 18px 16px;
+  }
+
+  .auth-brand{
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .auth-logo svg{
+    width: 64px;
+    height: 64px;
+    flex: 0 0 auto;
+  }
+
+  .auth-title{
+    font-size: clamp(24px, 6vw, 34px);
+    line-height: 1.08;
+    margin: 0 0 8px 0;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .auth-subtitle{
+    font-size: 14px;
+    line-height: 1.45;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 520px){
+  .auth-shell{
+    padding: 74px 12px 12px;
+  }
+
+  .auth-card{
+    width: 100%;
+    border-radius: 18px;
+  }
+
+  .auth-left{
+    padding: 16px 14px;
+  }
+
+  .auth-right{
+    padding: 16px 14px;
+  }
+
+  .auth-brand{
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+  }
+
+  .auth-logo{
+    width: 56px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .auth-logo svg{
+    width: 56px;
+    height: 56px;
+  }
+
+  .auth-title{
+    font-size: clamp(18px, 9vw, 28px);
+    line-height: 1.05;
+    margin: 0 0 8px 0;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .auth-subtitle{
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .auth-tabs{
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+}
+
+@media (max-width: 380px){
+  .auth-title{
+    font-size: 16px;
+  }
+
+  .auth-brand{
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .auth-logo svg{
+    width: 48px;
+    height: 48px;
   }
 }
 
