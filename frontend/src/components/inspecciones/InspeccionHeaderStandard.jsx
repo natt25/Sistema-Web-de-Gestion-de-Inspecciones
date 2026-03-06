@@ -53,11 +53,14 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
     if (!value.firma_ruta && user.firma_ruta) {
       setField("firma_ruta", user.firma_ruta);
     }
-    if (!value.fecha_inspeccion) {
-      setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  useEffect(() => {
+    if (value.fecha_inspeccion) return;
+    setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.fecha_inspeccion]);
 
   // helpers búsqueda con debounce simple
   const debounce = (fn, ms=250) => {
@@ -169,8 +172,7 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
             setField("cliente", c);
             setQCli(c.raz_social || "");
           }}
-          onFocus={() => setTCliente(true)}
-          loading={loadingCliente}
+          loading={loading.cli}
         />
 
         <Autocomplete
@@ -185,8 +187,7 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
             setField("servicio", s);
             setQSrv(s.nombre_servicio || s.nombre || "");
           }}
-          onFocus={() => setTServicio(true)}
-          loading={loadingServicio}
+          loading={loading.srv}
         />
 
         <div className="ins-field">
@@ -222,8 +223,7 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
             setField("lugar", null);
             setQLugar("");
           }}
-          onFocus={() => setTArea(true)}
-          loading={loadingArea}
+          loading={loading.area}
         />
 
         <Autocomplete
@@ -246,8 +246,7 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
             setQLugar(l.desc_lugar || "");
           }}
           hint={!value.area ? "Selecciona un área para buscar/crear lugares." : ""}
-          onFocus={() => setTLugar(true)}
-          loading={loadingLugar}
+          loading={loading.lugar}
         />
       </div>
     </Card>

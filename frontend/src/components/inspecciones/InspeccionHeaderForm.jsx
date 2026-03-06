@@ -87,7 +87,6 @@ export default function InspeccionHeaderForm({
     [onChange]
   );
 
-  const autoFecha = headerDef?.fecha_inspeccion === "auto_today";
   const userDefaults = useMemo(
     () => ({
       realizadoPor: user?.nombreCompleto || user?.nombre || user?.dni || "",
@@ -97,8 +96,8 @@ export default function InspeccionHeaderForm({
     [user?.nombreCompleto, user?.nombre, user?.dni, user?.cargo, user?.firma_ruta]
   );
 
-  const canServicio = Boolean(value?.id_cliente);
-  const canArea = Boolean(value?.id_cliente);
+  const canServicio = true;
+  const canArea = true;
   const canLugar = Boolean(value?.id_area);
 
   const didInitRef = useRef(false);
@@ -108,7 +107,7 @@ export default function InspeccionHeaderForm({
 
     let touched = false;
 
-    if (autoFecha && !value?.fecha_inspeccion) {
+    if (!value?.fecha_inspeccion) {
       setField("fecha_inspeccion", new Date().toISOString().slice(0, 10));
       touched = true;
     }
@@ -136,7 +135,6 @@ export default function InspeccionHeaderForm({
       didInitRef.current = true;
     }
   }, [
-    autoFecha,
     setField,
     userDefaults.realizadoPor,
     userDefaults.cargo,
@@ -303,13 +301,7 @@ export default function InspeccionHeaderForm({
                 onChange((prev) => ({
                   ...(prev || {}),
                   id_cliente: null,
-                  id_servicio: null,
-                  id_area: null,
-                  id_lugar: null,
                   cliente_text: txt,
-                  servicio_text: "",
-                  area_text: "",
-                  lugar_text: "",
                 }));
               }}
               onFocus={() => {
@@ -324,13 +316,7 @@ export default function InspeccionHeaderForm({
                 onChange((prev) => ({
                   ...(prev || {}),
                   id_cliente: null,
-                  id_servicio: null,
-                  id_area: null,
-                  id_lugar: null,
                   cliente_text: text,
-                  servicio_text: "",
-                  area_text: "",
-                  lugar_text: "",
                 }));
               }}
               onSelect={(c) => {
@@ -338,12 +324,6 @@ export default function InspeccionHeaderForm({
                   ...prev,
                   id_cliente: Number(c.id_cliente),
                   cliente_text: c.raz_social ?? "",
-                  id_servicio: null,
-                  id_area: null,
-                  id_lugar: null,
-                  servicio_text: "",
-                  area_text: "",
-                  lugar_text: "",
                 }));
               }}
             />
@@ -351,8 +331,8 @@ export default function InspeccionHeaderForm({
 
           <Field label="Servicio">
             <Autocomplete
-              placeholder={canServicio ? "Escribe para buscar..." : "Selecciona cliente primero"}
-              disabled={!canServicio}
+              placeholder="Escribe para buscar..."
+              disabled={false}
               displayValue={value?.servicio_text ?? ""}
               onInputChange={(txt) => {
                 setQServicio(txt);
@@ -399,8 +379,8 @@ export default function InspeccionHeaderForm({
         <div className="ins-grid">
           <Field label="Area">
             <Autocomplete
-              placeholder={canArea ? "Escribe para buscar..." : "Selecciona cliente primero"}
-              disabled={!canArea}
+              placeholder="Escribe para buscar..."
+              disabled={false}
               displayValue={value?.area_text ?? ""}
               onInputChange={(txt) => {
                 setQArea(txt);
@@ -446,7 +426,7 @@ export default function InspeccionHeaderForm({
 
           <Field label="Lugar">
             <Autocomplete
-              placeholder={canLugar ? "Escribe para buscar..." : "Selecciona area primero"}
+              placeholder={canLugar ? "Escribe para buscar..." : "Selecciona área primero"}
               disabled={!canLugar}
               displayValue={value?.lugar_text ?? ""}
               onInputChange={(txt) => {

@@ -140,7 +140,7 @@ export default function Perfil() {
                 disabled={!firmaFile && !firmaPreview}
                 onClick={limpiarFirmaSeleccionada}
               >
-                Limpiar
+                Eliminar firma
               </Button>
             </div>
 

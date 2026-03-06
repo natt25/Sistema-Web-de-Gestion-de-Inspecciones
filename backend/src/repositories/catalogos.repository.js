@@ -152,12 +152,28 @@ async function buscarLugares(q, idArea) {
 async function crearArea(desc_area) {
   const pool = await getPool();
   const request = pool.request();
-  request.input("desc_area", sql.VarChar, desc_area);
+  const clean = String(desc_area || "").trim();
+  request.input("desc_area", sql.VarChar, clean);
 
   const result = await request.query(`
+    DECLARE @desc_clean NVARCHAR(300) = LTRIM(RTRIM(@desc_area));
+
+    IF EXISTS (
+      SELECT 1
+      FROM SSOMA.INS_AREA
+      WHERE UPPER(LTRIM(RTRIM(desc_area))) = UPPER(@desc_clean)
+    )
+    BEGIN
+      SELECT TOP 1 *
+      FROM SSOMA.INS_AREA
+      WHERE UPPER(LTRIM(RTRIM(desc_area))) = UPPER(@desc_clean)
+      ORDER BY id_area;
+      RETURN;
+    END
+
     INSERT INTO SSOMA.INS_AREA (desc_area)
     OUTPUT INSERTED.*
-    VALUES (@desc_area);
+    VALUES (@desc_clean);
   `);
   return result.recordset?.[0];
 }
@@ -166,12 +182,30 @@ async function crearLugar(id_area, desc_lugar) {
   const pool = await getPool();
   const request = pool.request();
   request.input("id_area", sql.Int, id_area);
-  request.input("desc_lugar", sql.VarChar, desc_lugar);
+  const clean = String(desc_lugar || "").trim();
+  request.input("desc_lugar", sql.VarChar, clean);
 
   const result = await request.query(`
+    DECLARE @desc_clean NVARCHAR(300) = LTRIM(RTRIM(@desc_lugar));
+
+    IF EXISTS (
+      SELECT 1
+      FROM SSOMA.INS_LUGAR
+      WHERE id_area = @id_area
+        AND UPPER(LTRIM(RTRIM(desc_lugar))) = UPPER(@desc_clean)
+    )
+    BEGIN
+      SELECT TOP 1 *
+      FROM SSOMA.INS_LUGAR
+      WHERE id_area = @id_area
+        AND UPPER(LTRIM(RTRIM(desc_lugar))) = UPPER(@desc_clean)
+      ORDER BY id_lugar;
+      RETURN;
+    END
+
     INSERT INTO SSOMA.INS_LUGAR (id_area, desc_lugar)
     OUTPUT INSERTED.*
-    VALUES (@id_area, @desc_lugar);
+    VALUES (@id_area, @desc_clean);
   `);
   return result.recordset?.[0];
 }

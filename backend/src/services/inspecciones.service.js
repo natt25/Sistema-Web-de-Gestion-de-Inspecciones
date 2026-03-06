@@ -4,9 +4,10 @@ import plantillasRepo from "../repositories/plantillas.repository.js";
 import usuariosService from "./usuarios.service.js";
 
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
-  const esCatalogo = (id_otro == null) && (id_cliente != null) && (id_servicio != null);
-  const esOtro = (id_otro != null) && (id_cliente == null) && (id_servicio == null);
-  return esCatalogo || esOtro;
+  // UI desacoplada: Cliente y Servicio pueden venir en cualquier combinacion
+  // mientras NO se mezcle con id_otro.
+  if (id_otro != null) return (id_cliente == null) && (id_servicio == null);
+  return true;
 }
 
 async function crearInspeccionCabecera({ user, body }) {
@@ -42,9 +43,11 @@ async function crearInspeccionCabecera({ user, body }) {
     return {
       ok: false,
       status: 400,
-      message: "Regla invalida: usa (id_cliente + id_servicio) o usa id_otro (pero no ambos).",
+      message: "Regla invalida: id_otro no puede combinarse con id_cliente/id_servicio.",
     };
   }
+  // Nota: si la BD tiene un CHECK que obligue cliente+servicio juntos, el INSERT podria fallar.
+  // La API ahora permite cabecera desacoplada (cliente y/o servicio opcionales sin id_otro).
 
   const insertPayload = {
     id_usuario: user.id_usuario,
