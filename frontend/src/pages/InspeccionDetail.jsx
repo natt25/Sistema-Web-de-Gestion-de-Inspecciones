@@ -699,7 +699,7 @@ function getItemNumber(itemId) {
 
 function EvidenceGrid({ evidencias, allowDelete = false, onDelete, onPreview }) {
   if (!evidencias || evidencias.length === 0) {
-    return <p style={{ margin: "6px 0", opacity: 0.7 }}>Sin evidencias.</p>;
+    return <p className="evi-empty">Sin evidencias.</p>;
   }
 
   return (
@@ -967,7 +967,17 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
   );
 }
 
-function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrada, online }) {
+function UploadEvidence({
+  kind,
+  idTarget,
+  onUploaded,
+  disabled,
+  inspeccionCerrada,
+  online,
+  maxFiles = null,
+  currentCount = 0,
+  className = "",
+}) {
   const [files, setFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -977,9 +987,32 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
 
   function onPickFiles(e) {
     const picked = Array.from(e.target.files || []);
-    setFiles(picked);
     setError("");
     setOk("");
+
+    if (!picked.length) {
+      setFiles([]);
+      return;
+    }
+
+    if (maxFiles != null) {
+      const available = Math.max(0, maxFiles - Number(currentCount || 0));
+
+      if (available <= 0) {
+        setFiles([]);
+        setError(`Solo se permiten ${maxFiles} evidencia(s) para esta accion.`);
+        e.target.value = "";
+        return;
+      }
+
+      if (picked.length > available) {
+        setFiles(picked.slice(0, available));
+        setError(`Solo puedes subir ${available} archivo(s) mas. Maximo total: ${maxFiles}.`);
+        return;
+      }
+    }
+
+    setFiles(picked);
   }
 
   async function onSubmit(e) {
@@ -988,7 +1021,9 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
     setOk("");
 
     if (!files.length) return setError("Selecciona uno o mas archivos.");
-
+    if (maxFiles != null && Number(currentCount || 0) + files.length > maxFiles) {
+      return setError(`Solo se permiten ${maxFiles} evidencia(s) para esta accion.`);
+    }
     setSaving(true);
     try {
       if (!online) {
@@ -1042,56 +1077,53 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
   const blocked = disabled || saving || inspeccionCerrada;
 
   return (
-    <form onSubmit={onSubmit} style={{ marginTop: 10, display: "grid", gap: 10, maxWidth: 520 }}>
-      <b>Subir evidencias ({kind === "OBS" ? `Obs #${idTarget}` : `Acc #${idTarget}`})</b>
+    <form onSubmit={onSubmit} className={`evidence-upload-form ${className}`.trim()}>
+      <b className="evidence-upload-title">Subir evidencias</b>
 
-      {/* selector en columna */}
-      <div style={{ display: "grid", gap: 10, justifyItems: "start" }}>
-        {/* input real oculto */}
+      <div className="evidence-upload-controls">
         <input
-          id={`file_${kind}_${idTarget}`}
+          id={inputId}
           type="file"
           accept="image/*"
-          multiple
+          multiple={maxFiles == null || maxFiles > 1}
           onChange={onPickFiles}
-          disabled={disabled || saving || inspeccionCerrada}
-          style={{ display: "none" }}
+          disabled={disabled || saving || inspeccionCerrada || (maxFiles != null && Number(currentCount || 0) >= maxFiles)}
+          className="sr-only-file"
         />
 
-        {/* boton con estilo del proyecto */}
-        <label htmlFor={`file_${kind}_${idTarget}`}>
-          <Button variant="outline" type="button" disabled={disabled || saving || inspeccionCerrada}>
-            Elegir archivos
-          </Button>
+        <label
+          htmlFor={inputId}
+          className={`file-picker-label ${(disabled || saving || inspeccionCerrada || (maxFiles != null && Number(currentCount || 0) >= maxFiles)) ? "is-disabled" : ""}`}
+        >
+          Elegir archivos
         </label>
 
-        <div style={{ fontSize: 12, opacity: 0.75 }}>
-          {files.length ? `${files.length} seleccionado(s)` : "Ningun archivo seleccionado"}
+        <div className="evidence-upload-info">
+          {maxFiles != null
+            ? `Seleccionadas: ${files.length} | Ya cargadas: ${currentCount} | Maximo: ${maxFiles}`
+            : files.length
+              ? `${files.length} seleccionado(s)`
+              : "Ningun archivo seleccionado"}
         </div>
 
-        {/* boton subir debajo y a la izquierda */}
-        <Button variant="primary" disabled={saving || disabled || inspeccionCerrada} type="submit">
+        <Button variant="primary" disabled={blocked} type="submit">
           {saving ? "Subiendo..." : `Subir${files.length ? ` (${files.length})` : ""}`}
         </Button>
       </div>
 
-      {/* previews seleccionados */}
       {files.length > 0 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="evidence-upload-previews">
           {files.map((f) => {
             const url = URL.createObjectURL(f);
             return (
-              <div
-                key={f.name + f.size}
-                style={{ width: 140, border: "1px solid #ddd", borderRadius: 14, overflow: "hidden", background: "#fff" }}
-              >
+              <div key={f.name + f.size} className="evidence-upload-preview-item">
                 <img
                   src={url}
                   alt={f.name}
-                  style={{ width: "100%", height: 110, objectFit: "contain", background: "#f7f6f3", display: "block" }}
+                  className="evidence-upload-preview-image"
                   onLoad={() => URL.revokeObjectURL(url)}
                 />
-                <div style={{ padding: 8, fontSize: 11, wordBreak: "break-all" }}>{f.name}</div>
+                <div className="evidence-upload-preview-name">{f.name}</div>
               </div>
             );
           })}
@@ -1099,20 +1131,19 @@ function UploadEvidence({ kind, idTarget, onUploaded, disabled, inspeccionCerrad
       )}
 
       {error && (
-        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #ffb3b3", background: "#ffecec" }}>
+        <div className="evidence-upload-alert evidence-upload-alert-error">
           {error}
         </div>
       )}
 
       {ok && (
-        <div style={{ padding: 10, borderRadius: 10, border: "1px solid #b3ffb3", background: "#ecffec" }}>
+        <div className="evidence-upload-alert evidence-upload-alert-ok">
           {ok}
         </div>
       )}
     </form>
   );
 }
-
 
 function normalizeFormatToken(value) {
   return String(value || "")
@@ -1426,7 +1457,7 @@ export default function InspeccionDetail() {
 
   async function handleDeleteAccEvidence({ evItem, idAccion }) {
     if (!evItem || !idAccion) return;
-    if (!confirm("Â¿Eliminar evidencia?")) return;
+    if (!confirm("¿Eliminar evidencia?")) return;
 
     const pendingPath = String(evItem?.archivo_ruta || "");
     const isPendingOffline = pendingPath.startsWith("PENDING_UPLOAD/");
@@ -2095,53 +2126,62 @@ export default function InspeccionDetail() {
                               <section className="for014-panel for014-panel-obs">
                                 <div className="for014-panel-title">Observación detectada</div>
 
-                                <div className="for014-block">
+                                <div className="for014-content">
                                   <div className="for014-text">
                                     {row?.observacion || "-"}
                                   </div>
                                 </div>
 
-                                <div className="for014-subtitle">Evidencias de observación</div>
-                                <EvidenceGrid evidencias={evidObs} onPreview={openPreview} />
+                                <div className="for014-evidence-block">
+                                  <div className="for014-subtitle">Evidencias de observacion</div>
+                                  <EvidenceGrid evidencias={evidObs} onPreview={openPreview} />
+                                </div>
                               </section>
 
                               <section className="for014-panel for014-panel-acc">
                                 <div className="for014-panel-title">Acción correctiva</div>
 
-                                <div className="for014-data-list">
-                                  <div><b>Acción:</b> {row?.accion_correctiva || "-"}</div>
-                                  <div><b>Fecha de ejecución:</b> {row?.fecha_ejecucion || "-"}</div>
-                                  <div><b>Responsable:</b> {row?.responsable || row?.responsable_data?.nombre || "-"}</div>
+                                <div className="for014-content">
+                                  <div className="for014-data-list">
+                                    <div><b>Acción:</b> {row?.accion_correctiva || "-"}</div>
+                                    <div><b>Fecha de ejecución:</b> {row?.fecha_ejecucion || "-"}</div>
+                                    <div><b>Responsable:</b> {row?.responsable || row?.responsable_data?.nombre || "-"}</div>
+                                  </div>
                                 </div>
 
-                                <div className="for014-subtitle">Evidencias de levantamiento</div>
+                                <div className="for014-evidence-block">
+                                  <div className="for014-subtitle">Evidencias de levantamiento</div>
 
-                                {accionDb?.id_accion ? (
-                                  <>
-                                    <EvidenceGrid
-                                      evidencias={evidLev}
-                                      allowDelete={true}
-                                      onPreview={openPreview}
-                                      onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: accionDb.id_accion })}
-                                    />
+                                  {accionDb?.id_accion ? (
+                                    <>
+                                      <EvidenceGrid
+                                        evidencias={evidLev}
+                                        allowDelete={true}
+                                        onPreview={openPreview}
+                                        onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: accionDb.id_accion })}
+                                      />
 
-                                    <UploadEvidence
-                                      kind="ACC"
-                                      idTarget={accionDb.id_accion}
-                                      onUploaded={handleEvidenceUploaded}
-                                      disabled={false}
-                                      inspeccionCerrada={inspeccionCerrada}
-                                      online={online}
-                                    />
-                                  </>
-                                ) : (
-                                  <p style={{ margin: "6px 0", opacity: 0.7 }}>
-                                    No se encontro accion creada para {itemRef}.
-                                  </p>
-                                )}
+                                      <UploadEvidence
+                                        kind="ACC"
+                                        idTarget={accionDb.id_accion}
+                                        onUploaded={handleEvidenceUploaded}
+                                        disabled={false}
+                                        inspeccionCerrada={inspeccionCerrada}
+                                        online={online}
+                                        maxFiles={2}
+                                        currentCount={evidLev.length}
+                                        className="for014-upload"
+                                      />
+                                    </>
+                                  ) : (
+                                    <p className="for014-empty-msg">
+                                      No se encontro accion creada para {itemRef}.
+                                    </p>
+                                  )}
+                                </div>
 
                                 <div className="for014-cumplimiento">
-                                  <b>% cumplimiento</b>
+                                  <label className="for014-cumplimiento-label">% cumplimiento</label>
                                   <input
                                     type="number"
                                     min="0"
@@ -2639,3 +2679,5 @@ export default function InspeccionDetail() {
     </DashboardLayout>
   );
 }
+
+
