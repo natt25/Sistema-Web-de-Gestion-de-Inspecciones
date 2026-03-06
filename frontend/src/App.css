@@ -1487,6 +1487,16 @@
   font-size: 15px;
 }
 
+.for014-data-list div{
+  min-width: 0;
+}
+
+.for014-panel,
+.for014-content,
+.for014-evidence-block{
+  min-width: 0;
+}
+
 .for014-data-list b{
   font-weight: 900;
 }
@@ -1505,6 +1515,7 @@
   gap: 8px;
   border: 1px solid transparent;
   align-self: start;
+  min-height: 100%;
 }
 
 .for014-panel-obs{
@@ -1632,21 +1643,84 @@
     gap: 12px;
   }
 
+  .for014-head{
+    align-items: stretch;
+  }
+
+  .for014-head-main{
+    width: 100%;
+  }
+
+  .for014-meta{
+    width: 100%;
+    gap: 8px;
+  }
+
   .for014-grid{
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 12px;
     align-items: start;
   }
 
   .for014-panel{
+    width: 100%;
+    min-width: 0;
     padding: 12px;
+  }
+
+  .for014-content,
+  .for014-data-list,
+  .for014-evidence-block,
+  .for014-cumplimiento{
+    min-width: 0;
+  }
+
+  .for014-text,
+  .for014-data-list,
+  .for014-data-list div,
+  .for014-panel-title,
+  .for014-subtitle,
+  .for014-cumplimiento-label{
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .for014-data-list{
+    font-size: 14px;
+    line-height: 1.5;
   }
 
   .for014-cumplimiento{
     max-width: 100%;
     margin-top: 10px;
     padding-top: 12px;
+  }
+
+  .for014-cumplimiento .ins-input{
+    width: 100%;
+  }
+
+  .for014-upload,
+  .evidence-upload-form,
+  .evidence-upload-controls{
+    width: 100%;
+  }
+
+  .file-picker-label{
+    width: 100%;
+    justify-content: center;
+  }
+
+  .evi-thumb{
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .obsacc-grid,
+  .evidence-upload-previews{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 }
 
