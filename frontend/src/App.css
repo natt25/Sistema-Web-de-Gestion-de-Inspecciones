@@ -192,13 +192,16 @@
 .badge{
   display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 7px 14px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+  line-height: 1;
   border: 1px solid rgba(0,0,0,.08);
   background: var(--orange-50);
   color: var(--orange-700);
+  box-shadow: 0 1px 0 rgba(255,255,255,.65) inset;
+  
 }
 
 .badge-borrador { background: #eef2ff; color: #1e3a8a; }
@@ -982,6 +985,7 @@
   background: #fff;
   position: relative;
   cursor: pointer;
+  margin-top: 4px;
 }
 
 .evi-thumb-pending{
@@ -1470,9 +1474,10 @@
 
 .for014-text{
   white-space: pre-wrap;
-  line-height: 1.6;
+  line-height: 1.4;
   word-break: break-word;
-  font-size: 15px;
+  font-size: 14px;
+  margin-bottom: 4px;
 }
 
 .for014-data-list{
@@ -1495,9 +1500,11 @@
 .for014-panel{
   border-radius: 16px;
   padding: 16px;
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   border: 1px solid transparent;
+  align-self: start;
 }
 
 .for014-panel-obs{
@@ -1517,11 +1524,12 @@
 }
 
 .for014-subtitle{
-  margin: 0;
+  margin: 4px 0 2px 0;
   font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .03em;
-  color: #374151;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
 
 .for014-evidence-block{
@@ -1625,8 +1633,10 @@
   }
 
   .for014-grid{
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+    align-items: start;
   }
 
   .for014-panel{
@@ -1641,39 +1651,39 @@
 }
 
 /* ===== Badges estados ===== */
-.badge-status-draft{
-  background: #e8edf5;
-  color: #475569;
-  border: 1px solid #cbd5e1;
+.badge.badge-status-draft{
+  background: #e9eef6;
+  color: #435268;
+  border: 1px solid #c7d2e3;
 }
 
-.badge-status-pending{
-  background: #f8efe3;
-  color: #8a5a16;
-  border: 1px solid #ead3b3;
+.badge.badge-status-pending{
+  background: #f8eddc;
+  color: #8a5a14;
+  border: 1px solid #e8cda4;
 }
 
-.badge-status-progress{
-  background: #e7f0fb;
-  color: #295b9a;
-  border: 1px solid #bfd3f2;
+.badge.badge-status-progress{
+  background: #e5efff;
+  color: #2f5fbe;
+  border: 1px solid #bdd0f8;
 }
 
-.badge-status-expired{
-  background: #f9e8e8;
-  color: #b04a4a;
-  border: 1px solid #efc2c2;
+.badge.badge-status-expired{
+  background: #fae7e7;
+  color: #b24747;
+  border: 1px solid #efbcbc;
 }
 
-.badge-status-closed{
-  background: #e6f6ee;
-  color: #2f7d5b;
-  border: 1px solid #bfe6d2;
+.badge.badge-status-closed{
+  background: #e4f5ec;
+  color: #2d7a59;
+  border: 1px solid #b8e1cc;
 }
 
 /* ===== Badges meta: modo, codigo, version ===== */
-.badge-meta-primary{
-  background: #eee9ff;
-  color: #5b34b1;
-  border: 1px solid #cfc2ff;
+.badge.badge-meta-primary{
+  background: #ede7ff;
+  color: #5a31b3;
+  border: 1px solid #cdbdff;
 }

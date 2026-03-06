@@ -2220,11 +2220,11 @@ export default function InspeccionDetail() {
                               <div className="for014-head-main">
                                 <div className="for014-kicker">OBSERVACIÓN {idx + 1}</div>
                                 <div className="for014-meta">
-                                  <Badge>{itemRef || "-"}</Badge>
-                                  <Badge className="badge badge-red">
-                                    Riesgo: {String(row?.riesgo || r?.estado || "NA").toUpperCase()}
-                                  </Badge>
-                                  {accionDb?.id_accion ? <Badge>Acc #{accionDb.id_accion}</Badge> : <Badge>Acc: -</Badge>}
+                                  <div className="for014-meta">
+                                    <Badge variant="red">
+                                      Riesgo: {String(row?.riesgo || r?.estado || "NA").toUpperCase()}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </div>
                             </div>
