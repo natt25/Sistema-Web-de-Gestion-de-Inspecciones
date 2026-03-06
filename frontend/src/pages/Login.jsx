@@ -130,6 +130,10 @@ export default function Login() {
               error={error}
             />
 
+            <div className="auth-first-login-note">
+              ¿Primer ingreso? Usa tu DNI como usuario y contraseña.
+            </div>
+
             <div className="actions">
               <Button variant="primary" type="submit">
                 Ingresar

@@ -445,6 +445,21 @@
   flex-wrap: wrap;
 }
 
+.auth-first-login-note{
+  margin-top: 4px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+@media (max-width: 520px){
+  .auth-first-login-note{
+    font-size: 11px;
+    line-height: 1.4;
+  }
+}
+
 /* =========================
    Responsive
    ========================= */

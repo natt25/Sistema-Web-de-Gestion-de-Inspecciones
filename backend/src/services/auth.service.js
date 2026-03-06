@@ -4,6 +4,7 @@ import { verifyPassword, hashPassword } from "../utils/password.js";
 import { signToken } from "../utils/jwt.js";
 import { validatePassword, buildExpiryDate } from "../utils/passwordPolicy.js";
 import auditoriaService from "./auditoria.service.js";
+import usuariosService from "./usuarios.service.js";
 
 function isLocked(user) {
   if (!user.locked_until) return false;
@@ -30,7 +31,15 @@ async function login({ dni, password }, reqMeta = {}) {
     return { ok: false, status: 400, message: "dni y password son requeridos" };
   }
 
-  const user = await usuarioRepo.findByDni(cleanDni);
+  let user = await usuarioRepo.findByDni(cleanDni);
+
+  if (!user) {
+    const ensured = await usuariosService.ensureUserForInspectorByDni(cleanDni);
+
+    if (ensured?.ok) {
+      user = await usuarioRepo.findByDni(cleanDni);
+    }
+  }
 
   if (!user) {
     await auditoriaService.log({
