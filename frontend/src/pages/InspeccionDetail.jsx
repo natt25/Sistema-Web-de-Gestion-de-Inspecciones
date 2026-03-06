@@ -679,6 +679,20 @@ function getErrorMessage(err) {
   return msg || "Error inesperado. Revisa consola/backend.";
 }
 
+function parseLocalDateOnly(value) {
+  if (!value) return null;
+  const [y, m, d] = String(value).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, 23, 59, 59, 999);
+}
+
+function toLocalDayNumber(value) {
+  if (!value) return null;
+  const [y, m, d] = String(value).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d).setHours(0, 0, 0, 0);
+}
+
 function parseAccionJson(value) {
   if (!value) return null;
   if (typeof value === "object") return value;
@@ -1210,6 +1224,16 @@ function getAprobacionBadgeVariant(fechaAprobacion) {
 }
 
 export default function InspeccionDetail() {
+  const [porcentajeDraft, setPorcentajeDraft] = useState({});
+
+  function getPorcentajeDraftValue(accionDb, row) {
+    const key = accionDb?.id_accion;
+    if (key && Object.prototype.hasOwnProperty.call(porcentajeDraft, key)) {
+      return porcentajeDraft[key];
+    }
+    return String(accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? "");
+  }
+
   const [preview, setPreview] = useState({ open: false, url: "", name: "" });
   const openPreview = ({ url, name }) => {
     setPreview({ open: true, url, name: name || "Evidencia" });
@@ -2213,6 +2237,21 @@ export default function InspeccionDetail() {
                         const evidObs = Array.isArray(obsDb?.evidencias) ? obsDb.evidencias : [];
                         const evidLev = Array.isArray(accionDb?.evidencias) ? accionDb.evidencias : [];
                         const hasLev = evidLev.length > 0;
+                        const todayDay = new Date().setHours(0, 0, 0, 0);
+                        const deadlineDay = toLocalDayNumber(accionDb?.fecha_ejecucion || row?.fecha_ejecucion);
+
+                        const canEditCumplimiento =
+                          hasLev &&
+                          deadlineDay != null &&
+                          todayDay <= deadlineDay &&
+                          !inspeccionCerrada;
+
+                        const isExpired = deadlineDay != null && todayDay > deadlineDay;
+                        const cumplimientoPlaceholder = !hasLev
+                          ? "Sube evidencia para habilitar"
+                          : isExpired
+                          ? "Acción vencida"
+                          : "0 - 100";
 
                         return (
                           <article key={`${itemRef || "row"}-${idx}`} className="for014-item">
@@ -2294,22 +2333,49 @@ export default function InspeccionDetail() {
                                     min="0"
                                     max="100"
                                     className="ins-input"
-                                    value={accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? ""}
+                                    value={getPorcentajeDraftValue(accionDb, row)}
                                     onChange={(e) => {
-                                      const val = e.target.value;
-                                      e.target.value = val;
+                                      if (!accionDb?.id_accion) return;
+
+                                      const raw = e.target.value;
+
+                                      if (raw === "") {
+                                        setPorcentajeDraft((prev) => ({
+                                          ...prev,
+                                          [accionDb.id_accion]: "",
+                                        }));
+                                        return;
+                                      }
+
+                                      const num = Number(raw);
+                                      if (Number.isNaN(num)) return;
+                                      if (num < 0 || num > 100) return;
+
+                                      setPorcentajeDraft((prev) => ({
+                                        ...prev,
+                                        [accionDb.id_accion]: raw,
+                                      }));
                                     }}
-                                    disabled={!hasLev}
-                                    placeholder={hasLev ? "0 - 100" : "Sube evidencia para habilitar"}
-                                    onBlur={async (e) => {
+                                    disabled={!canEditCumplimiento}
+                                    placeholder={cumplimientoPlaceholder}
+                                    onBlur={async () => {
                                       if (!accionDb?.id_accion) return;
                                       if (!online) return;
+                                      if (!canEditCumplimiento) return;
 
-                                      const vRaw = e.target.value;
-                                      const v = vRaw === "" ? null : Number(vRaw);
+                                      const draft = porcentajeDraft[accionDb.id_accion];
+                                      const sourceValue =
+                                        draft ?? String(accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? "");
+
+                                      const v = sourceValue === "" ? null : Number(sourceValue);
 
                                       try {
                                         await actualizarPorcentajeAccion(accionDb.id_accion, v);
+                                        setPorcentajeDraft((prev) => {
+                                          const copy = { ...prev };
+                                          delete copy[accionDb.id_accion];
+                                          return copy;
+                                        });
                                         await load();
                                       } catch (err) {
                                         alert(getErrorMessage(err));
