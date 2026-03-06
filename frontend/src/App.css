@@ -321,6 +321,7 @@
   display: grid;
   place-items: center;
   padding: clamp(16px, 3vw, 28px);
+  padding-top: clamp(86px, 10vw, 118px);
   background:
     radial-gradient(1200px 700px at 15% 20%, #ffd1ad 0%, transparent 55%),
     radial-gradient(900px 600px at 85% 75%, #ffb777 0%, transparent 60%),
@@ -1087,12 +1088,41 @@
 
 .aqp-logo{
   position: absolute;
-  top: 30px;
-  left: 40px;
-  height: 55px;
-  width: auto;
+  top: clamp(16px, 2.3vw, 30px);
+  left: clamp(16px, 3vw, 40px);
+  width: clamp(136px, 17vw, 220px);
+  max-width: 40vw;
+  height: auto;
+  object-fit: contain;
+  object-position: left top;
   z-index: 5;
   opacity: 0.95;
+}
+
+@media (max-width: 900px){
+  .auth-shell{
+    padding-top: 84px;
+  }
+
+  .aqp-logo{
+    top: 14px;
+    left: 16px;
+    width: clamp(120px, 27vw, 176px);
+    max-width: 44vw;
+  }
+}
+
+@media (max-width: 520px){
+  .auth-shell{
+    padding-top: 74px;
+  }
+
+  .aqp-logo{
+    top: 10px;
+    left: 12px;
+    width: min(148px, 44vw);
+    max-width: 44vw;
+  }
 }
 
 .sidebar-logo{
