@@ -500,7 +500,7 @@ export default function InspeccionHeaderForm({
         {/* REALIZADO POR (Creador + Participantes) */}
         <div style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <b>Realizado por (Inspectores)</b>
+            <b>Realizado por</b>
             <span className="help">Incluye al creador + inspectores agregados.</span>
           </div>
 

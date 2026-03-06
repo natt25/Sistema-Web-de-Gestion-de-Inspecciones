@@ -192,15 +192,21 @@
 .badge{
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 800;
-  border: 1px solid var(--border);
+  font-weight: 700;
+  border: 1px solid rgba(0,0,0,.08);
   background: var(--orange-50);
   color: var(--orange-700);
 }
+
+.badge-borrador { background: #eef2ff; color: #1e3a8a; }
+.badge-pendiente { background: #fff7ed; color: #9a3412; }
+.badge-progreso { background: #eff6ff; color: #1d4ed8; }
+.badge-cerrada { background: #ecfdf5; color: #047857; }
+.badge-vencida { background: #fef2f2; color: #b91c1c; }
+.badge-all { background: #f3f4f6; color: #111827; }
 
 .badge.badge-gray{
   color: #374151;
@@ -236,6 +242,29 @@
   color: var(--text);
   background: transparent;
   border-color: var(--border);
+}
+
+.badge.badge-creator-header{
+  font-size: 10px;
+  padding: 4px 10px;
+  font-weight: 900;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.firma-img{
+  height: 42px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: 8px;
+  background: #fff;
+  padding: 2px 6px;
 }
 
 .table-wrap{
@@ -1150,4 +1179,14 @@
 }
 .estado-dd-item:hover{
   background: rgba(255,106,0,.08);
+}
+
+.estado-dd-item-reset{
+  text-decoration: none;
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  color: inherit;
 }

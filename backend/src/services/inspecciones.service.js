@@ -116,8 +116,10 @@ async function obtenerDetalleInspeccion(id_inspeccion) {
     return { ok: false, status: 404, message: "Inspeccion no encontrada" };
   }
 
+  let inspectores = [];
+  try { inspectores = await repo.listarInspectoresPorInspeccion(id); } catch {}
   const observaciones = await observacionesRepo.listarPorInspeccion(id);
-  return { ok: true, status: 200, data: { cabecera, observaciones } };
+  return { ok: true, status: 200, data: { cabecera, inspectores, observaciones } };
 }
 
 async function obtenerDetalleInspeccionFull(id_inspeccion) {
@@ -131,12 +133,12 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
     return { ok: false, status: 404, message: "Inspeccion no encontrada" };
   }
 
-    let participantes = [];
+    let inspectores = [];
     let respuestas = [];
     let observaciones = [];
 
-    try { participantes = await repo.listarParticipantesPorInspeccion(id); } catch (e) {
-      console.warn("[full] participantes fallo -> []", e?.message);
+    try { inspectores = await repo.listarInspectoresPorInspeccion(id); } catch (e) {
+      console.warn("[full] inspectores fallo -> []", e?.message);
     }
     try { respuestas = await repo.listarRespuestasPorInspeccion(id); } catch (e) {
       console.warn("[full] respuestas fallo -> []", e?.message);
@@ -168,7 +170,17 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
     status: 200,
     data: {
       cabecera,
-      participantes: Array.isArray(participantes) ? participantes : [],
+      inspectores: Array.isArray(inspectores) ? inspectores : [],
+      participantes: Array.isArray(inspectores)
+        ? inspectores.map((it) => ({
+            id_usuario: it.id_usuario,
+            nombre: it.nombre_completo || "-",
+            cargo: it.cargo || "",
+            tipo: it.es_creador === 1 ? "REALIZADO_POR" : "INSPECTOR",
+            firma_url: it.firma_url,
+            es_creador: it.es_creador,
+          }))
+        : [],
       respuestas: Array.isArray(respuestas) ? respuestas : [],
       observaciones: out,
     },

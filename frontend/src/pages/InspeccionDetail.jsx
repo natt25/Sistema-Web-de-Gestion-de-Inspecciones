@@ -1678,7 +1678,19 @@ export default function InspeccionDetail() {
   const isFOR034 = tipoPlantilla === "tabla_extintores";
   const isFOR035 = tipoPlantilla === "tabla_kit_antiderrames";
   const hideObsUI = isFOR033 || isFOR034 || isFOR035;
-  const participantes = Array.isArray(data?.participantes) ? data.participantes : [];
+  const inspectores = useMemo(() => {
+    if (Array.isArray(data?.inspectores)) return data.inspectores;
+    if (!Array.isArray(data?.participantes)) return [];
+    return data.participantes.map((p) => ({
+      id_usuario: p?.id_usuario ?? null,
+      nombres: "",
+      apellidos: "",
+      nombre_completo: p?.nombre || "-",
+      cargo: p?.cargo || null,
+      firma_url: p?.firma_url || null,
+      es_creador: String(p?.tipo || "").toUpperCase() === "REALIZADO_POR" ? 1 : 0,
+    }));
+  }, [data?.inspectores, data?.participantes]);
   const observaciones = data?.observaciones || [];
   const accionByItemRef = useMemo(() => {
     const map = new Map();
@@ -1703,8 +1715,6 @@ export default function InspeccionDetail() {
   }
   return map;
 }, [data?.observaciones]);
-  const realizadoPor = participantes.find((p) => String(p?.tipo || "").toUpperCase() === "REALIZADO_POR");
-  const inspectores = participantes.filter((p) => String(p?.tipo || "").toUpperCase() === "INSPECTOR");
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
   const visiblePageError = online ? pageError : "";
   const respuestas = Array.isArray(data?.respuestas) ? data.respuestas : [];
@@ -1927,31 +1937,54 @@ export default function InspeccionDetail() {
       </Card>
 
       <Card title="Realizado por">
-        {!realizadoPor ? (
-          <p style={{ opacity: 0.7 }}>Sin datos.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 4 }}>
-            <div>
-              <b>Nombre:</b> {realizadoPor.nombre || realizadoPor.dni || "-"}
-            </div>
-            <div>
-              <b>Cargo:</b> {realizadoPor.cargo || "-"}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      <Card title={`Inspectores (${inspectores.length})`}>
         {inspectores.length === 0 ? (
           <p style={{ opacity: 0.7 }}>Sin datos.</p>
         ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            {inspectores.map((p, idx) => (
-              <div key={`${p.dni || "sin-dni"}-${idx}`} style={{ borderTop: idx ? "1px solid #eee" : "none", paddingTop: idx ? 10 : 0 }}>
-                <div><b>{p.nombre || p.dni || "-"}</b></div>
-                <div style={{ opacity: 0.8 }}>{p.cargo || "-"}</div>
-              </div>
-            ))}
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Inspector</th>
+                  <th>Cargo</th>
+                  <th>Firma</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inspectores.map((p, idx) => (
+                  <tr key={`${p?.id_usuario || "ins"}-${idx}`}>
+                    <td>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        {Number(p?.es_creador) === 1 ? (
+                          <span>
+                            <Badge className="badge-creator-header">
+                              INSPECCIÓN CREADA POR:
+                            </Badge>
+                          </span>
+                        ) : null}
+
+                        <span style={{ fontWeight: 800 }}>
+                          {p?.nombre_completo || "-"}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td>{p?.cargo || "-"}</td>
+
+                    <td>
+                      {p?.firma_url ? (
+                        <img
+                          src={/^https?:\/\//i.test(String(p.firma_url)) ? p.firma_url : fileUrl(p.firma_url)}
+                          alt={`Firma ${p?.nombre_completo || "inspector"}`}
+                          className="firma-img"
+                        />
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>

@@ -45,6 +45,14 @@ function normalizeDni(value) {
   return String(value || "").trim();
 }
 
+function buildFirmaUrl(rawPath) {
+  const path = String(rawPath || "").trim();
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith("/")) return path;
+  return `/storage/firmas/${path}`;
+}
+
 async function getPreferredEstadoUsuarioId(tx) {
   const rCols = await new sql.Request(tx)
     .input("schema", sql.NVarChar, "SSOMA")
@@ -458,101 +466,184 @@ async function actualizarEstadoInspeccion({ id_inspeccion, id_estado_inspeccion 
   return result.recordset[0] || null;
 }
 
-async function listarParticipantesPorInspeccion(id_inspeccion) {
+async function listarInspectoresPorInspeccion(id_inspeccion) {
   const pool = await getPool();
   const request = pool.request();
   request.input("id_inspeccion", sql.Int, Number(id_inspeccion));
 
-  const cols = await getColumns("SSOMA", "V_EMPLEADO");
-  const cDni =
-    cols.has("dni") ? "dni" :
-    cols.has("num_doc") ? "num_doc" :
-    cols.has("documento") ? "documento" : null;
+  const participantesTable = await getParticipantesTable();
+  const colsVe = await getColumns("SSOMA", "V_EMPLEADO");
+  const colsUsuario = await getColumns("SSOMA", "INS_USUARIO");
+  const hasParticipanteCargo = await objectExists("SSOMA.INS_PARTICIPANTE_CARGO", "U");
 
-  const cNombres =
-    cols.has("nombres") ? "nombres" :
-    cols.has("nombre") ? "nombre" :
-    cols.has("nombres_empleado") ? "nombres_empleado" : null;
+  const cDniVe =
+    colsVe.has("dni") ? "dni" :
+    colsVe.has("num_doc") ? "num_doc" :
+    colsVe.has("documento") ? "documento" : null;
+  const cNombresVe =
+    colsVe.has("nombres") ? "nombres" :
+    colsVe.has("nombre") ? "nombre" :
+    null;
+  const cApellidoPaternoVe = 
+    colsVe.has("apellido_paterno") ? "apellido_paterno" : null;
+  const cApellidoMaternoVe = 
+    colsVe.has("apellido_materno") ? "apellido_materno" : null;
+  const cCargoVe =
+    colsVe.has("cargo") ? "cargo" :
+    colsVe.has("desc_cargo") ? "desc_cargo" :
+    colsVe.has("nombre_cargo") ? "nombre_cargo" : null;
 
-  const cApellidos =
-    cols.has("apellidos") ? "apellidos" :
-    cols.has("apellido") ? "apellido" :
-    cols.has("apellido_paterno") ? "apellido_paterno" : null;
+  const cDniUsuario =
+    colsUsuario.has("dni") ? "dni" :
+    colsUsuario.has("num_doc") ? "num_doc" :
+    colsUsuario.has("documento") ? "documento" : null;
+  const cNombresUsuario =
+    colsUsuario.has("nombres") ? "nombres" :
+    colsUsuario.has("nombre") ? "nombre" :
+    colsUsuario.has("nombres_usuario") ? "nombres_usuario" : null;
+  const cApellidosUsuario =
+    colsUsuario.has("apellidos") ? "apellidos" :
+    colsUsuario.has("apellido") ? "apellido" :
+    colsUsuario.has("apellido_paterno") ? "apellido_paterno" : null;
+  const cFirmaUsuario =
+    colsUsuario.has("firma_path") ? "firma_path" :
+    colsUsuario.has("firma_ruta") ? "firma_ruta" :
+    colsUsuario.has("ruta_firma") ? "ruta_firma" : null;
 
-  const cCargo =
-    cols.has("cargo") ? "cargo" :
-    cols.has("desc_cargo") ? "desc_cargo" :
-    cols.has("nombre_cargo") ? "nombre_cargo" : null;
-
-  const joinEmpleado = cDni
-    ? `LEFT JOIN SSOMA.V_EMPLEADO ve
-        ON CAST(ve.${cDni} AS NVARCHAR(20)) = CAST(t.dni AS NVARCHAR(20))`
-    : "";
-
-  const nombreExpr = cDni
-    ? `LTRIM(RTRIM(CONCAT(
-        COALESCE(CAST(ve.${cApellidos || cNombres || cDni} AS NVARCHAR(150)), ''),
-        ' ',
-        COALESCE(CAST(ve.${cNombres || cApellidos || cDni} AS NVARCHAR(150)), '')
-      )))`
-    : "CAST('' AS NVARCHAR(200))";
-
-  const cargoVeExpr = cCargo ? `CAST(ve.${cCargo} AS NVARCHAR(150))` : "CAST('' AS NVARCHAR(150))";
-
-  const query = `
-    WITH t AS (
-      SELECT
-        i.id_usuario,
-        u.dni,
-        CAST('REALIZADO_POR' AS NVARCHAR(20)) AS tipo,
-        CAST(0 AS INT) AS orden_custom
-      FROM SSOMA.INS_INSPECCION i
-      LEFT JOIN SSOMA.INS_USUARIO u ON u.id_usuario = i.id_usuario
-      WHERE i.id_inspeccion = @id_inspeccion
-
+  const unionParticipantes = participantesTable
+    ? `
       UNION ALL
-
       SELECT
         p.id_usuario,
-        u2.dni,
-        CAST('INSPECTOR' AS NVARCHAR(20)) AS tipo,
+        CAST(0 AS INT) AS es_creador,
         ISNULL(p.orden_custom, 9999) AS orden_custom
-      FROM SSOMA.INS_INSPECCION_PARTICIPANTE p
-      LEFT JOIN SSOMA.INS_USUARIO u2 ON u2.id_usuario = p.id_usuario
+      FROM ${participantesTable} p
       WHERE p.id_inspeccion = @id_inspeccion
-        AND NOT EXISTS (
-          SELECT 1
-          FROM SSOMA.INS_INSPECCION i2
-          WHERE i2.id_inspeccion = p.id_inspeccion
-            AND i2.id_usuario = p.id_usuario
-        )
+        AND p.id_usuario IS NOT NULL
+    `
+    : "";
+
+  const joinEmpleado = cDniVe && cDniUsuario
+    ? `LEFT JOIN SSOMA.V_EMPLEADO ve
+        ON CAST(ve.${cDniVe} AS NVARCHAR(20)) = CAST(u.${cDniUsuario} AS NVARCHAR(20))`
+    : "";
+
+  const cargoPcExpr = hasParticipanteCargo
+    ? "pc.cargo_texto_final"
+    : "NULL";
+  const cargoVeExpr = cCargoVe ? `CAST(ve.${cCargoVe} AS NVARCHAR(150))` : "NULL";
+  const cargoExpr = `NULLIF(LTRIM(RTRIM(COALESCE(CAST(${cargoPcExpr} AS NVARCHAR(150)), CAST(${cargoVeExpr} AS NVARCHAR(150)), ''))), '')`;
+  const nombresVeExpr = cNombresVe
+  ? `NULLIF(LTRIM(RTRIM(CAST(ve.${cNombresVe} AS NVARCHAR(150)))), '')`
+  : "NULL";
+  const apellidosVeExpr =
+    cApellidoPaternoVe && cApellidoMaternoVe
+      ? `NULLIF(LTRIM(RTRIM(CONCAT(CAST(ve.${cApellidoPaternoVe} AS NVARCHAR(150)), ' ', CAST(ve.${cApellidoMaternoVe} AS NVARCHAR(150))))), '')`
+      : cApellidoPaternoVe
+        ? `NULLIF(LTRIM(RTRIM(CAST(ve.${cApellidoPaternoVe} AS NVARCHAR(150)))), '')`
+        : "NULL";
+  const nombresUsrExpr = cNombresUsuario ? `CAST(u.${cNombresUsuario} AS NVARCHAR(150))` : "NULL";
+  const apellidosUsrExpr = cApellidosUsuario ? `CAST(u.${cApellidosUsuario} AS NVARCHAR(150))` : "NULL";
+  const nombresExpr = `
+    NULLIF(
+      LTRIM(RTRIM(
+        COALESCE(${nombresVeExpr}, ${nombresUsrExpr}, '')
+      )),
+      ''
+    )
+  `;
+const apellidosExpr = `
+  NULLIF(
+    LTRIM(RTRIM(
+      COALESCE(${apellidosVeExpr}, ${apellidosUsrExpr}, '')
+    )),
+    ''
+  )
+`;
+  const firmaExpr = cFirmaUsuario ? `NULLIF(LTRIM(RTRIM(CAST(u.${cFirmaUsuario} AS NVARCHAR(300)))), '')` : "NULL";
+  const dniExpr = cDniUsuario ? `CAST(u.${cDniUsuario} AS NVARCHAR(20))` : "NULL";
+
+  const query = `
+    WITH t_raw AS (
+      SELECT
+        i.id_usuario,
+        CAST(1 AS INT) AS es_creador,
+        CAST(0 AS INT) AS orden_custom
+      FROM SSOMA.INS_INSPECCION i
+      WHERE i.id_inspeccion = @id_inspeccion
+
+      ${unionParticipantes}
     ),
+    t AS (
+      SELECT
+        id_usuario,
+        MAX(es_creador) AS es_creador,
+        MIN(orden_custom) AS orden_custom
+      FROM t_raw
+      WHERE id_usuario IS NOT NULL
+      GROUP BY id_usuario
+    )
+    ${hasParticipanteCargo ? `,
     pc AS (
       SELECT
         id_usuario,
         MAX(CAST(cargo_texto_final AS NVARCHAR(200))) AS cargo_texto_final
       FROM SSOMA.INS_PARTICIPANTE_CARGO
       GROUP BY id_usuario
-    )
+    )` : ""}
     SELECT
-      CAST(t.dni AS NVARCHAR(20)) AS dni,
-      NULLIF(${nombreExpr}, '') AS nombre,
-      NULLIF(COALESCE(pc.cargo_texto_final, ${cargoVeExpr}), '') AS cargo,
-      t.tipo
+      t.id_usuario,
+      ${dniExpr} AS dni_usuario,
+      ${nombresExpr} AS nombres,
+      ${apellidosExpr} AS apellidos,
+      ${cargoExpr} AS cargo,
+      ${firmaExpr} AS firma_path,
+      t.es_creador
     FROM t
+    LEFT JOIN SSOMA.INS_USUARIO u ON u.id_usuario = t.id_usuario
     ${joinEmpleado}
-    LEFT JOIN pc ON pc.id_usuario = t.id_usuario
+    ${hasParticipanteCargo ? "LEFT JOIN pc ON pc.id_usuario = t.id_usuario" : ""}
     ORDER BY
-      CASE WHEN t.tipo = 'REALIZADO_POR' THEN 0 ELSE 1 END,
+      t.es_creador DESC,
       t.orden_custom,
-      t.dni;
+      t.id_usuario;
   `;
+
   const result = await request.query(query);
-  return (result.recordset || []).map((r) => ({
-    dni: r.dni || "",
-    nombre: r.nombre || r.dni || "",
-    cargo: r.cargo || "",
-    tipo: r.tipo === "REALIZADO_POR" ? "REALIZADO_POR" : "INSPECTOR",
+  
+  return (result.recordset || []).map((r) => {
+    const nombres = String(r.nombres || "").trim();
+    const apellidos = String(r.apellidos || "").trim();
+    const dni = String(r.dni_usuario || "").trim();
+
+    const nombreCompleto =
+      [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+      [apellidos, nombres].filter(Boolean).join(" ").trim() ||
+      "SIN NOMBRE";
+
+    return {
+      id_usuario: Number(r.id_usuario) || null,
+      nombres,
+      apellidos,
+      nombre_completo: nombreCompleto,
+      cargo: r.cargo ? String(r.cargo).trim() : null,
+      firma_url: buildFirmaUrl(r.firma_path),
+      es_creador: Number(r.es_creador) === 1 ? 1 : 0,
+      dni_usuario: dni,
+    };
+  });
+}
+
+async function listarParticipantesPorInspeccion(id_inspeccion) {
+  const inspectores = await listarInspectoresPorInspeccion(id_inspeccion);
+  return inspectores.map((it) => ({
+    id_usuario: it.id_usuario,
+    dni: "",
+    nombre: it.nombre_completo || "-",
+    cargo: it.cargo || "",
+    tipo: it.es_creador === 1 ? "REALIZADO_POR" : "INSPECTOR",
+    firma_url: it.firma_url,
+    es_creador: it.es_creador,
   }));
 }
 
@@ -889,6 +980,7 @@ export default {
   obtenerInspeccionPorId,
   obtenerEstadoInspeccion,
   actualizarEstadoInspeccion,
+  listarInspectoresPorInspeccion,
   listarParticipantesPorInspeccion,
   listarRespuestasPorInspeccion,
   crearInspeccionYGuardarJSON,

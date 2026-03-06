@@ -1,5 +1,5 @@
 // frontend/src/pages/Pendientes.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listarPendientes } from "../api/pendientes.api";
 import { getUser } from "../auth/auth.storage";
@@ -43,9 +43,30 @@ function rangeToDias(range) {
   return 7;
 }
 
+const ESTADO_OPTIONS = ["ALL", "BORRADOR", "PENDIENTE", "EN_PROCESO", "VENCIDO", "COMPLETADO"];
+
+function getEstadoMeta(estadoRaw) {
+  const estado = String(estadoRaw || "").trim().toUpperCase();
+
+  if (!estado || estado === "ALL") return { label: "TODOS", className: "badge-all" };
+  if (estado.includes("BORR")) return { label: "BORRADOR", className: "badge-borrador" };
+  if (estado.includes("VENC")) return { label: "VENCIDA", className: "badge-vencida" };
+  if (estado.includes("PEND")) return { label: "PENDIENTE", className: "badge-pendiente" };
+  if (estado.includes("PROG") || estado.includes("EN_PROCESO")) return { label: "EN PROGRESO", className: "badge-progreso" };
+  if (estado.includes("CERR") || estado.includes("COMPLE")) return { label: "CERRADA", className: "badge-cerrada" };
+
+  return { label: estado.replaceAll("_", " "), className: "badge-all" };
+}
+
+function renderEstadoBadge(estadoRaw) {
+  const meta = getEstadoMeta(estadoRaw);
+  return <span className={`badge ${meta.className}`}>{meta.label}</span>;
+}
+
 export default function Pendientes() {
   const navigate = useNavigate();
   const user = getUser();
+  const estadoMenuRef = useRef(null);
 
   const [filters, setFilters] = useState({
     range: "7d",
@@ -58,6 +79,7 @@ export default function Pendientes() {
   const [rows, setRows] = useState([]);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
+  const [estadoMenuOpen, setEstadoMenuOpen] = useState(false);
 
   useLoadingWatchdog({
     loading,
@@ -139,14 +161,16 @@ export default function Pendientes() {
     setFilters((p) => ({ ...p, [name]: value }));
   }
 
-  function estadoBadge(estadoRaw) {
-    const estado = String(estadoRaw || "").trim().toUpperCase();
-    if (estado.includes("VENC")) return { text: estadoRaw || "VENCIDO", bg: "#fee2e2", color: "#b91c1c" };
-    if (estado.includes("PEND")) return { text: estadoRaw || "PENDIENTE", bg: "#fef3c7", color: "#92400e" };
-    if (estado.includes("PROG")) return { text: estadoRaw || "EN PROGRESO", bg: "#dbeafe", color: "#1d4ed8" };
-    if (estado.includes("CERR") || estado.includes("COMPLE")) return { text: estadoRaw || "COMPLETADO", bg: "#dcfce7", color: "#166534" };
-    return { text: estadoRaw || "-", bg: "#e5e7eb", color: "#374151" };
-  }
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!estadoMenuRef.current) return;
+      if (!estadoMenuRef.current.contains(e.target)) {
+        setEstadoMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   const columns = [
     // ID Inspección
@@ -185,24 +209,7 @@ export default function Pendientes() {
     {
       key: "estado",
       label: "Estado",
-      render: (a) => {
-        const ui = estadoBadge(a?.estado);
-        return (
-          <span
-            style={{
-              display: "inline-block",
-              padding: "4px 10px",
-              borderRadius: 999,
-              background: ui.bg,
-              color: ui.color,
-              fontWeight: 800,
-              fontSize: 12,
-            }}
-          >
-            {ui.text}
-          </span>
-        );
-      },
+      render: (a) => renderEstadoBadge(a?.estado),
     },
 
     {
@@ -272,18 +279,35 @@ export default function Pendientes() {
 
           <label className="ins-field">
             <span>Estado</span>
-            <select
-              className="ins-input"
-              name="estado"
-              value={filters.estado}
-              onChange={onChange}
-            >
-              <option value="ALL">Todos</option>
-              <option value="PENDIENTE">Pendiente</option>
-              <option value="EN_PROCESO">En progreso</option>
-              <option value="VENCIDO">Vencido</option>
-              <option value="COMPLETADO">Completado</option>
-            </select>
+            <div style={{ position: "relative" }} ref={estadoMenuRef}>
+              <button
+                type="button"
+                className="estado-dd-trigger"
+                onClick={() => setEstadoMenuOpen((v) => !v)}
+                style={{ width: "100%", justifyContent: "space-between", height: 40, padding: "0 12px" }}
+              >
+                {renderEstadoBadge(filters.estado)}
+                <span className={`estado-dd-tri ${estadoMenuOpen ? "open" : ""}`} />
+              </button>
+
+              {estadoMenuOpen ? (
+                <div className="estado-dd-menu" style={{ width: "100%" }}>
+                  {ESTADO_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      className="estado-dd-item estado-dd-item-reset"
+                      onClick={() => {
+                        setFilters((p) => ({ ...p, estado: opt }));
+                        setEstadoMenuOpen(false);
+                      }}
+                    >
+                      {renderEstadoBadge(opt)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </label>
 
           {filters.range === "custom" ? (
