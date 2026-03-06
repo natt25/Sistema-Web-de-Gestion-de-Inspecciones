@@ -1697,7 +1697,7 @@ export default function InspeccionDetail() {
   const isChecklist = tipoPlantilla === "checklist";
 
   // ocultar la UI inferior cuando la observación/acción ya forma parte natural de la plantilla
-  const hideObsUI = isChecklist || isFOR033 || isFOR034 || isFOR035;
+  const hideObsUI = isFOR014 || isChecklist || isFOR033 || isFOR034 || isFOR035;
   const inspectores = useMemo(() => {
     if (Array.isArray(data?.inspectores)) return data.inspectores;
     if (!Array.isArray(data?.participantes)) return [];
@@ -2062,9 +2062,7 @@ export default function InspeccionDetail() {
               const isObsAcc = upper === "OBSERVACIONES_ACCIONES";
               return (
                 <div key={categoria}>
-                  <h4 style={{ margin: "0 0 8px 0" }}>
-                    {isObsAcc ? "Observaciones y acciones correctivas" : categoria}
-                  </h4>
+                  
 
                   <div style={{ display: "grid", gap: 8 }}>
                     {list.map((r, idx) => {
@@ -2079,71 +2077,70 @@ export default function InspeccionDetail() {
                         const hasLev = evidLev.length > 0;
 
                         return (
-                          <div key={`${itemRef || "row"}-${idx}`} className="obsacc-item">
-                            <div className="obsacc-item-top">
-                              <b>{`Observacion ${idx + 1}`}</b>
-                              <Badge>{itemRef}</Badge>
-                              {accionDb?.id_accion ? <Badge>Acc #{accionDb.id_accion}</Badge> : <Badge>Acc: -</Badge>}
+                          <article key={`${itemRef || "row"}-${idx}`} className="for014-item">
+                            <div className="for014-head">
+                              <div className="for014-head-main">
+                                <div className="for014-kicker">OBSERVACIÓN {idx + 1}</div>
+                                <div className="for014-meta">
+                                  <Badge>{itemRef || "-"}</Badge>
+                                  <Badge className="badge badge-red">
+                                    Riesgo: {String(row?.riesgo || r?.estado || "NA").toUpperCase()}
+                                  </Badge>
+                                  {accionDb?.id_accion ? <Badge>Acc #{accionDb.id_accion}</Badge> : <Badge>Acc: -</Badge>}
+                                </div>
+                              </div>
                             </div>
 
-                            <div className="obsacc-cards">
-                              <section className="obsacc-card">
-                                <header className="obsacc-header">
-                                  <h5 className="obsacc-title">OBSERVACION</h5>
-                                </header>
+                            <div className="for014-grid">
+                              <section className="for014-panel for014-panel-obs">
+                                <div className="for014-panel-title">Observación detectada</div>
 
-                                <div className="obsacc-section">
-                                  <div><b>Observacion:</b> {row?.observacion || "-"}</div>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                    <b>Nivel de riesgo:</b>
-                                    <Badge>{String(row?.riesgo || r?.estado || "NA").toUpperCase()}</Badge>
+                                <div className="for014-block">
+                                  <div className="for014-text">
+                                    {row?.observacion || "-"}
                                   </div>
                                 </div>
 
-                                <div className="obsacc-section">
-                                  <b>Evidencias (Observacion)</b>
-                                  <EvidenceGrid evidencias={evidObs} onPreview={openPreview} />
-                                </div>
+                                <div className="for014-subtitle">Evidencias de observación</div>
+                                <EvidenceGrid evidencias={evidObs} onPreview={openPreview} />
                               </section>
 
-                              <section className="obsacc-card">
-                                <header className="obsacc-header">
-                                  <h5 className="obsacc-title">ACCION CORRECTIVA</h5>
-                                </header>
+                              <section className="for014-panel for014-panel-acc">
+                                <div className="for014-panel-title">Acción correctiva</div>
 
-                                <div className="obsacc-section">
-                                  <div><b>Accion correctiva:</b> {row?.accion_correctiva || "-"}</div>
-                                  <div><b>Fecha ejecucion:</b> {row?.fecha_ejecucion || "-"}</div>
+                                <div className="for014-data-list">
+                                  <div><b>Acción:</b> {row?.accion_correctiva || "-"}</div>
+                                  <div><b>Fecha de ejecución:</b> {row?.fecha_ejecucion || "-"}</div>
                                   <div><b>Responsable:</b> {row?.responsable || row?.responsable_data?.nombre || "-"}</div>
                                 </div>
 
-                                <div className="obsacc-section">
-                                  <b>Evidencia de levantamiento (Accion)</b>
-                                  {accionDb?.id_accion ? (
-                                    <>
-                                      <EvidenceGrid
-                                        evidencias={evidLev}
-                                        allowDelete={true}
-                                        onPreview={openPreview}
-                                        onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: accionDb.id_accion })}
-                                      />
-                                      <UploadEvidence
-                                        kind="ACC"
-                                        idTarget={accionDb.id_accion}
-                                        onUploaded={handleEvidenceUploaded}
-                                        disabled={false}
-                                        inspeccionCerrada={inspeccionCerrada}
-                                        online={online}
-                                      />
-                                    </>
-                                  ) : (
-                                    <p style={{ margin: "6px 0", opacity: 0.7 }}>
-                                      No se encontro accion creada para {itemRef}.
-                                    </p>
-                                  )}
-                                </div>
+                                <div className="for014-subtitle">Evidencias de levantamiento</div>
 
-                                <div className="obsacc-section obsacc-cumplimiento">
+                                {accionDb?.id_accion ? (
+                                  <>
+                                    <EvidenceGrid
+                                      evidencias={evidLev}
+                                      allowDelete={true}
+                                      onPreview={openPreview}
+                                      onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: accionDb.id_accion })}
+                                    />
+
+                                    <UploadEvidence
+                                      kind="ACC"
+                                      idTarget={accionDb.id_accion}
+                                      onUploaded={handleEvidenceUploaded}
+                                      disabled={false}
+                                      inspeccionCerrada={inspeccionCerrada}
+                                      online={online}
+                                    />
+                                  </>
+                                ) : (
+                                  <p style={{ margin: "6px 0", opacity: 0.7 }}>
+                                    No se encontro accion creada para {itemRef}.
+                                  </p>
+                                )}
+
+                                <div className="for014-cumplimiento">
                                   <b>% cumplimiento</b>
                                   <input
                                     type="number"
@@ -2175,7 +2172,7 @@ export default function InspeccionDetail() {
                                 </div>
                               </section>
                             </div>
-                          </div>
+                          </article>
                         );
                       }
 
