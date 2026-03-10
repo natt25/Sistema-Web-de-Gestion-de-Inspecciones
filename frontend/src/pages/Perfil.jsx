@@ -14,7 +14,12 @@ export default function Perfil() {
   const [firmaPreview, setFirmaPreview] = useState("");
   const fileInputRef = useRef(null);
 
-  const nombre = user?.nombre || user?.name || "Usuario";
+  const nombre =
+    user?.nombreCompleto ||
+    [user?.nombres, user?.apellidos].filter(Boolean).join(" ").trim() ||
+    user?.nombre ||
+    user?.name ||
+    "Usuario";
   const dni = user?.dni || "—";
   const rol = user?.rol || user?.role || "—";
   const email = user?.email || "";
