@@ -23,8 +23,7 @@ const EPP_COLUMNS = [
 ];
 
 const ESTADO_OPTIONS = ["", "BUENO", "MALO", "NA"];
-
-const DEFAULT_ROWS = 5; // antes te salían 5; ahora puedes agregar todas las que quieras
+const DEFAULT_ROWS = 5;
 
 function createEmptyEpps() {
   return EPP_COLUMNS.reduce((acc, c) => {
@@ -36,7 +35,7 @@ function createEmptyEpps() {
 function createEmptyRow(index) {
   return {
     rowIndex: index,
-    empleado: null, // guardamos el objeto seleccionado (dni, nombres, cargo...)
+    empleado: null,
     apellidos_nombres: "",
     puesto_trabajo: "",
     epps: createEmptyEpps(),
@@ -63,7 +62,6 @@ function rowHasMalo(row) {
 
 function normalizeEmpleadoLabel(emp) {
   if (!emp) return "";
-  // intenta varias combinaciones según tu API
   const dni = emp?.dni ? String(emp.dni).trim() : "";
   const ap = emp?.apellidos ? String(emp.apellidos).trim() : (emp?.apellido ? String(emp.apellido).trim() : "");
   const nom = emp?.nombres ? String(emp.nombres).trim() : (emp?.nombre ? String(emp.nombre).trim() : "");
@@ -97,7 +95,6 @@ function buildEmpleadoOptionLabel(emp) {
 }
 
 function extractCargo(emp) {
-  // prueba campos típicos
   return (
     emp?.cargo ||
     emp?.desc_cargo ||
@@ -139,7 +136,6 @@ function getEppTone(value) {
 }
 
 function mapInitialRows(rows) {
-  // si ya vienen filas, respétalas; si no, empieza con 5
   const n = Array.isArray(rows) && rows.length ? rows.length : DEFAULT_ROWS;
   const base = Array.from({ length: n }, (_, i) => createEmptyRow(i + 1));
 
@@ -166,11 +162,11 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   const [rows, setRows] = useState(() => mapInitialRows(initialRows));
   const [errors, setErrors] = useState({});
 
-  // Autocomplete (un solo buscador activo a la vez)
   const [empOpenIdx, setEmpOpenIdx] = useState(null);
   const [empQuery, setEmpQuery] = useState("");
   const [empOptions, setEmpOptions] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
+
   const [whoOpenIdx, setWhoOpenIdx] = useState(null);
   const [whoQuery, setWhoQuery] = useState("");
   const [whoOptions, setWhoOptions] = useState([]);
@@ -183,10 +179,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   }
 
   function updateRow(idx, patch) {
-    setRows((prev) => {
-      const next = prev.map((r, i) => (i === idx ? { ...r, ...patch } : r));
-      return next;
-    });
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   }
 
   function updateEppState(idx, key, value) {
@@ -197,7 +190,6 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
         const epps = { ...(r.epps || {}), [key]: value };
         const next = { ...r, epps };
 
-        // si ya no hay MALO en esa fila, limpiar campos obligatorios
         if (value !== "MALO" && !rowHasMalo(next)) {
           next.observaciones = "";
           next.accion = { que: "", quien: "", cuando: "" };
@@ -228,8 +220,6 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
     rows.forEach((row, idx) => {
       if (!rowHasAnyData(row)) return;
 
-      // si hay texto pero no seleccionó empleado, igual lo dejamos (por si quieren escribir manual)
-      // pero si seleccionó, puesto debe quedar
       if (rowHasMalo(row)) {
         if (!String(row.observaciones || "").trim()) {
           nextErrors[`row:${idx}:obs`] = "Observación obligatoria cuando existe MALO.";
@@ -262,7 +252,6 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
     });
   }
 
-  // Buscar empleados cuando cambie empQuery/empOpenIdx (debounce simple)
   useEffect(() => {
     if (empOpenIdx == null) return;
 
@@ -359,34 +348,30 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
           </thead>
 
           <tbody>
-            {rows.map((row, idx) => {
-              const showMalo = rowHasMalo(row);
-              return (
-                <FragmentRow
-                  key={row.rowIndex}
-                  row={row}
-                  idx={idx}
-                  showMalo={showMalo}
-                  updateRow={updateRow}
-                  updateEppState={updateEppState}
-                  errors={errors}
-                  removeRow={removeRow}
-                  // autocomplete props
-                  empOpenIdx={empOpenIdx}
-                  setEmpOpenIdx={setEmpOpenIdx}
-                  empQuery={empQuery}
-                  setEmpQuery={setEmpQuery}
-                  empOptions={empOptions}
-                  empLoading={empLoading}
-                  whoOpenIdx={whoOpenIdx}
-                  setWhoOpenIdx={setWhoOpenIdx}
-                  whoQuery={whoQuery}
-                  setWhoQuery={setWhoQuery}
-                  whoOptions={whoOptions}
-                  whoLoading={whoLoading}
-                />
-              );
-            })}
+            {rows.map((row, idx) => (
+              <FragmentRow
+                key={row.rowIndex}
+                row={row}
+                idx={idx}
+                showMalo={rowHasMalo(row)}
+                updateRow={updateRow}
+                updateEppState={updateEppState}
+                errors={errors}
+                removeRow={removeRow}
+                empOpenIdx={empOpenIdx}
+                setEmpOpenIdx={setEmpOpenIdx}
+                empQuery={empQuery}
+                setEmpQuery={setEmpQuery}
+                empOptions={empOptions}
+                empLoading={empLoading}
+                whoOpenIdx={whoOpenIdx}
+                setWhoOpenIdx={setWhoOpenIdx}
+                whoQuery={whoQuery}
+                setWhoQuery={setWhoQuery}
+                whoOptions={whoOptions}
+                whoLoading={whoLoading}
+              />
+            ))}
           </tbody>
         </table>
       </div>
@@ -403,7 +388,6 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   );
 }
 
-/** Subcomponente para renderizar fila + bloque MALO justo debajo */
 function FragmentRow({
   row,
   idx,
@@ -425,13 +409,11 @@ function FragmentRow({
   whoOptions,
   whoLoading,
 }) {
-  // NOTE: usamos un wrapper sin importar React.Fragment para evitar imports extra
   return (
     <>
       <tr style={showMalo ? { background: "rgba(254, 242, 242, .45)" } : undefined}>
         <td>{row.rowIndex}</td>
 
-        {/* Autocomplete empleado */}
         <td>
           <Autocomplete
             placeholder="DNI / Apellido / Nombre"
@@ -446,7 +428,6 @@ function FragmentRow({
             onInputChange={(txt) => {
               setEmpOpenIdx(idx);
               setEmpQuery(txt);
-              // permitir escribir aunque no seleccione
               updateRow(idx, { apellidos_nombres: txt, empleado: null });
             }}
             onSelect={(emp) => {
@@ -461,7 +442,6 @@ function FragmentRow({
           />
         </td>
 
-        {/* Puesto (auto, pero editable si quieres) */}
         <td>
           <input
             className="ins-input"
@@ -473,14 +453,11 @@ function FragmentRow({
 
         {EPP_COLUMNS.map((c) => (
           <td key={`${row.rowIndex}-${c.key}`}>
-            {(() => {
-              const tone = getEppTone(row.epps?.[c.key]);
-              return (
             <select
               className="ins-input"
               value={row.epps?.[c.key] || ""}
               onChange={(e) => updateEppState(idx, c.key, e.target.value)}
-              style={tone || undefined}
+              style={getEppTone(row.epps?.[c.key]) || undefined}
             >
               {ESTADO_OPTIONS.map((opt) => (
                 <option key={opt || "empty"} value={opt}>
@@ -488,52 +465,39 @@ function FragmentRow({
                 </option>
               ))}
             </select>
-              );
-            })()}
           </td>
         ))}
 
         <td>
           <Button type="button" variant="outline" onClick={() => removeRow(idx)}>
-            ✕
+            X
           </Button>
         </td>
       </tr>
 
-      
       {showMalo ? (
         <tr>
-          <td colSpan={3 + EPP_COLUMNS.length + 1} style={{ padding: 0 }}>
+          <td colSpan={EPP_COLUMNS.length + 4} style={{ padding: 0 }}>
             <div
-              className="ins-action"
               style={{
-                margin: "8px 0 12px",
-                background: "#fff8f8",
-                border: "1px solid rgba(239, 68, 68, .24)",
-                boxShadow: "inset 0 0 0 1px rgba(255,255,255,.65)",
+                marginTop: 10,
+                padding: 10,
+                border: "1px solid #f3c6c6",
+                borderRadius: 12,
+                background: "#fff5f5",
               }}
             >
-              <div className="ins-action-title">
-                Fila {row.rowIndex}: Observación y Plan de acción (obligatorio por MALO)
-              </div>
+              <div style={{ fontWeight: 900, color: "#b91c1c" }}>Observación (obligatoria)</div>
+              <textarea
+                className={`ins-note-input ${errors[`row:${idx}:obs`] ? "is-error" : ""}`}
+                rows={2}
+                value={row.observaciones}
+                onChange={(e) => updateRow(idx, { observaciones: e.target.value })}
+                placeholder="Detalla observaciones y medidas correctivas..."
+              />
+              {errors[`row:${idx}:obs`] ? <div className="ins-error">{errors[`row:${idx}:obs`]}</div> : null}
 
-              <label className="ins-field">
-                <span style={{ fontWeight: 900, color: "#b91c1c" }}>
-                  Observación (obligatoria)
-                </span>
-                <textarea
-                  className={`ins-note-input ${errors[`row:${idx}:obs`] ? "is-error" : ""}`}
-                  rows={2}
-                  value={row.observaciones}
-                  onChange={(e) => updateRow(idx, { observaciones: e.target.value })}
-                  placeholder="Detalla observaciones y medidas correctivas..."
-                />
-                {errors[`row:${idx}:obs`] ? <div className="ins-error">{errors[`row:${idx}:obs`]}</div> : null}
-              </label>
-
-              <div className="ins-action-title" style={{ marginTop: 10 }}>
-                Plan de acción (obligatorio)
-              </div>
+              <div style={{ marginTop: 10, fontWeight: 900 }}>Plan de acción (obligatorio)</div>
 
               <div className="ins-grid">
                 <label className="ins-field">
