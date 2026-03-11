@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { clearToken, getUser } from "../auth/auth.storage.js";
+import { clearToken, getUser, setUser } from "../auth/auth.storage.js";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -84,7 +84,7 @@ export default function InspeccionNueva() {
   const q = useQuery();
   const navigate = useNavigate();
   const plantillaId = Number(q.get("plantilla"));
-  const user = useMemo(() => getUser(), []);
+  const [user, setUserState] = useState(() => getUser());
   const online = useOnlineStatus();
 
   const [loadingDef, setLoadingDef] = useState(false);
@@ -196,6 +196,24 @@ export default function InspeccionNueva() {
       alive = false;
     };
   }, [navigate]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await http.get("/api/usuarios/me");
+        if (!alive || !data) return;
+        const mergedUser = { ...(getUser() || {}), ...data };
+        setUser(mergedUser);
+        setUserState(mergedUser);
+      } catch {
+        // mantiene el usuario local si /me falla
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const rendererType = pickRendererType(def);
   const hasChecklistItems = Boolean(def?.items?.length || def?.json?.secciones?.length);

@@ -14,6 +14,15 @@ import {
 } from "../../api/busquedas.api";
 
 const DEBOUNCE_MS = 250;
+const API_BASE = String(import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
+
+function buildFirmaUrl(raw) {
+  const path = String(raw || "").trim();
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith("/")) return `${API_BASE}${path}`;
+  return `${API_BASE}/storage/firmas/${path}`;
+}
 
 function buildNombreCreador(user) {
   const nombres = String(user?.nombres ?? "").trim();
@@ -570,7 +579,7 @@ export default function InspeccionHeaderForm({
                     <td>
                       {value?.firma_ruta ? (
                         <img
-                          src={value.firma_ruta}
+                          src={buildFirmaUrl(value.firma_ruta)}
                           alt="Firma creador"
                           className="firma-img"
                         />
@@ -592,7 +601,7 @@ export default function InspeccionHeaderForm({
 
                       <td>{p?.cargo || "-"}</td>
 
-                      <td>{p?.firma_url ? <img src={p.firma_url} alt="Firma inspector" className="firma-img" /> : "-"}</td>
+                      <td>{p?.firma_url ? <img src={buildFirmaUrl(p.firma_url)} alt="Firma inspector" className="firma-img" /> : "-"}</td>
 
                       <td>
                         <button

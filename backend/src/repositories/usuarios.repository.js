@@ -1,5 +1,13 @@
 import { sql, getPool } from "../config/database.js";
 
+function normalizeFirmaRuta(raw) {
+  const path = String(raw || "").trim();
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith("/")) return path;
+  return `/storage/firmas/${path}`;
+}
+
 function normalizeDni(dni) {
   return String(dni ?? "").trim();
 }
@@ -19,6 +27,67 @@ async function getColumns(schema, tableOrView) {
   } catch {
     return new Set();
   }
+}
+
+async function getCargoCatalogConfig() {
+  const pool = await getPool();
+  const result = await pool.request().query(`
+    SELECT TABLE_NAME, COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'SSOMA'
+      AND (
+        TABLE_NAME LIKE '%CARGO%'
+        OR COLUMN_NAME IN ('id_cargo', 'nombre_cargo', 'desc_cargo', 'nombre', 'descripcion')
+      );
+  `);
+
+  const grouped = new Map();
+  for (const row of result.recordset || []) {
+    const table = String(row.TABLE_NAME || "").trim();
+    const column = String(row.COLUMN_NAME || "").trim().toLowerCase();
+    if (!table) continue;
+    if (!grouped.has(table)) grouped.set(table, new Set());
+    grouped.get(table).add(column);
+  }
+
+  const preferred = ["INS_CAT_CARGO", "CAT_CARGO", "MAE_CARGO", "EMP_CARGO"];
+  const tables = [
+    ...preferred.filter((name) => grouped.has(name)),
+    ...Array.from(grouped.keys()).filter((name) => !preferred.includes(name) && name !== "V_EMPLEADO"),
+  ];
+
+  for (const table of tables) {
+    const cols = grouped.get(table);
+    if (!cols?.has("id_cargo")) continue;
+    const labelCol =
+      cols.has("nombre_cargo") ? "nombre_cargo" :
+      cols.has("desc_cargo") ? "desc_cargo" :
+      cols.has("nombre") ? "nombre" :
+      cols.has("descripcion") ? "descripcion" :
+      null;
+
+    if (labelCol) return { table, labelCol };
+  }
+
+  return null;
+}
+
+async function resolveCargoNombre(pool, idCargo) {
+  const cleanIdCargo = String(idCargo ?? "").trim();
+  if (!cleanIdCargo) return "";
+
+  const config = await getCargoCatalogConfig();
+  if (!config) return cleanIdCargo;
+
+  const request = pool.request();
+  request.input("id_cargo", sql.NVarChar(50), cleanIdCargo);
+  const result = await request.query(`
+    SELECT TOP 1 CAST(${config.labelCol} AS NVARCHAR(150)) AS cargo
+    FROM SSOMA.${config.table}
+    WHERE LTRIM(RTRIM(CAST(id_cargo AS NVARCHAR(50)))) = LTRIM(RTRIM(@id_cargo));
+  `);
+
+  return String(result.recordset?.[0]?.cargo || "").trim() || cleanIdCargo;
 }
 
 async function list() {
@@ -135,16 +204,46 @@ async function updateFirma(id_usuario, { firma_path, firma_mime, firma_size }) {
 }
 
 async function getById(id_usuario) {
-  const query = `
-    SELECT id_usuario, dni, firma_path, firma_mime, firma_size, firma_updated_at
-    FROM SSOMA.INS_USUARIO
-    WHERE id_usuario = @id_usuario;
-  `;
   const pool = await getPool();
   const req = pool.request();
   req.input("id_usuario", sql.Int, id_usuario);
-  const result = await req.query(query);
-  return result.recordset[0] || null;
+  const result = await req.query(`
+    SELECT TOP 1
+      id_usuario,
+      dni,
+      firma_path,
+      firma_ruta,
+      firma_mime,
+      firma_size,
+      firma_updated_at
+    FROM SSOMA.INS_USUARIO
+    WHERE id_usuario = @id_usuario;
+  `);
+  const row = result.recordset[0] || null;
+  if (!row) return null;
+
+  const empleados = await buscarEmpleados(String(row.dni || "").trim());
+  const empleado = Array.isArray(empleados)
+    ? empleados.find((it) => String(it?.dni || "").trim() === String(row.dni || "").trim())
+    : null;
+
+  const cargo =
+    String(empleado?.cargo || "").trim() ||
+    await resolveCargoNombre(pool, empleado?.id_cargo);
+
+  const firmaPathRaw = row.firma_path || row.firma_ruta || empleado?.firma_ruta || "";
+
+  return {
+    ...row,
+    nombres: empleado?.nombres || "",
+    apellido_paterno: empleado?.apellido_paterno || "",
+    apellido_materno: empleado?.apellido_materno || "",
+    apellidos: empleado?.apellidos || "",
+    nombreCompleto: empleado?.nombreCompleto || "",
+    cargo,
+    firma_path: normalizeFirmaRuta(firmaPathRaw),
+    firma_ruta: normalizeFirmaRuta(firmaPathRaw),
+  };
 }
 
 async function buscar(q) {
@@ -196,6 +295,7 @@ async function buscarEmpleados(q) {
     cols.has("cargo") ? "cargo" :
     cols.has("desc_cargo") ? "desc_cargo" :
     cols.has("nombre_cargo") ? "nombre_cargo" : null;
+  const cIdCargo = cols.has("id_cargo") ? "id_cargo" : null;
 
   if (!cDni) return [];
 
@@ -206,6 +306,7 @@ async function buscarEmpleados(q) {
     cApellidoMaterno ? `${cApellidoMaterno} AS apellido_materno` : `CAST('' AS NVARCHAR(150)) AS apellido_materno`,
     cApellidos ? `${cApellidos} AS apellidos` : `CAST('' AS NVARCHAR(150)) AS apellidos`,
     cCargo ? `${cCargo} AS cargo` : `CAST('' AS NVARCHAR(150)) AS cargo`,
+    cIdCargo ? `CAST(${cIdCargo} AS NVARCHAR(50)) AS id_cargo` : `CAST('' AS NVARCHAR(50)) AS id_cargo`,
   ];
 
   const like = `%${String(q || "").trim()}%`;
@@ -233,7 +334,29 @@ async function buscarEmpleados(q) {
     ${orderSql};
   `);
 
-  return result.recordset || [];
+  return Promise.all((result.recordset || []).map(async (row) => {
+    const nombres = String(row.nombres || "").trim();
+    const apellido_paterno = String(row.apellido_paterno || "").trim();
+    const apellido_materno = String(row.apellido_materno || "").trim();
+    const apellidos = String(row.apellidos || "").trim();
+    const cargoRaw = String(row.cargo || "").trim();
+    const cargo = cargoRaw || await resolveCargoNombre(pool, row.id_cargo);
+    const nombreCompleto =
+      [nombres, apellido_paterno, apellido_materno].filter(Boolean).join(" ").trim() ||
+      [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+      String(row.dni || "").trim();
+
+    return {
+      dni: String(row.dni || "").trim(),
+      nombres,
+      apellido_paterno,
+      apellido_materno,
+      apellidos,
+      id_cargo: String(row.id_cargo || "").trim(),
+      cargo,
+      nombreCompleto,
+    };
+  }));
 }
 
 async function findByDni(dni) {
