@@ -110,6 +110,8 @@ async function login({ dni, password }, reqMeta = {}) {
     rol: user.rol,
     debe_cambiar_password: !!user.debe_cambiar_password || isExpired(user),
     nombres: empleado?.nombres || "",
+    apellido_paterno: empleado?.apellido_paterno || "",
+    apellido_materno: empleado?.apellido_materno || "",
     apellidos: empleado?.apellidos || "",
     nombreCompleto: empleado?.nombreCompleto || user.dni,
     cargo: empleado?.cargo || "",

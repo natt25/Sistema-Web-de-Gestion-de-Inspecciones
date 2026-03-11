@@ -15,6 +15,22 @@ import {
 
 const DEBOUNCE_MS = 250;
 
+function buildNombreCreador(user) {
+  const nombres = String(user?.nombres ?? "").trim();
+  const apellidoPaterno = String(user?.apellido_paterno ?? "").trim();
+  const apellidoMaterno = String(user?.apellido_materno ?? "").trim();
+  const apellidos = String(user?.apellidos ?? "").trim();
+  const nombre = String(user?.nombre ?? "").trim();
+  const dni = String(user?.dni ?? "").trim();
+
+  return (
+    [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ").trim() ||
+    [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+    nombre ||
+    dni
+  );
+}
+
 function normalizeClienteId(value) {
   const text = String(value ?? "").trim();
   return text || null;
@@ -111,11 +127,20 @@ export default function InspeccionHeaderForm({
 
   const userDefaults = useMemo(
     () => ({
-      realizadoPor: user?.nombreCompleto || user?.nombre || user?.dni || "",
+      realizadoPor: buildNombreCreador(user),
       cargo: user?.cargo || "",
       firmaRuta: user?.firma_ruta || "",
     }),
-    [user?.nombreCompleto, user?.nombre, user?.dni, user?.cargo, user?.firma_ruta]
+    [
+      user?.nombres,
+      user?.apellido_paterno,
+      user?.apellido_materno,
+      user?.apellidos,
+      user?.nombre,
+      user?.dni,
+      user?.cargo,
+      user?.firma_ruta,
+    ]
   );
 
   const canServicio = true;

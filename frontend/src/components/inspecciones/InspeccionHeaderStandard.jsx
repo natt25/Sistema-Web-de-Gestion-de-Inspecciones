@@ -13,6 +13,22 @@ import {
   crearLugar,
 } from "../../api/busquedas.api";
 
+function buildNombreCreador(user) {
+  const nombres = String(user?.nombres ?? "").trim();
+  const apellidoPaterno = String(user?.apellido_paterno ?? "").trim();
+  const apellidoMaterno = String(user?.apellido_materno ?? "").trim();
+  const apellidos = String(user?.apellidos ?? "").trim();
+  const nombre = String(user?.nombre ?? "").trim();
+  const dni = String(user?.dni ?? "").trim();
+
+  return (
+    [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ").trim() ||
+    [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+    nombre ||
+    dni
+  );
+}
+
 export default function InspeccionHeaderStandard({ value, onChange, user }) {
   // value: { empleado, cargo, firma_ruta, cliente, servicio, area, lugar, fecha_inspeccion }
 
@@ -43,8 +59,9 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
     if (!user) return;
     if (!value.empleado) {
       // user debería tener dni + nombre + cargo + firma_ruta guardado en auth.storage
-      setField("empleado", { dni: user.dni, nombre: user.nombre });
-      setQEmp(user.nombre || user.dni || "");
+      const nombreCreador = buildNombreCreador(user);
+      setField("empleado", { dni: user.dni, nombre: nombreCreador });
+      setQEmp(nombreCreador || user.dni || "");
     }
     if (!value.cargo && user.cargo) {
       setField("cargo", { id_cargo: user.id_cargo, nombre_cargo: user.cargo });

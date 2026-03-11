@@ -101,6 +101,18 @@ async function getEmpleadoProfileByDni(dni) {
     cols.has("nombre") ? "nombre" :
     cols.has("nombres_empleado") ? "nombres_empleado" : null;
 
+  const colApellidoPaterno =
+    cols.has("apellido_paterno") ? "apellido_paterno" :
+    cols.has("ape_paterno") ? "ape_paterno" :
+    cols.has("ape_pat") ? "ape_pat" :
+    cols.has("apepat") ? "apepat" : null;
+
+  const colApellidoMaterno =
+    cols.has("apellido_materno") ? "apellido_materno" :
+    cols.has("ape_materno") ? "ape_materno" :
+    cols.has("ape_mat") ? "ape_mat" :
+    cols.has("apemat") ? "apemat" : null;
+
   const colApellidos =
     cols.has("apellidos") ? "apellidos" :
     cols.has("apellido") ? "apellido" :
@@ -119,6 +131,8 @@ async function getEmpleadoProfileByDni(dni) {
   const selectSql = [
     `${colDni} AS dni`,
     colNombres ? `${colNombres} AS nombres` : `CAST('' AS NVARCHAR(150)) AS nombres`,
+    colApellidoPaterno ? `${colApellidoPaterno} AS apellido_paterno` : `CAST('' AS NVARCHAR(150)) AS apellido_paterno`,
+    colApellidoMaterno ? `${colApellidoMaterno} AS apellido_materno` : `CAST('' AS NVARCHAR(150)) AS apellido_materno`,
     colApellidos ? `${colApellidos} AS apellidos` : `CAST('' AS NVARCHAR(150)) AS apellidos`,
     colCargo ? `${colCargo} AS cargo` : `CAST('' AS NVARCHAR(150)) AS cargo`,
     colFirma ? `${colFirma} AS firma_ruta` : `CAST('' AS NVARCHAR(250)) AS firma_ruta`,
@@ -137,11 +151,21 @@ async function getEmpleadoProfileByDni(dni) {
   const row = result.recordset?.[0];
   if (!row) return null;
 
-  const nombreCompleto = `${row.apellidos || ""} ${row.nombres || ""}`.trim() || row.dni || "";
+  const nombres = String(row.nombres || "").trim();
+  const apellidoPaterno = String(row.apellido_paterno || "").trim();
+  const apellidoMaterno = String(row.apellido_materno || "").trim();
+  const apellidos = String(row.apellidos || "").trim();
+  const nombreCompleto =
+    [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ").trim() ||
+    [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+    row.dni ||
+    "";
   return {
     dni: row.dni || String(dni),
-    nombres: row.nombres || "",
-    apellidos: row.apellidos || "",
+    nombres,
+    apellido_paterno: apellidoPaterno,
+    apellido_materno: apellidoMaterno,
+    apellidos,
     nombreCompleto,
     cargo: row.cargo || "",
     firma_ruta: row.firma_ruta || "",
