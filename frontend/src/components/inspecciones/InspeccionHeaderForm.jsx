@@ -300,7 +300,6 @@ export default function InspeccionHeaderForm({
                 setQCliente(txt);
                 onChange((prev) => ({
                   ...(prev || {}),
-                  id_cliente: null,
                   cliente_text: txt,
                 }));
               }}
@@ -338,7 +337,6 @@ export default function InspeccionHeaderForm({
                 setQServicio(txt);
                 onChange((prev) => ({
                   ...(prev || {}),
-                  id_servicio: null,
                   servicio_text: txt,
                 }));
               }}

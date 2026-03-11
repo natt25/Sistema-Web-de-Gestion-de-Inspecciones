@@ -282,7 +282,17 @@ export default function InspeccionNueva() {
         return;
       }
 
+      const hasCliente = Boolean(cabeceraPayload.id_cliente && String(cabeceraPayload.id_cliente).trim());
+      const hasServicio = Boolean(cabeceraPayload.id_servicio && Number(cabeceraPayload.id_servicio));
       const hasOtro = Boolean(cabeceraPayload.id_otro);
+
+      if (!hasOtro && hasCliente !== hasServicio) {
+        const msg = "Debes seleccionar Cliente y Servicio juntos desde la lista.";
+        setError(msg);
+        alert(msg);
+        return;
+      }
+
       const hasClienteOrServicio = Boolean(cabeceraPayload.id_cliente || cabeceraPayload.id_servicio);
       if (hasOtro && hasClienteOrServicio) {
         const msg = "Si usas id_otro, no debes enviar Cliente ni Servicio.";

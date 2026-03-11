@@ -4,10 +4,19 @@ import plantillasRepo from "../repositories/plantillas.repository.js";
 import usuariosService from "./usuarios.service.js";
 
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
-  // UI desacoplada: Cliente y Servicio pueden venir en cualquier combinacion
-  // mientras NO se mezcle con id_otro.
-  if (id_otro != null) return (id_cliente == null) && (id_servicio == null);
-  return true;
+  const hasOtro = id_otro != null;
+  const hasCliente = id_cliente != null && String(id_cliente).trim() !== "";
+  const hasServicio = id_servicio != null && Number(id_servicio) > 0;
+
+  // Regla compatible con CK_INS_INSPECCION_CATALOGO_O_OTRO:
+  // 1) o se usa id_otro solo
+  // 2) o se usa cliente + servicio juntos
+  // 3) no se permite mezcla
+  if (hasOtro) {
+    return !hasCliente && !hasServicio;
+  }
+
+  return hasCliente && hasServicio;
 }
 
 async function crearInspeccionCabecera({ user, body }) {
@@ -43,7 +52,7 @@ async function crearInspeccionCabecera({ user, body }) {
     return {
       ok: false,
       status: 400,
-      message: "Regla invalida: id_otro no puede combinarse con id_cliente/id_servicio.",
+      message: "Debes enviar Cliente y Servicio juntos, o usar id_otro. No se permiten combinaciones parciales.",
     };
   }
   // Nota: si la BD tiene un CHECK que obligue cliente+servicio juntos, el INSERT podria fallar.
@@ -382,6 +391,10 @@ async function crearInspeccionCompleta({ user, body }) {
     id_usuario: user?.id_usuario ?? null,
   };
 
+  if (!validarCatalogoVsOtro(cabeceraToSave)) {
+    return badRequest("Debes completar Cliente y Servicio juntos, o usar id_otro.");
+  }
+
   const participantesNormalizados = await ensureInspectorUsers(participantes);
 
   const json_respuestas = JSON.stringify({
@@ -419,7 +432,7 @@ async function crearInspeccionCompleta({ user, body }) {
       });
     }
   }
-
+  
   return {
     ok: true,
     status: 201,
