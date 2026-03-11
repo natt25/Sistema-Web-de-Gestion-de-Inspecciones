@@ -108,6 +108,36 @@ function extractCargo(emp) {
   );
 }
 
+function getEppTone(value) {
+  const estado = String(value || "").trim().toUpperCase();
+  if (estado === "BUENO") {
+    return {
+      background: "#ecfdf3",
+      borderColor: "#34d399",
+      color: "#065f46",
+      fontWeight: 800,
+    };
+  }
+  if (estado === "MALO") {
+    return {
+      background: "#fef2f2",
+      borderColor: "#f87171",
+      color: "#991b1b",
+      fontWeight: 900,
+      boxShadow: "0 0 0 3px rgba(248,113,113,.14)",
+    };
+  }
+  if (estado === "NA") {
+    return {
+      background: "#f3f4f6",
+      borderColor: "#9ca3af",
+      color: "#374151",
+      fontWeight: 700,
+    };
+  }
+  return null;
+}
+
 function mapInitialRows(rows) {
   // si ya vienen filas, respétalas; si no, empieza con 5
   const n = Array.isArray(rows) && rows.length ? rows.length : DEFAULT_ROWS;
@@ -141,6 +171,10 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   const [empQuery, setEmpQuery] = useState("");
   const [empOptions, setEmpOptions] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
+  const [whoOpenIdx, setWhoOpenIdx] = useState(null);
+  const [whoQuery, setWhoQuery] = useState("");
+  const [whoOptions, setWhoOptions] = useState([]);
+  const [whoLoading, setWhoLoading] = useState(false);
 
   const filled = useMemo(() => rows.filter((r) => rowHasAnyData(r)).length, [rows]);
 
@@ -178,7 +212,14 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   }
 
   function removeRow(idx) {
-    setRows((prev) => reindexRows(prev.filter((_, i) => i !== idx)));
+    setRows((prev) => {
+      const row = prev[idx];
+      if (rowHasAnyData(row)) {
+        const ok = window.confirm("La fila tiene datos. ¿Deseas eliminarla?");
+        if (!ok) return prev;
+      }
+      return reindexRows(prev.filter((_, i) => i !== idx));
+    });
   }
 
   function validateAll() {
@@ -255,6 +296,39 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
     };
   }, [empQuery, empOpenIdx]);
 
+  useEffect(() => {
+    if (whoOpenIdx == null) return;
+
+    const q = String(whoQuery || "").trim();
+    if (!q) {
+      setWhoOptions([]);
+      setWhoLoading(false);
+      return;
+    }
+
+    let alive = true;
+    setWhoLoading(true);
+
+    const t = setTimeout(async () => {
+      try {
+        const list = await buscarEmpleados(q);
+        if (!alive) return;
+        setWhoOptions(Array.isArray(list) ? list : []);
+      } catch (err) {
+        if (!alive) return;
+        console.error("[TablaEppsForm] buscarEmpleados(quien) error", err);
+        setWhoOptions([]);
+      } finally {
+        if (alive) setWhoLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [whoQuery, whoOpenIdx]);
+
   return (
     <form onSubmit={handleSubmit} className="ins-form">
       <div className="ins-header">
@@ -304,6 +378,12 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
                   setEmpQuery={setEmpQuery}
                   empOptions={empOptions}
                   empLoading={empLoading}
+                  whoOpenIdx={whoOpenIdx}
+                  setWhoOpenIdx={setWhoOpenIdx}
+                  whoQuery={whoQuery}
+                  setWhoQuery={setWhoQuery}
+                  whoOptions={whoOptions}
+                  whoLoading={whoLoading}
                 />
               );
             })}
@@ -338,11 +418,17 @@ function FragmentRow({
   setEmpQuery,
   empOptions,
   empLoading,
+  whoOpenIdx,
+  setWhoOpenIdx,
+  whoQuery,
+  setWhoQuery,
+  whoOptions,
+  whoLoading,
 }) {
   // NOTE: usamos un wrapper sin importar React.Fragment para evitar imports extra
   return (
     <>
-      <tr>
+      <tr style={showMalo ? { background: "rgba(254, 242, 242, .45)" } : undefined}>
         <td>{row.rowIndex}</td>
 
         {/* Autocomplete empleado */}
@@ -387,10 +473,14 @@ function FragmentRow({
 
         {EPP_COLUMNS.map((c) => (
           <td key={`${row.rowIndex}-${c.key}`}>
+            {(() => {
+              const tone = getEppTone(row.epps?.[c.key]);
+              return (
             <select
               className="ins-input"
               value={row.epps?.[c.key] || ""}
               onChange={(e) => updateEppState(idx, c.key, e.target.value)}
+              style={tone || undefined}
             >
               {ESTADO_OPTIONS.map((opt) => (
                 <option key={opt || "empty"} value={opt}>
@@ -398,6 +488,8 @@ function FragmentRow({
                 </option>
               ))}
             </select>
+              );
+            })()}
           </td>
         ))}
 
@@ -412,7 +504,15 @@ function FragmentRow({
       {showMalo ? (
         <tr>
           <td colSpan={3 + EPP_COLUMNS.length + 1} style={{ padding: 0 }}>
-            <div className="ins-action" style={{ margin: "10px 0" }}>
+            <div
+              className="ins-action"
+              style={{
+                margin: "8px 0 12px",
+                background: "#fff8f8",
+                border: "1px solid rgba(239, 68, 68, .24)",
+                boxShadow: "inset 0 0 0 1px rgba(255,255,255,.65)",
+              }}
+            >
               <div className="ins-action-title">
                 Fila {row.rowIndex}: Observación y Plan de acción (obligatorio por MALO)
               </div>
@@ -449,11 +549,28 @@ function FragmentRow({
 
                 <label className="ins-field">
                   <span>Quién</span>
-                  <input
-                    className={`ins-input ${errors[`row:${idx}:quien`] ? "is-error" : ""}`}
-                    value={row.accion?.quien || ""}
-                    onChange={(e) => updateRow(idx, { accion: { ...(row.accion || {}), quien: e.target.value } })}
+                  <Autocomplete
                     placeholder="DNI / Apellido / Nombre"
+                    displayValue={row.accion?.quien || ""}
+                    options={whoOpenIdx === idx ? whoOptions : []}
+                    loading={whoOpenIdx === idx ? whoLoading : false}
+                    getOptionLabel={buildEmpleadoOptionLabel}
+                    onFocus={() => {
+                      setWhoOpenIdx(idx);
+                      setWhoQuery(row.accion?.quien || "");
+                    }}
+                    onInputChange={(txt) => {
+                      setWhoOpenIdx(idx);
+                      setWhoQuery(txt);
+                      updateRow(idx, { accion: { ...(row.accion || {}), quien: txt } });
+                    }}
+                    onSelect={(emp) => {
+                      const nombreCompleto = buildEmpleadoNombreCompleto(emp);
+                      setWhoQuery(nombreCompleto);
+                      updateRow(idx, {
+                        accion: { ...(row.accion || {}), quien: nombreCompleto },
+                      });
+                    }}
                   />
                   {errors[`row:${idx}:quien`] ? <div className="ins-error">{errors[`row:${idx}:quien`]}</div> : null}
                 </label>
