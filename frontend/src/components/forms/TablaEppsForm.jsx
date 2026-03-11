@@ -72,6 +72,30 @@ function normalizeEmpleadoLabel(emp) {
   return dni ? `${dni} - ${labelBase}`.trim() : labelBase;
 }
 
+function buildEmpleadoNombreCompleto(emp) {
+  if (!emp) return "";
+
+  const apellidoPaterno = String(emp?.apellido_paterno ?? "").trim();
+  const apellidoMaterno = String(emp?.apellido_materno ?? "").trim();
+  const apellidos = String(emp?.apellidos ?? emp?.apellido ?? "").trim();
+  const nombres = String(emp?.nombres ?? emp?.nombre ?? "").trim();
+  const full = String(
+    emp?.apellidos_nombres ?? emp?.label ?? emp?.nombreCompleto ?? ""
+  ).trim();
+
+  return (
+    [apellidoPaterno, apellidoMaterno, nombres].filter(Boolean).join(" ").trim() ||
+    [apellidos, nombres].filter(Boolean).join(" ").trim() ||
+    full
+  );
+}
+
+function buildEmpleadoOptionLabel(emp) {
+  const dni = String(emp?.dni ?? "").trim();
+  const nombreCompleto = buildEmpleadoNombreCompleto(emp);
+  return dni ? `${dni} - ${nombreCompleto}`.trim() : nombreCompleto;
+}
+
 function extractCargo(emp) {
   // prueba campos típicos
   return (
@@ -328,7 +352,7 @@ function FragmentRow({
             displayValue={row.apellidos_nombres}
             options={empOpenIdx === idx ? empOptions : []}
             loading={empOpenIdx === idx ? empLoading : false}
-            getOptionLabel={(it) => normalizeEmpleadoLabel(it)}
+            getOptionLabel={buildEmpleadoOptionLabel}
             onFocus={() => {
               setEmpOpenIdx(idx);
               setEmpQuery(row.apellidos_nombres || "");
@@ -340,7 +364,7 @@ function FragmentRow({
               updateRow(idx, { apellidos_nombres: txt, empleado: null });
             }}
             onSelect={(emp) => {
-              const label = normalizeEmpleadoLabel(emp);
+              const label = buildEmpleadoNombreCompleto(emp);
               const cargo = extractCargo(emp);
               updateRow(idx, {
                 empleado: emp,
