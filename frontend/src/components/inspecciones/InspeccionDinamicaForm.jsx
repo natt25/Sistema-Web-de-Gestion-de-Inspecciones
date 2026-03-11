@@ -5,6 +5,29 @@ import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
 import TablaCamillaForm from "../forms/TablaCamillaForm.jsx";
 
+function buildResponsableNombreCompleto(e) {
+  return (
+    String(e?.nombreCompleto ?? "").trim() ||
+    [e?.nombres, e?.apellido_paterno, e?.apellido_materno]
+      .map((part) => String(part ?? "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    [e?.nombres, e?.apellidos]
+      .map((part) => String(part ?? "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    String(e?.dni ?? "").trim()
+  );
+}
+
+function buildResponsableOptionLabel(e) {
+  const nombreCompleto = buildResponsableNombreCompleto(e);
+  const dni = String(e?.dni ?? "").trim();
+  return dni ? `${nombreCompleto} (${dni})` : nombreCompleto;
+}
+
 export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit }) {
   const sections = useMemo(() => {
     if (Array.isArray(definicion?.secciones) && definicion.secciones.length) {
@@ -274,12 +297,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                           placeholder="DNI / Apellido / Nombre"
                           displayValue={act.quien || ""}
                           options={respOptions[key] || []}
-                          getOptionLabel={(e) => {
-                            const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                            const dni = e.dni ? `(${e.dni})` : "";
-                            const cargo = e.cargo ? `- ${e.cargo}` : "";
-                            return `${nom} ${dni} ${cargo}`.trim();
-                          }}
+                          getOptionLabel={buildResponsableOptionLabel}
                           onFocus={async () => {
                             try {
                               const rows = await buscarEmpleados("");
@@ -313,17 +331,16 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                             }
                           }}
                           onSelect={(e) => {
-                            const nombre = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                            const label = `${nombre}${e.dni ? ` (${e.dni})` : ""}`;
+                            const nombreCompleto = buildResponsableNombreCompleto(e);
                             setActions((p) => ({
                               ...p,
                               [key]: {
                                 ...act,
-                                quien: label,
+                                quien: nombreCompleto,
                                 responsable: {
                                   tipo: "INTERNO",
                                   dni: e.dni || "",
-                                  nombre: nombre || e.dni || "",
+                                  nombre: nombreCompleto || e.dni || "",
                                   cargo: e.cargo || "",
                                 },
                               },

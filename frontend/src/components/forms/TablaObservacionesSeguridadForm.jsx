@@ -5,6 +5,29 @@ import { serializeObservacionesAccionesRows } from "../../utils/plantillaRendere
 
 const RISK_OPTIONS = ["BAJO", "MEDIO", "ALTO"];
 
+function buildResponsableNombreCompleto(e) {
+  return (
+    String(e?.nombreCompleto ?? "").trim() ||
+    [e?.nombres, e?.apellido_paterno, e?.apellido_materno]
+      .map((part) => String(part ?? "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    [e?.nombres, e?.apellidos]
+      .map((part) => String(part ?? "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    String(e?.dni ?? "").trim()
+  );
+}
+
+function buildResponsableOptionLabel(e) {
+  const nombreCompleto = buildResponsableNombreCompleto(e);
+  const dni = String(e?.dni ?? "").trim();
+  return dni ? `${nombreCompleto} (${dni})` : nombreCompleto;
+}
+
 function createEmptyRow() {
   return {
     observacion: "",
@@ -216,12 +239,7 @@ export default function TablaObservacionesSeguridadForm({
                     placeholder="DNI / Apellido / Nombre"
                     displayValue={row.responsable || ""}
                     options={respOptions[idx] || []}
-                    getOptionLabel={(e) => {
-                      const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                      const dni = e.dni ? `(${e.dni})` : "";
-                      const cargo = e.cargo ? `- ${e.cargo}` : "";
-                      return `${nom} ${dni} ${cargo}`.trim();
-                    }}
+                    getOptionLabel={buildResponsableOptionLabel}
                     onFocus={async () => {
                       const items = await buscarEmpleados?.("");
                       setRespOptions((prev) => ({ ...prev, [idx]: Array.isArray(items) ? items : [] }));
@@ -232,13 +250,12 @@ export default function TablaObservacionesSeguridadForm({
                       setRespOptions((prev) => ({ ...prev, [idx]: Array.isArray(items) ? items : [] }));
                     }}
                     onSelect={(e) => {
-                      const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                      const label = `${nom}${e.dni ? ` (${e.dni})` : ""}`;
+                      const nombreCompleto = buildResponsableNombreCompleto(e);
                       updateRow(idx, {
-                        responsable: label,
+                        responsable: nombreCompleto,
                         responsable_data: {
                           dni: e.dni || "",
-                          nombre: nom || e.dni || "",
+                          nombre: nombreCompleto || e.dni || "",
                           cargo: e.cargo || "",
                         },
                       });
