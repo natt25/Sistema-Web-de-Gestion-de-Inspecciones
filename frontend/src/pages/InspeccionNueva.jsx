@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearToken, getUser } from "../auth/auth.storage.js";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -101,8 +101,18 @@ export default function InspeccionNueva() {
     lugares: [],
   });
   const [cabecera, setCabecera] = useState(CABECERA_EMPTY);
+  const cabeceraRef = useRef(CABECERA_EMPTY);
   const [uiNotice, setUiNotice] = useState("");
   const [tablaRows, setTablaRows] = useState([]);
+
+  const updateCabecera = useCallback((nextOrUpdater) => {
+    setCabecera((prev) => {
+      const next =
+        typeof nextOrUpdater === "function" ? nextOrUpdater(prev) : nextOrUpdater;
+      cabeceraRef.current = next;
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (plantillaId === 1) {
@@ -111,11 +121,16 @@ export default function InspeccionNueva() {
   }, [plantillaId, navigate]);
 
   useEffect(() => {
+    cabeceraRef.current = CABECERA_EMPTY;
     setCabecera(CABECERA_EMPTY);
     setUiNotice("");
     setError("");
     setWarning("");
   }, [plantillaId]);
+
+  useEffect(() => {
+    cabeceraRef.current = cabecera;
+  }, [cabecera]);
 
   useEffect(() => {
     let alive = true;
@@ -229,7 +244,7 @@ export default function InspeccionNueva() {
   }, []);
 
   const handleAddParticipante = useCallback((p) => {
-    setCabecera((prev) => {
+    updateCabecera((prev) => {
       const dni = String(p?.dni ?? "").trim();
       const prevList = Array.isArray(prev?.participantes) ? prev.participantes : [];
       const exists = dni && prevList.some((x) => String(x?.dni ?? "").trim() === dni);
@@ -242,19 +257,20 @@ export default function InspeccionNueva() {
       queueMicrotask(() => setUiNotice(""));
       return { ...prev, participantes: [...prevList, p] };
     });
-  }, []);
+  }, [updateCabecera]);
 
   const handleRemoveParticipante = useCallback((idx) => {
     setUiNotice("");
-    setCabecera((prev) => ({
+    updateCabecera((prev) => ({
       ...prev,
       participantes: (prev.participantes || []).filter((_, i) => i !== idx),
     }));
-  }, []);
+  }, [updateCabecera]);
 
   const handleSubmit = useCallback(
     async (payload) => {
       setUiNotice("");
+      const currentCabecera = cabeceraRef.current || CABECERA_EMPTY;
 
       let respuestas = Array.isArray(payload?.respuestas) ? payload.respuestas : [];
       if (payload?.__tipo === "tabla_botiquin") {
@@ -262,18 +278,25 @@ export default function InspeccionNueva() {
       }
 
       const cabeceraPayload = {
-        ...cabecera,
+        ...currentCabecera,
         id_plantilla_inspec: Number(plantillaId),
-        id_cliente: cabecera.id_cliente ? String(cabecera.id_cliente).trim() : null,
-        id_servicio: cabecera.id_servicio ? Number(cabecera.id_servicio) : null,
-        id_area: cabecera.id_area ? Number(cabecera.id_area) : null,
-        id_lugar: cabecera.id_lugar ? Number(cabecera.id_lugar) : null,
-        id_otro: cabecera.id_otro ? Number(cabecera.id_otro) : null,
-        servicio_detalle: cabecera.servicio_detalle || null,
-        fecha_inspeccion: cabecera.fecha_inspeccion || "",
+        id_cliente: currentCabecera.id_cliente ? String(currentCabecera.id_cliente).trim() : null,
+        id_servicio: currentCabecera.id_servicio ? String(currentCabecera.id_servicio).trim() : null,
+        id_area: currentCabecera.id_area ? Number(currentCabecera.id_area) : null,
+        id_lugar: currentCabecera.id_lugar ? Number(currentCabecera.id_lugar) : null,
+        id_otro: currentCabecera.id_otro ? Number(currentCabecera.id_otro) : null,
+        servicio_detalle: currentCabecera.servicio_detalle || null,
+        fecha_inspeccion: currentCabecera.fecha_inspeccion || "",
         id_estado_inspeccion: 1,
         id_modo_registro: 1,
       };
+
+      console.log("[InspeccionNueva] cabecera payload", {
+        id_cliente: cabeceraPayload.id_cliente,
+        id_servicio: cabeceraPayload.id_servicio,
+        cliente_text: cabeceraPayload.cliente_text,
+        servicio_text: cabeceraPayload.servicio_text,
+      });
 
       if (!cabeceraPayload.id_area) {
         const msg = "Debes completar la cabecera: falta Area (id_area).";
@@ -283,11 +306,12 @@ export default function InspeccionNueva() {
       }
 
       const hasCliente = Boolean(cabeceraPayload.id_cliente && String(cabeceraPayload.id_cliente).trim());
-      const hasServicio = Boolean(cabeceraPayload.id_servicio && Number(cabeceraPayload.id_servicio));
+      const hasServicio = Boolean(cabeceraPayload.id_servicio && String(cabeceraPayload.id_servicio).trim());
       const hasOtro = Boolean(cabeceraPayload.id_otro);
 
       if (!hasOtro && hasCliente !== hasServicio) {
-        const msg = "Debes seleccionar Cliente y Servicio juntos desde la lista.";
+        const msg =
+          "Debes seleccionar Cliente y Servicio juntos desde la lista. Verifica que ambos tengan un ID real.";
         setError(msg);
         alert(msg);
         return;
@@ -303,14 +327,14 @@ export default function InspeccionNueva() {
 
       const body = {
         cabecera: cabeceraPayload,
-        participantes: cabecera.participantes || [],
+        participantes: currentCabecera.participantes || [],
         respuestas,
       };
 
       try {
         if (!online) {
           await addInspeccionToQueue(body);
-          alert("Inspeccion guardada OFFLINE (pendiente de sincronizar)");
+          alert("Inspección guardada OFFLINE (pendiente de sincronizar)");
           navigate("/inspecciones");
           return;
         }
@@ -352,7 +376,7 @@ export default function InspeccionNueva() {
         }
       }
     },
-    [cabecera, plantillaId, online, navigate]
+    [plantillaId, online, navigate]
   );
 
   const renderFormByTipo = useCallback(() => {
@@ -501,7 +525,7 @@ export default function InspeccionNueva() {
             catalogos={catalogos}
             user={user}
             value={cabecera}
-            onChange={setCabecera}
+            onChange={updateCabecera}
             onAddParticipante={handleAddParticipante}
             onRemoveParticipante={handleRemoveParticipante}
           />

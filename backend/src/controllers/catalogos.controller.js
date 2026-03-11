@@ -106,7 +106,9 @@ async function buscarServicios(req, res) {
 async function buscarAreas(req, res) {
   try {
     const q = (req.query.q || "").trim();
-    const data = await service.buscarAreas(q);
+    const id_empresa = (req.query.id_empresa || "").trim();
+    const data = await service.buscarAreas(q, id_empresa);
+    
     return res.json(data);
   } catch (err) {
     console.error("catalogos.buscarAreas:", err);
@@ -129,8 +131,13 @@ async function buscarLugares(req, res) {
 async function crearArea(req, res) {
   try {
     const desc_area = (req.body?.desc_area || "").trim();
+    const id_empresa = (req.body?.id_empresa || "").trim();
+
     if (!desc_area) return res.status(400).json({ message: "desc_area requerido" });
-    const data = await service.crearArea(desc_area);
+    if (!id_empresa) return res.status(400).json({ message: "id_empresa requerido" });
+
+    const data = await service.crearArea({ desc_area, id_empresa });
+
     return res.status(201).json(data);
   } catch (err) {
     console.error("catalogos.crearArea:", err);

@@ -15,6 +15,28 @@ import {
 
 const DEBOUNCE_MS = 250;
 
+function normalizeClienteId(value) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+function normalizeServicioId(value) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+function getClienteLabel(cliente) {
+  return cliente?.raz_social ?? cliente?.nombre ?? String(cliente?.id_cliente ?? "");
+}
+
+function getServicioLabel(servicio) {
+  return (
+    servicio?.nombre_servicio ??
+    servicio?.nombre ??
+    String(servicio?.id_servicio ?? "")
+  );
+}
+
 function buildNombreCompletoEmpleado(e) {
   const apellidoPaterno = String(e?.apellido_paterno ?? "").trim();
   const apellidoMaterno = String(e?.apellido_materno ?? "").trim();
@@ -298,8 +320,9 @@ export default function InspeccionHeaderForm({
               displayValue={value?.cliente_text ?? ""}
               onInputChange={(txt) => {
                 setQCliente(txt);
-                onChange((prev) => ({
-                  ...(prev || {}),
+                applyHeaderUpdate((prev) => ({
+                  ...prev,
+                  id_cliente: txt.trim() === "" ? null : prev.id_cliente,
                   cliente_text: txt,
                 }));
               }}
@@ -309,21 +332,21 @@ export default function InspeccionHeaderForm({
               }}
               loading={loadingCliente}
               options={optClientes}
-              getOptionLabel={(c) => c.raz_social ?? String(c.id_cliente)}
-              allowCustom
-              onCreateCustom={(text) => {
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_cliente: null,
-                  cliente_text: text,
-                }));
-              }}
+              getOptionLabel={getClienteLabel}
               onSelect={(c) => {
+                const nextIdCliente = normalizeClienteId(c?.id_cliente);
+                const nextClienteText = getClienteLabel(c);
+                setQCliente(nextClienteText);
                 applyHeaderUpdate((prev) => ({
                   ...prev,
-                  id_cliente: Number(c.id_cliente),
-                  cliente_text: c.raz_social ?? "",
+                  id_cliente: nextIdCliente,
+                  cliente_text: nextClienteText,
                 }));
+                console.log("[InspeccionHeaderForm] cliente seleccionado", {
+                  raw: c,
+                  id_cliente: nextIdCliente,
+                  cliente_text: nextClienteText,
+                });
               }}
             />
           </Field>
@@ -335,8 +358,9 @@ export default function InspeccionHeaderForm({
               displayValue={value?.servicio_text ?? ""}
               onInputChange={(txt) => {
                 setQServicio(txt);
-                onChange((prev) => ({
-                  ...(prev || {}),
+                applyHeaderUpdate((prev) => ({
+                  ...prev,
+                  id_servicio: txt.trim() === "" ? null : prev.id_servicio,
                   servicio_text: txt,
                 }));
               }}
@@ -346,21 +370,21 @@ export default function InspeccionHeaderForm({
               }}
               loading={loadingServicio}
               options={optServicios}
-              getOptionLabel={(s) => s.nombre_servicio ?? String(s.id_servicio)}
-              allowCustom
-              onCreateCustom={(text) => {
-                onChange((prev) => ({
-                  ...(prev || {}),
-                  id_servicio: null,
-                  servicio_text: text,
-                }));
-              }}
+              getOptionLabel={getServicioLabel}
               onSelect={(s) => {
+                const nextIdServicio = normalizeServicioId(s?.id_servicio);
+                const nextServicioText = getServicioLabel(s);
+                setQServicio(nextServicioText);
                 applyHeaderUpdate((prev) => ({
                   ...prev,
-                  id_servicio: Number(s.id_servicio),
-                  servicio_text: s.nombre_servicio ?? "",
+                  id_servicio: nextIdServicio,
+                  servicio_text: nextServicioText,
                 }));
+                console.log("[InspeccionHeaderForm] servicio seleccionado", {
+                  raw: s,
+                  id_servicio: nextIdServicio,
+                  servicio_text: nextServicioText,
+                });
               }}
             />
 
@@ -400,7 +424,14 @@ export default function InspeccionHeaderForm({
               allowCustom
               onCreateCustom={async (text) => {
                 try {
-                  const created = await crearArea(text);
+                  if (!value?.id_cliente) {
+                    alert("Primero debes seleccionar un Cliente / Unidad Minera para crear un área.");
+                    return;
+                  }
+                  const created = await crearArea({
+                    desc_area: text,
+                    id_empresa: value?.id_cliente,
+                  });
                   onChange((prev) => ({
                     ...(prev || {}),
                     id_area: Number(created.id_area),

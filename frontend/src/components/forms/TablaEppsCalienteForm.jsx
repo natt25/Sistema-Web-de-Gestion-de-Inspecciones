@@ -313,7 +313,7 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
     <form onSubmit={handleSubmit} className="ins-form">
       <div className="ins-header">
         <div>
-          <div className="ins-title">Inspeccion de EPPs (Trabajos en caliente)</div>
+          <div className="ins-title">Inspección de EPPs (Trabajos en caliente)</div>
           <div className="ins-sub">
             Marca BUENO / MALO / N/A. Si hay MALO en una celda, completa su Observacion y Plan de accion.
           </div>

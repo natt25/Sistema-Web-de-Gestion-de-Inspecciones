@@ -37,8 +37,8 @@ async function buscarClientes(q) {
 async function buscarServicios(q) {
   return repo.buscarServicios(q);
 }
-async function buscarAreas(q) {
-  return repo.buscarAreas(q);
+async function buscarAreas(q, id_empresa) {
+  return repo.buscarAreas(q, id_empresa);
 }
 async function buscarLugares(q, idArea) {
   return repo.buscarLugares(q, idArea);
@@ -46,8 +46,8 @@ async function buscarLugares(q, idArea) {
 async function buscarEmpleados(q) {
   return repo.buscarEmpleados(q);
 }
-async function crearArea(desc_area) {
-  return repo.crearArea(desc_area);
+async function crearArea({ desc_area, id_empresa }) {
+  return repo.crearArea({ desc_area, id_empresa });
 }
 async function crearLugar(id_area, desc_lugar) {
   return repo.crearLugar(id_area, desc_lugar);

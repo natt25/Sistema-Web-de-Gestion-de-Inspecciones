@@ -31,7 +31,7 @@ async function listarPendientes({ dias = 7, solo_mias = 0, estado = "ALL", id_us
         ELSE DATEDIFF(DAY, @hoy, a.fecha_compromiso)
       END AS dias_restantes,
       CASE
-        WHEN e.nombre IS NOT NULL THEN e.nombre
+        WHEN ve.nombre_completo IS NOT NULL THEN ve.nombre_completo
         ELSE ar.externo_responsable_nombre
       END AS responsable,
       i.id_inspeccion,
@@ -43,8 +43,22 @@ async function listarPendientes({ dias = 7, solo_mias = 0, estado = "ALL", id_us
       ON ea.id_estado_accion = a.id_estado_accion
     JOIN SSOMA.INS_ACCION_RESPONSABLE ar
       ON ar.id_acc_responsable = a.id_acc_responsable
-    LEFT JOIN SSOMA.EMP_EMPLEADO e
-      ON e.dni = ar.dni
+    LEFT JOIN (
+      SELECT
+        LTRIM(RTRIM(CAST(dni AS NVARCHAR(30)))) AS dni_normalizado,
+        NULLIF(
+          LTRIM(RTRIM(CONCAT(
+            CAST(ISNULL(nombres, '') AS NVARCHAR(150)),
+            ' ',
+            CAST(ISNULL(apellido_paterno, '') AS NVARCHAR(150)),
+            ' ',
+            CAST(ISNULL(apellido_materno, '') AS NVARCHAR(150))
+          ))),
+          ''
+        ) AS nombre_completo
+      FROM SSOMA.V_EMPLEADO
+    ) ve
+      ON ve.dni_normalizado = LTRIM(RTRIM(CAST(ar.dni AS NVARCHAR(30))))
     JOIN SSOMA.INS_OBSERVACION o
       ON o.id_observacion = a.id_observacion
     JOIN SSOMA.INS_INSPECCION i
@@ -52,7 +66,7 @@ async function listarPendientes({ dias = 7, solo_mias = 0, estado = "ALL", id_us
     JOIN SSOMA.INS_PLANTILLA_INSPECCION p
       ON p.id_plantilla_inspec = i.id_plantilla_inspec
     WHERE
-      (@solo_mias = 0 OR (@dni_usuario IS NOT NULL AND ar.dni = @dni_usuario))
+      (@solo_mias = 0 OR (@dni_usuario IS NOT NULL AND LTRIM(RTRIM(CAST(ar.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))))
       AND (
         @dias IS NULL
         OR a.fecha_compromiso IS NULL

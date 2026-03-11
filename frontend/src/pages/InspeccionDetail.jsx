@@ -975,7 +975,7 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
       )}
 
       <Button variant="primary" disabled={saving || inspeccionCerrada} type="submit">
-        {inspeccionCerrada ? "Inspeccion cerrada" : saving ? "Guardando..." : "Crear accion"}
+        {inspeccionCerrada ? "Inspección cerrada" : saving ? "Guardando..." : "Crear accion"}
       </Button>
     </form>
   );
@@ -2042,7 +2042,7 @@ export default function InspeccionDetail() {
     }
   };
   return (
-    <DashboardLayout title={`Inspeccion #${id}`}>
+    <DashboardLayout title={`Inspección #${id}`}>
       <div style={{ display: "grid", gap: 12 }}>
       <Card>
         <div
@@ -2065,7 +2065,7 @@ export default function InspeccionDetail() {
       </Card>
 
       <h2 style={{ margin: 0 }}>
-        {`Inspeccion #${id} : ${nombreTipoInspeccion}`}
+        {`Inspección #${id} : ${nombreTipoInspeccion}`}
       </h2>
 
       {visiblePageError && (
@@ -2497,7 +2497,7 @@ export default function InspeccionDetail() {
             )}
 
             <Button variant="primary" disabled={savingObs || inspeccionCerrada} type="submit">
-              {inspeccionCerrada ? "Inspeccion cerrada" : savingObs ? "Guardando..." : "Crear observacion"}
+              {inspeccionCerrada ? "Inspección cerrada" : savingObs ? "Guardando..." : "Crear observacion"}
             </Button>
           </form>
         </Card>

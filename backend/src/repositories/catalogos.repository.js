@@ -116,14 +116,17 @@ async function buscarServicios(q) {
   return result.recordset;
 }
 
-async function buscarAreas(q) {
+async function buscarAreas(q, id_empresa) {
   const pool = await getPool();
   const request = pool.request();
   request.input("q", sql.VarChar, `%${q}%`);
+  request.input("id_empresa", sql.NVarChar(20), String(id_empresa || "").trim());
+
   const result = await request.query(`
     SELECT TOP (20) *
     FROM SSOMA.INS_AREA
-    WHERE desc_area LIKE @q
+    WHERE id_empresa = @id_empresa
+      AND desc_area LIKE @q
     ORDER BY desc_area;
   `);
   return result.recordset;
@@ -149,32 +152,39 @@ async function buscarLugares(q, idArea) {
   return result.recordset;
 }
 
-async function crearArea(desc_area) {
+async function crearArea({ desc_area, id_empresa }) {
   const pool = await getPool();
   const request = pool.request();
   const clean = String(desc_area || "").trim();
+  const empresa = String(id_empresa || "").trim();
+
   request.input("desc_area", sql.VarChar, clean);
+  request.input("id_empresa", sql.NVarChar(20), empresa);
 
   const result = await request.query(`
     DECLARE @desc_clean NVARCHAR(300) = LTRIM(RTRIM(@desc_area));
+    DECLARE @empresa_clean NVARCHAR(20) = LTRIM(RTRIM(@id_empresa));
 
     IF EXISTS (
       SELECT 1
       FROM SSOMA.INS_AREA
-      WHERE UPPER(LTRIM(RTRIM(desc_area))) = UPPER(@desc_clean)
+      WHERE id_empresa = @empresa_clean
+        AND UPPER(LTRIM(RTRIM(desc_area))) = UPPER(@desc_clean)
     )
     BEGIN
       SELECT TOP 1 *
       FROM SSOMA.INS_AREA
-      WHERE UPPER(LTRIM(RTRIM(desc_area))) = UPPER(@desc_clean)
+      WHERE id_empresa = @empresa_clean
+        AND UPPER(LTRIM(RTRIM(desc_area))) = UPPER(@desc_clean)
       ORDER BY id_area;
       RETURN;
     END
 
-    INSERT INTO SSOMA.INS_AREA (desc_area)
+    INSERT INTO SSOMA.INS_AREA (desc_area, id_empresa)
     OUTPUT INSERTED.*
-    VALUES (@desc_clean);
+    VALUES (@desc_clean, @empresa_clean);
   `);
+
   return result.recordset?.[0];
 }
 

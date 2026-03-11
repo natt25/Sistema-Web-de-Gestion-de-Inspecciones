@@ -286,7 +286,7 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
     <form onSubmit={handleSubmit} className="ins-form">
       <div className="ins-header">
         <div>
-          <div className="ins-title">Inspeccion de Lavaojos Portatil</div>
+          <div className="ins-title">Inspección de Lavaojos Portatil</div>
           <div className="ins-sub">
             FOR-036. Si marcas un estado como MALO, se exige Observacion + Plan de accion (Que / Quien / Cuando).
           </div>

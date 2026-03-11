@@ -171,7 +171,7 @@ function addExtintoresRowsTable(ws, respuestas) {
   const rows = getStructuredRows(respuestas, "tabla_extintores");
   if (!rows.length) return false;
 
-  ws.addRow(["Inspeccion de Extintores"]);
+  ws.addRow(["Inspección de Extintores"]);
   ws.addRow(["NÂ°", "Codigo", "Ubicacion", "Tipo", "Capacidad", "Fecha Prueba", "Presion", "Manometro", "Manguera", "Senializacion", "Observaciones", "Evidencias"]);
 
   rows.forEach((row, idx) => {
@@ -296,7 +296,7 @@ export async function exportXlsx(req, res) {
 
     const data = detail.data || {};
     if (!data?.cabecera) {
-      return res.status(404).json({ message: "Inspeccion no encontrada" });
+      return res.status(404).json({ message: "Inspección no encontrada" });
     }
 
     const wb = await buildWorkbook(data);

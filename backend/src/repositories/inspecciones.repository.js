@@ -53,6 +53,11 @@ function buildFirmaUrl(rawPath) {
   return `/storage/firmas/${path}`;
 }
 
+function normalizeCatalogText(value) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
 async function getPreferredEstadoUsuarioId(tx) {
   const rCols = await new sql.Request(tx)
     .input("schema", sql.NVarChar, "SSOMA")
@@ -241,7 +246,7 @@ async function crearInspeccionCabecera(payload) {
 
   request.input("id_otro", sql.Int, payload.id_otro ?? null);
   request.input("id_cliente", sql.NVarChar(10), payload.id_cliente ?? null);
-  request.input("id_servicio", sql.Int, payload.id_servicio ?? null);
+  request.input("id_servicio", sql.NVarChar(100), normalizeCatalogText(payload.id_servicio));
   request.input("servicio_detalle", sql.NVarChar(200), payload.servicio_detalle ?? null);
   request.input("fecha_inspeccion", sql.DateTime2, payload.fecha_inspeccion);
   request.input("id_area", sql.Int, payload.id_area);
@@ -276,8 +281,8 @@ async function listarInspecciones(filtros) {
   }
 
   if (filtros.id_servicio) {
-    where.push("i.id_servicio = @id_servicio");
-    request.input("id_servicio", sql.Int, filtros.id_servicio);
+    where.push("LTRIM(RTRIM(CAST(i.id_servicio AS NVARCHAR(100)))) = LTRIM(RTRIM(@id_servicio))");
+    request.input("id_servicio", sql.NVarChar(100), filtros.id_servicio);
   }
 
   if (filtros.id_estado_inspeccion) {
@@ -376,7 +381,8 @@ async function listarInspecciones(filtros) {
     JOIN SSOMA.INS_CAT_MODO_REGISTRO mr ON mr.id_modo_registro = i.id_modo_registro
     JOIN SSOMA.INS_PLANTILLA_INSPECCION p ON p.id_plantilla_inspec = i.id_plantilla_inspec
     LEFT JOIN SSOMA.V_CLIENTE c ON LTRIM(RTRIM(c.id_cliente)) = LTRIM(RTRIM(i.id_cliente))
-    LEFT JOIN SSOMA.V_SERVICIO s ON s.id_servicio = i.id_servicio
+    LEFT JOIN SSOMA.V_SERVICIO s
+      ON LTRIM(RTRIM(CAST(s.id_servicio AS NVARCHAR(100)))) = LTRIM(RTRIM(CAST(i.id_servicio AS NVARCHAR(100))))
     ${otroJoin}
     ${whereSql}
     ORDER BY ${fechaExpr} DESC, i.id_inspeccion DESC;
@@ -421,7 +427,8 @@ async function obtenerInspeccionPorId(id_inspeccion) {
     JOIN SSOMA.INS_CAT_MODO_REGISTRO mr ON mr.id_modo_registro = i.id_modo_registro
     JOIN SSOMA.INS_PLANTILLA_INSPECCION p ON p.id_plantilla_inspec = i.id_plantilla_inspec
     LEFT JOIN SSOMA.V_CLIENTE c ON LTRIM(RTRIM(c.id_cliente)) = LTRIM(RTRIM(i.id_cliente))
-    LEFT JOIN SSOMA.V_SERVICIO s ON s.id_servicio = i.id_servicio
+    LEFT JOIN SSOMA.V_SERVICIO s
+      ON LTRIM(RTRIM(CAST(s.id_servicio AS NVARCHAR(100)))) = LTRIM(RTRIM(CAST(i.id_servicio AS NVARCHAR(100))))
     WHERE i.id_inspeccion = @id_inspeccion;
   `;
 
@@ -797,7 +804,7 @@ async function crearInspeccionYGuardarJSON({ cabecera, json_respuestas, particip
 
     // 👇 IMPORTANTE: id_cliente es NVARCHAR(10) en tu insert actual
     req1.input("id_cliente", sql.NVarChar(10), cabecera.id_cliente ?? null);
-    req1.input("id_servicio", sql.Int, cabecera.id_servicio ?? null);
+    req1.input("id_servicio", sql.NVarChar(100), normalizeCatalogText(cabecera.id_servicio));
     req1.input("servicio_detalle", sql.NVarChar(200), cabecera.servicio_detalle ?? null);
 
     req1.input("fecha_inspeccion", sql.DateTime2, cabecera.fecha_inspeccion);

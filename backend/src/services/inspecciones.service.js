@@ -6,7 +6,7 @@ import usuariosService from "./usuarios.service.js";
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
   const hasOtro = id_otro != null;
   const hasCliente = id_cliente != null && String(id_cliente).trim() !== "";
-  const hasServicio = id_servicio != null && Number(id_servicio) > 0;
+  const hasServicio = id_servicio != null && String(id_servicio).trim() !== "";
 
   // Regla compatible con CK_INS_INSPECCION_CATALOGO_O_OTRO:
   // 1) o se usa id_otro solo
@@ -98,7 +98,7 @@ async function listarInspecciones({ query }) {
     id_cliente: query.id_cliente ? String(query.id_cliente).trim() : null,
     id_area: query.id_area ? Number(query.id_area) : null,
     id_lugar: query.id_lugar ? Number(query.id_lugar) : null,
-    id_servicio: query.id_servicio ? Number(query.id_servicio) : null,
+    id_servicio: query.id_servicio ? String(query.id_servicio).trim() : null,
     estado: query.estado ? String(query.estado).trim() : null,
     id_estado_inspeccion: query.id_estado_inspeccion ? Number(query.id_estado_inspeccion) : null,
     desde: query.desde ? parseDateOnlyLocal(query.desde, false) : null,
@@ -125,7 +125,7 @@ async function obtenerDetalleInspeccion(id_inspeccion) {
 
   const cabecera = await repo.obtenerInspeccionPorId(id);
   if (!cabecera) {
-    return { ok: false, status: 404, message: "Inspeccion no encontrada" };
+    return { ok: false, status: 404, message: "Inspección no encontrada" };
   }
 
   let inspectores = [];
@@ -142,7 +142,7 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
 
   const cabecera = await repo.obtenerInspeccionPorId(id);
   if (!cabecera) {
-    return { ok: false, status: 404, message: "Inspeccion no encontrada" };
+    return { ok: false, status: 404, message: "Inspección no encontrada" };
   }
 
     let inspectores = [];
@@ -212,7 +212,7 @@ async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
 
   const actual = await repo.obtenerEstadoInspeccion(id);
   if (!actual) {
-    return { ok: false, status: 404, message: "Inspeccion no encontrada" };
+    return { ok: false, status: 404, message: "Inspección no encontrada" };
   }
 
   const estadoActual = actual.id_estado_inspeccion;
@@ -432,7 +432,7 @@ async function crearInspeccionCompleta({ user, body }) {
       });
     }
   }
-  
+
   return {
     ok: true,
     status: 201,
