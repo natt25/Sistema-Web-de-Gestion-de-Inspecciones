@@ -170,7 +170,7 @@ export default function TablaObservacionesSeguridadForm({
             <div key={`seg-${idx}`} className="card ins-item" style={{ display: "grid", gap: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                 <b>Observacion {idx + 1}</b>
-                <Button type="button" variant="ghost" onClick={() => removeRow(idx)}>Eliminar</Button>
+                <Button type="button" variant="outline" onClick={() => removeRow(idx)}>X</Button>
               </div>
 
               <label className="ins-field">

@@ -528,23 +528,14 @@ export default function TablaKitAntiderramesForm({ definicion, initial = null, o
                 ))}
 
                 <td style={{ textAlign: "center" }}>
-                  <button
+                  <Button
                     type="button"
                     title="Eliminar fila"
                     onClick={() => handleDeleteRow(idx)}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "#fff",
-                      cursor: "pointer",
-                      fontSize: 16,
-                      lineHeight: "16px",
-                    }}
+                    variant="outline"
                   >
-                    🗑️
-                  </button>
+                    X
+                  </Button>
                 </td>
               </tr>
             ))}

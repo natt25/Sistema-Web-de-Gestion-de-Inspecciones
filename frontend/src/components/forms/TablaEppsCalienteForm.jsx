@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
@@ -471,24 +471,15 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
                 })}
 
                 <td style={{ textAlign: "center", verticalAlign: "top", pointerEvents: "auto" }}>
-                  <button
+                  <Button
                     type="button"
                     title="Eliminar fila"
                     onClick={() => handleDeleteRow(rowIdx)}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "#fff",
-                      cursor: "pointer",
-                      fontSize: 16,
-                      lineHeight: "16px",
-                      pointerEvents: "auto",
-                    }}
+                    variant="outline"
+                    style={{ pointerEvents: "auto" }}
                   >
-                    {"\u{1F5D1}\uFE0F"}
-                  </button>
+                    X
+                  </Button>
                 </td>
               </tr>
             ))}

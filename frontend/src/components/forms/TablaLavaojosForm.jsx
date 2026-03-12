@@ -497,26 +497,19 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
                     pointerEvents: "auto",
                   }}
                 >
-                  <button
+                  <Button
                     type="button"
                     title="Eliminar fila"
                     onClick={() => handleDeleteRow(idx)}
                     disabled={row?.__locked}
+                    variant="outline"
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "#fff",
-                      cursor: row?.__locked ? "not-allowed" : "pointer",
-                      fontSize: 16,
-                      lineHeight: "16px",
                       opacity: row?.__locked ? 0.35 : 1,
                       pointerEvents: row?.__locked ? "none" : "auto",
                     }}
                   >
-                    🗑️
-                  </button>
+                    X
+                  </Button>
                 </td>
               </tr>
             ))}

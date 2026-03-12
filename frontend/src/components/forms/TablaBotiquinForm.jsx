@@ -597,25 +597,16 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                     pointerEvents: "auto",
                   }}
                 >
-                  <button
+                  <Button
                     type="button"
                     title={row?.__locked ? "Fila de plantilla (no se puede eliminar)" : "Eliminar fila"}
                     onClick={() => handleDeleteRow(idx)}
                     disabled={row?.__locked}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "#fff",
-                      cursor: "pointer",
-                      fontSize: 16,
-                      lineHeight: "16px",
-                      pointerEvents: "auto",
-                    }}
+                    variant="outline"
+                    style={{ pointerEvents: "auto" }}
                   >
-                    🗑️
-                  </button>
+                    X
+                  </Button>
                 </td>
               </tr>
             ))}

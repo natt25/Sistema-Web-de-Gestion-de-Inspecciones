@@ -521,25 +521,16 @@ export default function TablaCamillaForm({ definicion = {}, initial = null, onSu
                     zIndex: 5,
                   }}
                 >
-                  <button
+                  <Button
                     type="button"
                     title={row?.__locked ? "Fila de plantilla (no se puede borrar)" : "Eliminar fila"}
                     onClick={() => handleDeleteRow(idx)}
                     disabled={row?.__locked}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "#fff",
-                      cursor: row?.__locked ? "not-allowed" : "pointer",
-                      fontSize: 16,
-                      lineHeight: "16px",
-                      opacity: row?.__locked ? 0.35 : 1,
-                    }}
+                    variant="outline"
+                    style={{ opacity: row?.__locked ? 0.35 : 1 }}
                   >
-                    🗑️
-                  </button>
+                    X
+                  </Button>
                 </td>
               </tr>
             ))}

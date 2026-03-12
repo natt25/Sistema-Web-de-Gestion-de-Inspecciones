@@ -82,7 +82,7 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
           <div key={`row-${idx}`} className="card ins-item" style={{ display: "grid", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <b>Fila {idx + 1}</b>
-              <Button type="button" variant="ghost" onClick={() => removeRow(idx)}>Eliminar</Button>
+              <Button type="button" variant="outline" onClick={() => removeRow(idx)}>X</Button>
             </div>
 
             <label className="ins-field">
