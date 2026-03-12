@@ -222,7 +222,7 @@ export default function Pendientes() {
       render: (a) => <span>{a?.desc_accion ?? a?.descripcion ?? "-"}</span>,
     },
 
-    { key: "responsable", label: "Responsable", render: (a) => a.responsable ?? "-" },
+    { key: "responsables", label: "Responsables", render: (a) => a.responsables ?? "-" },
 
     {
       key: "fecha_compromiso",
