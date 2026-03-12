@@ -153,4 +153,78 @@ async function listarPendientes({
   return result.recordset;
 }
 
-export default { listarPendientes };
+async function contarPendientesPorInspeccion({
+  dias = 7,
+  solo_mias = 0,
+  estado = "ALL",
+  id_usuario = null,
+  id_plantilla_inspec = null,
+}) {
+  const pool = await getPool();
+  const request = pool.request();
+
+  const estadoNormalizado = String(estado || "ALL").trim().toUpperCase().replace(/[-\s]+/g, "_");
+
+  request.input("dias", sql.Int, dias === null ? null : dias);
+  request.input("solo_mias", sql.Bit, solo_mias ? 1 : 0);
+  request.input("estado", sql.NVarChar(40), estadoNormalizado || "ALL");
+  request.input("id_usuario", sql.Int, id_usuario ?? null);
+  request.input("id_plantilla_inspec", sql.Int, id_plantilla_inspec ?? null);
+
+  const query = `
+    DECLARE @hoy DATE = CAST(SYSDATETIME() AS DATE);
+
+    DECLARE @dni_usuario NVARCHAR(15) = (
+      SELECT TOP 1 dni
+      FROM SSOMA.INS_USUARIO
+      WHERE id_usuario = @id_usuario
+    );
+
+    SELECT COUNT(DISTINCT i.id_inspeccion) AS total
+    FROM SSOMA.INS_ACCION a
+    JOIN SSOMA.INS_CAT_ESTADO_ACCION ea
+      ON ea.id_estado_accion = a.id_estado_accion
+    JOIN SSOMA.INS_ACCION_RESPONSABLE ar
+      ON ar.id_acc_responsable = a.id_acc_responsable
+    JOIN SSOMA.INS_OBSERVACION o
+      ON o.id_observacion = a.id_observacion
+    JOIN SSOMA.INS_INSPECCION i
+      ON i.id_inspeccion = o.id_inspeccion
+    WHERE
+      (
+        @solo_mias = 0
+        OR (
+          @dni_usuario IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM SSOMA.INS_OBSERVACION o2
+            JOIN SSOMA.INS_ACCION a2
+              ON a2.id_observacion = o2.id_observacion
+            JOIN SSOMA.INS_ACCION_RESPONSABLE ar2
+              ON ar2.id_acc_responsable = a2.id_acc_responsable
+            WHERE
+              o2.id_inspeccion = i.id_inspeccion
+              AND LTRIM(RTRIM(CAST(ar2.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
+          )
+        )
+      )
+      AND (
+        @dias IS NULL
+        OR a.fecha_compromiso IS NULL
+        OR a.fecha_compromiso <= DATEADD(DAY, @dias, @hoy)
+      )
+      AND (
+        @estado = 'ALL'
+        OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(ea.nombre_estado)), ' ', '_'), '-', '_')) = @estado
+      )
+      AND (
+        @id_plantilla_inspec IS NULL
+        OR i.id_plantilla_inspec = @id_plantilla_inspec
+      );
+  `;
+
+  const result = await request.query(query);
+  return Number(result.recordset?.[0]?.total || 0);
+}
+
+export default { listarPendientes, contarPendientesPorInspeccion };

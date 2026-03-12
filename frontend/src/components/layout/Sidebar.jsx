@@ -1,8 +1,8 @@
 // frontend/src/components/layout/Sidebar.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearAuth } from "../../auth/auth.storage";
-import { listarPendientes } from "../../api/pendientes.api";
+import { contarPendientes } from "../../api/pendientes.api";
 
 const items = [
   { to: "/home", label: "Home", icon: "🏠" },
@@ -10,14 +10,6 @@ const items = [
   { to: "/pendientes", label: "Pendientes", icon: "⏰" },
   { to: "/admin/usuarios", label: "Usuarios", icon: "👥" },
 ];
-
-function isAccionNoCompletada(a) {
-  const estado = String(a?.estado || "").trim().toUpperCase();
-  // En tu Pendientes.jsx consideras COMPLETADO/CERRADO como “cerrado”
-  // :contentReference[oaicite:3]{index=3}
-  if (estado.includes("CERR") || estado.includes("COMPLE")) return false;
-  return true; // PENDIENTE / EN PROGRESO / VENCIDO / otros
-}
 
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
@@ -43,32 +35,43 @@ export default function Sidebar({ onNavigate }) {
     onNavigate?.();
   }
 
-  // ✅ Cargar contador de pendientes SOLO MIAS
+  const loadCount = useCallback(async () => {
+    try {
+      const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
+      setPendientesCount(Number(data?.total || 0));
+    } catch {
+      setPendientesCount(0);
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
-
-    async function loadCount() {
+    const safeLoad = async () => {
       try {
-        const data = await listarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
-        const rows = Array.isArray(data) ? data : [];
-        const count = rows.filter(isAccionNoCompletada).length;
-        if (alive) setPendientesCount(count);
+        const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
+        if (!alive) return;
+        setPendientesCount(Number(data?.total || 0));
       } catch {
-        // si falla, no rompemos el sidebar
-        if (alive) setPendientesCount(0);
+        if (!alive) return;
+        setPendientesCount(0);
       }
-    }
+    };
 
-    loadCount();
+    safeLoad();
 
-    // refresco suave (1 min). Si no lo quieres, borra esto.
-    const t = setInterval(loadCount, 60000);
+    const onFocus = () => {
+      safeLoad();
+    };
+
+    const t = setInterval(onFocus, 60000);
+    window.addEventListener("focus", onFocus);
 
     return () => {
       alive = false;
       clearInterval(t);
+      window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [loadCount, location.pathname]);
 
   const itemsWithBadge = useMemo(() => {
     return items.map((it) => {

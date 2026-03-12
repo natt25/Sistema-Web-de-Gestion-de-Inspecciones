@@ -1,7 +1,7 @@
 import accionesRepo from "../repositories/acciones.repository.js";
 
-function parseDias(diasRaw) {
-  if (diasRaw === undefined) return 7;
+function parseDias(diasRaw, defaultValue = 7) {
+  if (diasRaw === undefined) return defaultValue;
   if (diasRaw === null) return null;
 
   const v = String(diasRaw).trim().toLowerCase();
@@ -20,8 +20,11 @@ function parseEstado(estadoRaw) {
   return estado || "ALL";
 }
 
-async function pendientes({ dias, solo_mias, estado, id_usuario, id_plantilla_inspec }) {
-  const d = parseDias(dias);
+function normalizePendientesFilters(
+  { dias, solo_mias, estado, id_usuario, id_plantilla_inspec },
+  { diasDefault = 7 } = {}
+) {
+  const d = parseDias(dias, diasDefault);
   if (typeof d === "object" && d?.error) {
     return { ok: false, status: 400, message: d.error };
   }
@@ -33,15 +36,39 @@ async function pendientes({ dias, solo_mias, estado, id_usuario, id_plantilla_in
   const plantilla = Number(id_plantilla_inspec);
   const idPlantillaNormalizado = Number.isFinite(plantilla) && plantilla > 0 ? plantilla : null;
 
-  const rows = await accionesRepo.listarPendientes({
-    dias: d,
-    solo_mias: s,
-    estado: e,
-    id_usuario: idNormalizado,
-    id_plantilla_inspec: idPlantillaNormalizado,
-  });
+  return {
+    ok: true,
+    filters: {
+      dias: d,
+      solo_mias: s,
+      estado: e,
+      id_usuario: idNormalizado,
+      id_plantilla_inspec: idPlantillaNormalizado,
+    },
+  };
+}
+
+async function pendientes({ dias, solo_mias, estado, id_usuario, id_plantilla_inspec }) {
+  const normalized = normalizePendientesFilters(
+    { dias, solo_mias, estado, id_usuario, id_plantilla_inspec },
+    { diasDefault: 7 }
+  );
+  if (!normalized.ok) return normalized;
+
+  const rows = await accionesRepo.listarPendientes(normalized.filters);
 
   return { ok: true, status: 200, data: rows };
 }
 
-export default { pendientes };
+async function contarPendientes({ dias, solo_mias, estado, id_usuario, id_plantilla_inspec }) {
+  const normalized = normalizePendientesFilters(
+    { dias, solo_mias, estado, id_usuario, id_plantilla_inspec },
+    { diasDefault: null }
+  );
+  if (!normalized.ok) return normalized;
+
+  const total = await accionesRepo.contarPendientesPorInspeccion(normalized.filters);
+  return { ok: true, status: 200, data: { total } };
+}
+
+export default { pendientes, contarPendientes };

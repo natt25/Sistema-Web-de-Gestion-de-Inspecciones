@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import useOnlineStatus from "../../hooks/useOnlineStatus";
 import http from "../../api/http";
+import { contarPendientes } from "../../api/pendientes.api";
 import { getPendingCounts, syncInspeccionesQueue } from "../../utils/offlineQueue";
 
 export default function DashboardLayout({ title, actions, children }) {
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 900px)").matches);
   const online = useOnlineStatus();
   const [pending, setPending] = useState({ total: 0, uploads: 0, mutations: 0, inspecciones: 0 });
+  const [pendientesCount, setPendientesCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
 
   // Solo actualiza estado si los contadores realmente cambiaron.
@@ -28,6 +32,15 @@ export default function DashboardLayout({ title, actions, children }) {
     });
   }, []);
 
+  const refreshPendientesCount = useCallback(async () => {
+    try {
+      const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
+      setPendientesCount(Number(data?.total || 0));
+    } catch {
+      setPendientesCount(0);
+    }
+  }, []);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
     const onChange = (e) => setIsMobile(e.matches);
@@ -40,6 +53,24 @@ export default function DashboardLayout({ title, actions, children }) {
     // Refresca al montar y cuando cambia online, sin depender de `pending`.
     refreshPending();
   }, [online, refreshPending]);
+
+  useEffect(() => {
+    refreshPendientesCount();
+  }, [refreshPendientesCount, location.pathname]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      refreshPendientesCount();
+    };
+
+    const t = setInterval(onFocus, 60000);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshPendientesCount]);
 
   useEffect(() => {
     if (!isMobile || !sidebarOpen) {
@@ -76,7 +107,7 @@ export default function DashboardLayout({ title, actions, children }) {
       <span className={`badge ${online ? "conn-online" : "conn-offline"}`}>
         {online ? "Conectado" : "Sin conexion"}
       </span>
-      <span className="badge">Pendientes: {pending.total}</span>
+      <span className="badge">Pendientes: {pendientesCount}</span>
       {actions}
     </div>
   );

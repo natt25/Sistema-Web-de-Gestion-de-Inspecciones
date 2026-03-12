@@ -13,4 +13,11 @@ router.get(
   accionesController.pendientes
 );
 
+router.get(
+  "/acciones/pendientes/count",
+  authMiddleware,
+  audit("ACC_PENDIENTES_COUNT_VIEW", { entity: "INS_ACCION", entityIdFrom: "user.id_usuario" }),
+  accionesController.pendientesCount
+);
+
 export default router;
