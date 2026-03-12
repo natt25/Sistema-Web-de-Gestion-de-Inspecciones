@@ -2,11 +2,13 @@ import express from "express";
 const router = express.Router();
 
 import authMiddleware from "../middlewares/auth.middleware.js";
+import guestReadOnlyMiddleware from "../middlewares/guest-readonly.middleware.js";
 import controller from "../controllers/observaciones.controller.js";
 // POST /api/inspecciones/:id/observaciones
 router.post(
   "/:id/observaciones",
   authMiddleware,
+  guestReadOnlyMiddleware,
   controller.crear
 );
 
@@ -21,6 +23,7 @@ router.get(
 router.post(
   "/observaciones/:id/evidencias",
   authMiddleware,
+  guestReadOnlyMiddleware,
   controller.crearEvidencia
 );
 
@@ -35,6 +38,7 @@ router.get(
 router.post(
   "/observaciones/:id/acciones",
   authMiddleware,
+  guestReadOnlyMiddleware,
   controller.crearAccion
 );
 
@@ -49,6 +53,7 @@ router.get(
 router.post(
   "/acciones/:id/evidencias",
   authMiddleware,
+  guestReadOnlyMiddleware,
   controller.crearEvidenciaAccion
 );
 
@@ -63,6 +68,7 @@ router.get(
 router.patch(
   "/observaciones/:id/estado",
   authMiddleware,
+  guestReadOnlyMiddleware,
   controller.actualizarEstadoObservacion
 );
 
@@ -70,6 +76,7 @@ router.patch(
 router.patch(
   "/acciones/:id/estado",
   authMiddleware,
+  guestReadOnlyMiddleware,
   controller.actualizarEstadoAccion
 );
 

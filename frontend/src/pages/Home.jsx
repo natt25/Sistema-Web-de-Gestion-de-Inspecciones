@@ -37,6 +37,7 @@ const cellTextStyle = {
 export default function Home() {
   const navigate = useNavigate();
   const user = getUser();
+  const esInvitado = String(user?.rol || "").trim().toUpperCase() === "INVITADO";
 
   const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState({
@@ -60,12 +61,14 @@ export default function Home() {
       setInspeccionesError("");
 
       const results = await Promise.allSettled([
-        listarPendientes({
-          dias: null,
-          solo_mias: 1,
-          estado: "ALL",
-          id_usuario: user?.id_usuario,
-        }),
+        esInvitado
+          ? Promise.resolve([])
+          : listarPendientes({
+              dias: null,
+              solo_mias: 1,
+              estado: "ALL",
+              id_usuario: user?.id_usuario,
+            }),
         listarInspecciones({}),
       ]);
 
@@ -128,7 +131,7 @@ export default function Home() {
     return () => {
       alive = false;
     };
-  }, [user?.id_usuario]);
+  }, [user?.id_usuario, esInvitado]);
 
   const kpiCards = useMemo(
     () => [
@@ -261,40 +264,52 @@ export default function Home() {
         ))}
       </div>
 
+      {esInvitado ? (
+        <div style={{ marginBottom: 14 }}>
+          <Card title="Modo invitado">Solo visualización. Las acciones personales no están disponibles.</Card>
+        </div>
+      ) : null}
+
       <div className="home-panels">
-        <Card
-          title="Mis acciones (pendientes / vencidas)"
-          actions={
-            <Button variant="outline" onClick={() => navigate("/pendientes")}>
-              Ver todas
-            </Button>
-          }
-        >
-          <Table
-            columns={colsAcciones}
-            data={misAcciones}
-            emptyText={loading ? "Cargando..." : pendientesError || "No tienes acciones pendientes."}
-            renderActions={(a) => (
-              <div style={{ display: "flex", alignItems: "flex-start" }}>
-                <button
-                  type="button"
-                  onClick={() => a?.id_inspeccion && navigate(`/inspecciones/${a.id_inspeccion}`)}
-                  style={{
-                    padding: 0,
-                    border: 0,
-                    background: "transparent",
-                    color: "#f97316",
-                    textDecoration: "none",
-                    cursor: "pointer",
-                    fontWeight: 900,
-                  }}
-                >
-                  Ver detalle
-                </button>
-              </div>
-            )}
-          />
-        </Card>
+        {!esInvitado ? (
+          <Card
+            title="Mis acciones (pendientes / vencidas)"
+            actions={
+              <Button variant="outline" onClick={() => navigate("/pendientes")}>
+                Ver todas
+              </Button>
+            }
+          >
+            <Table
+              columns={colsAcciones}
+              data={misAcciones}
+              emptyText={loading ? "Cargando..." : pendientesError || "No tienes acciones pendientes."}
+              renderActions={(a) => (
+                <div style={{ display: "flex", alignItems: "flex-start" }}>
+                  <button
+                    type="button"
+                    onClick={() => a?.id_inspeccion && navigate(`/inspecciones/${a.id_inspeccion}`)}
+                    style={{
+                      padding: 0,
+                      border: 0,
+                      background: "transparent",
+                      color: "#f97316",
+                      textDecoration: "none",
+                      cursor: "pointer",
+                      fontWeight: 900,
+                    }}
+                  >
+                    Ver detalle
+                  </button>
+                </div>
+              )}
+            />
+          </Card>
+        ) : (
+          <Card title="Mis acciones (pendientes / vencidas)">
+            No disponible para invitado.
+          </Card>
+        )}
 
         <Card
           title="Inspecciones recientes"

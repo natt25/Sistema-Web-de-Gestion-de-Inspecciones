@@ -15,6 +15,8 @@ import AdminUsuarios from "../pages/AdminUsuarios";
 import Perfil from "../pages/Perfil";
 import Home from "../pages/Home";
 
+const NON_GUEST_ROLES = ["ADMIN_PRINCIPAL", "ADMIN", "INSPECTOR"];
+
 export default function AppRouter() {
   return (
     <BrowserRouter>
@@ -27,16 +29,17 @@ export default function AppRouter() {
           <Route index element={<Navigate to="home" replace />} />
 
           <Route path="home" element={<Home />} />
-          <Route path="change-password" element={<ChangePassword />} />
-          <Route path="pendientes" element={<Pendientes />} />
-          <Route path="perfil" element={<Perfil />} />
-
           <Route path="inspecciones/plantillas" element={<PlantillasInspeccion />} />
-          <Route path="inspecciones/nueva" element={<InspeccionNueva />} />
-          <Route path="inspecciones/nueva/:idPlantilla" element={<InspeccionForm />} />
-
           <Route path="inspecciones" element={<InspeccionesList />} />
           <Route path="inspecciones/:id" element={<InspeccionDetail />} />
+
+          <Route element={<RequireRole roles={NON_GUEST_ROLES} />}>
+            <Route path="change-password" element={<ChangePassword />} />
+            <Route path="pendientes" element={<Pendientes />} />
+            <Route path="perfil" element={<Perfil />} />
+            <Route path="inspecciones/nueva" element={<InspeccionNueva />} />
+            <Route path="inspecciones/nueva/:idPlantilla" element={<InspeccionForm />} />
+          </Route>
 
           <Route element={<RequireRole roles={["ADMIN_PRINCIPAL", "ADMIN"]} />}>
             <Route path="admin/usuarios" element={<AdminUsuarios />} />

@@ -5,10 +5,13 @@ import Topbar from "./Topbar";
 import useOnlineStatus from "../../hooks/useOnlineStatus";
 import http from "../../api/http";
 import { contarPendientes } from "../../api/pendientes.api";
+import { getUser } from "../../auth/auth.storage";
 import { getPendingCounts, syncInspeccionesQueue } from "../../utils/offlineQueue";
 
 export default function DashboardLayout({ title, actions, children }) {
   const location = useLocation();
+  const user = getUser();
+  const esInvitado = String(user?.rol || "").trim().toUpperCase() === "INVITADO";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 900px)").matches);
   const online = useOnlineStatus();
@@ -33,13 +36,17 @@ export default function DashboardLayout({ title, actions, children }) {
   }, []);
 
   const refreshPendientesCount = useCallback(async () => {
+    if (esInvitado) {
+      setPendientesCount(0);
+      return;
+    }
     try {
       const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
       setPendientesCount(Number(data?.total || 0));
     } catch {
       setPendientesCount(0);
     }
-  }, []);
+  }, [esInvitado]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -84,6 +91,7 @@ export default function DashboardLayout({ title, actions, children }) {
   }, [isMobile, sidebarOpen]);
 
   async function handleSync() {
+    if (esInvitado) return;
     if (!online || pending.total <= 0 || syncing) return;
     setSyncing(true);
     try {
@@ -95,19 +103,20 @@ export default function DashboardLayout({ title, actions, children }) {
   }
 
   useEffect(() => {
+    if (esInvitado) return;
     if (!online) return;
     if (pending.total <= 0) return;
     if (syncing) return;
     handleSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online, pending.total, syncing]);
+  }, [online, pending.total, syncing, esInvitado]);
 
   const headerActions = (
     <div className="topbar-global-actions">
       <span className={`badge ${online ? "conn-online" : "conn-offline"}`}>
         {online ? "Conectado" : "Sin conexion"}
       </span>
-      <span className="badge">Pendientes: {pendientesCount}</span>
+      {esInvitado ? <span className="badge">Modo invitado / solo lectura</span> : <span className="badge">Pendientes: {pendientesCount}</span>}
       {actions}
     </div>
   );

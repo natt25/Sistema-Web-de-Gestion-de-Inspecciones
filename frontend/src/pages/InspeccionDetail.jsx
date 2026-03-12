@@ -1291,6 +1291,10 @@ export default function InspeccionDetail() {
   }, []);
 
   async function syncNow({ silent = false } = {}) {
+    if (String(currentUser?.rol || "").trim().toUpperCase() === "INVITADO") {
+      if (!silent) setSyncMsg("Modo invitado: sincronizacion no disponible.");
+      return;
+    }
     if (!online) {
       if (!silent) setSyncMsg("Sin conexion: no se puede sincronizar.");
       return;
@@ -1427,8 +1431,9 @@ export default function InspeccionDetail() {
   }
 
   useEffect(() => {
+    if (String(currentUser?.rol || "").trim().toUpperCase() === "INVITADO") return;
     if (online) syncNow({ silent: true });
-  }, [online]);
+  }, [online, currentUser?.rol]);
 
   const [savingObs, setSavingObs] = useState(false);
   const [obsError, setObsError] = useState("");
@@ -1831,7 +1836,8 @@ export default function InspeccionDetail() {
   );
   const puedeEditarInspeccionCerrada =
     String(currentUser?.rol || "").trim().toUpperCase() === "ADMIN_PRINCIPAL";
-  const inspeccionBloqueada = inspeccionCerrada && !puedeEditarInspeccionCerrada;
+  const esInvitado = String(currentUser?.rol || "").trim().toUpperCase() === "INVITADO";
+  const inspeccionBloqueada = esInvitado || (inspeccionCerrada && !puedeEditarInspeccionCerrada);
   const visiblePageError = online ? pageError : "";
   const nombreTipoInspeccion = pickFirst(
     cab?.nombre_formato,
@@ -2640,7 +2646,7 @@ export default function InspeccionDetail() {
                         {!hayAcciones || !hayPendientes ? (
                           <Button
                             variant="outline"
-                            disabled={!online}
+                            disabled={!online || inspeccionBloqueada}
                             onClick={async () => {
                               try {
                                 await actualizarEstadoObservacion(o.id_observacion, 3);
@@ -2749,7 +2755,7 @@ export default function InspeccionDetail() {
                             {!isAccionCerrada(a) && (
                               <Button
                                 variant="outline"
-                                disabled={!online}
+                                disabled={!online || inspeccionBloqueada}
                                 onClick={async () => {
                                   try {
                                     await actualizarPorcentajeAccion(a.id_accion, 100);

@@ -16,7 +16,7 @@ export default function Sidebar({ onNavigate }) {
     () => [
       { to: "/home", label: "Home", icon: "🏠" },
       { to: "/inspecciones/plantillas", label: "Inspecciones", icon: "📋" },
-      { to: "/pendientes", label: "Pendientes", icon: "⏰" },
+      ...(rol !== "INVITADO" ? [{ to: "/pendientes", label: "Pendientes", icon: "⏰" }] : []),
       ...((rol === "ADMIN_PRINCIPAL" || rol === "ADMIN")
         ? [{ to: "/admin/usuarios", label: "Usuarios", icon: "👥" }]
         : []),
@@ -43,17 +43,26 @@ export default function Sidebar({ onNavigate }) {
   }
 
   const loadCount = useCallback(async () => {
+    if (rol === "INVITADO") {
+      setPendientesCount(0);
+      return;
+    }
     try {
       const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
       setPendientesCount(Number(data?.total || 0));
     } catch {
       setPendientesCount(0);
     }
-  }, []);
+  }, [rol]);
 
   useEffect(() => {
     let alive = true;
     const safeLoad = async () => {
+      if (rol === "INVITADO") {
+        if (!alive) return;
+        setPendientesCount(0);
+        return;
+      }
       try {
         const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
         if (!alive) return;
@@ -78,7 +87,7 @@ export default function Sidebar({ onNavigate }) {
       clearInterval(t);
       window.removeEventListener("focus", onFocus);
     };
-  }, [loadCount, location.pathname]);
+  }, [loadCount, location.pathname, rol]);
 
   const itemsWithBadge = useMemo(() => {
     return items.map((it) => {

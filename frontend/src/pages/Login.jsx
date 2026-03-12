@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../auth/auth.service";
+import { guestLogin, login } from "../auth/auth.service";
 import { clearAuth, getToken, setToken, setUser, getUser } from "../auth/auth.storage";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
@@ -55,6 +55,19 @@ export default function Login() {
       else if (status === 403) setError(message || "Usuario no habilitado");
       else if (status === 500) setError("Error interno del servidor");
       else setError(message || err?.message || "No se pudo iniciar sesion");
+    }
+  }
+
+  async function handleGuestAccess() {
+    setError("");
+    try {
+      const data = await guestLogin();
+      setToken(data.token);
+      setUser(data.usuario);
+      navigate(HOME_ROUTE, { replace: true });
+    } catch (err) {
+      const message = err?.response?.data?.message || err?.message || "No se pudo entrar como invitado";
+      setError(message);
     }
   }
 
@@ -137,6 +150,12 @@ export default function Login() {
             <div className="actions">
               <Button variant="primary" type="submit">
                 Ingresar
+              </Button>
+            </div>
+
+            <div className="actions" style={{ marginTop: 8 }}>
+              <Button variant="outline" type="button" onClick={handleGuestAccess}>
+                Entrar como invitado
               </Button>
             </div>
           </form>

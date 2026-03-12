@@ -26,6 +26,7 @@ function authMiddleware(req, res, next) {
     req.user = {
       id_usuario: decoded.id_usuario,
       rol: decoded.rol,
+      es_invitado: decoded.es_invitado === true || String(decoded.rol || "").toUpperCase() === "INVITADO",
     };
 
     console.log("[auth.middleware] ok", {

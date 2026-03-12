@@ -133,6 +133,43 @@ async function login({ dni, password }, reqMeta = {}) {
   return { ok: true, status: 200, data: { token, usuario } };
 }
 
+async function guestLogin(reqMeta = {}) {
+  const token = signToken({
+    id_usuario: null,
+    rol: "INVITADO",
+    es_invitado: true,
+  });
+
+  const usuario = {
+    id_usuario: null,
+    dni: null,
+    rol: "INVITADO",
+    debe_cambiar_password: false,
+    es_invitado: true,
+    nombres: "",
+    apellido_paterno: "",
+    apellido_materno: "",
+    apellidos: "",
+    nombreCompleto: "INVITADO",
+    cargo: "",
+    firma_ruta: "",
+  };
+
+  await auditoriaService.log({
+    id_usuario: null,
+    accion: "LOGIN_GUEST",
+    entidad: "INS_USUARIO",
+    id_entidad: "INVITADO",
+    modo_cliente: reqMeta.modo_cliente ?? "UNKNOWN",
+    exito: true,
+    detalle: "Ingreso en modo invitado",
+    ip_origen: reqMeta.ip_origen ?? null,
+    user_agent: reqMeta.user_agent ?? null,
+  });
+
+  return { ok: true, status: 200, data: { token, usuario } };
+}
+
 async function changePassword({ id_usuario, old_password, new_password }, reqMeta = {}) {
   if (!id_usuario) return { ok: false, status: 400, message: "id_usuario requerido" };
   if (!old_password || !new_password) {
@@ -183,4 +220,4 @@ async function changePassword({ id_usuario, old_password, new_password }, reqMet
   return { ok: true, status: 200, data: { ok: true } };
 }
 
-export default { login, changePassword };
+export default { login, guestLogin, changePassword };

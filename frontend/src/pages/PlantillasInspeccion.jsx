@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getUser } from "../auth/auth.storage";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -15,6 +16,8 @@ function normalizeRows(payload) {
 
 export default function PlantillasInspeccion() {
   const navigate = useNavigate();
+  const user = getUser();
+  const esInvitado = String(user?.rol || "").trim().toUpperCase() === "INVITADO";
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
@@ -188,9 +191,11 @@ export default function PlantillasInspeccion() {
                 <div style={{ color: "var(--muted)", marginTop: 4 }}>{p.codigo_formato}</div>
 
                 <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Button onClick={() => navigate(`/inspecciones/nueva?plantilla=${p.id_plantilla_inspec}`)}>
-                    Usar plantilla
-                  </Button>
+                  {!esInvitado ? (
+                    <Button onClick={() => navigate(`/inspecciones/nueva?plantilla=${p.id_plantilla_inspec}`)}>
+                      Usar plantilla
+                    </Button>
+                  ) : null}
                   <Button variant="outline" onClick={() => navigate(`/inspecciones?plantilla=${p.id_plantilla_inspec}`)}>
                     Ver inspecciones
                   </Button>

@@ -1,7 +1,10 @@
 import { useNavigate } from "react-router-dom";
+import { getUser } from "../../auth/auth.storage";
 
 export default function Topbar({ title, actions, onToggle, showHamburger = false }) {
   const navigate = useNavigate();
+  const user = getUser();
+  const esInvitado = String(user?.rol || "").trim().toUpperCase() === "INVITADO";
 
   return (
     <header className="topbar">
@@ -18,9 +21,11 @@ export default function Topbar({ title, actions, onToggle, showHamburger = false
 
       <div className="topbar-right">
         {actions}
-        <button type="button" className="btn btn-outline" onClick={() => navigate("/perfil")}>
-          Perfil
-        </button>
+        {!esInvitado ? (
+          <button type="button" className="btn btn-outline" onClick={() => navigate("/perfil")}>
+            Perfil
+          </button>
+        ) : null}
       </div>
     </header>
   );
