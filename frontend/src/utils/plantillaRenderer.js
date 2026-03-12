@@ -251,13 +251,36 @@ function normalizeEppsCell(cellLike, legacyRow = null) {
   };
 }
 
-function normalizeEppsRow(row, idx) {
+function normalizeEppsColumns(columnsLike, eppsLike) {
+  const rawColumns = Array.isArray(columnsLike) ? columnsLike : [];
+  const normalizedColumns = rawColumns
+    .map((col, idx) => {
+      const key = String(col?.key || "").trim();
+      if (!key) return null;
+      const fallbackLabel = key.startsWith("otros_") ? `OTROS ${idx + 1}` : key;
+      return {
+        key,
+        label: String(col?.label || fallbackLabel).trim() || fallbackLabel,
+      };
+    })
+    .filter(Boolean);
+
+  if (normalizedColumns.length) return normalizedColumns;
+
+  return Object.keys(eppsLike || {}).map((key, idx) => ({
+    key,
+    label: key.startsWith("otros_") ? `OTROS ${idx + 1}` : key,
+  }));
+}
+
+function normalizeEppsRow(row, idx, columnsLike = null) {
   const source = row && typeof row === "object" ? row : {};
   const rawEpps = source?.epps && typeof source.epps === "object" ? source.epps : {};
   const epps = {};
+  const columns = normalizeEppsColumns(columnsLike || source?.columns, rawEpps);
 
-  Object.keys(rawEpps).forEach((key) => {
-    epps[key] = normalizeEppsCell(rawEpps[key], source);
+  columns.forEach((col) => {
+    epps[col.key] = normalizeEppsCell(rawEpps[col.key], source);
   });
 
   return {
@@ -265,14 +288,15 @@ function normalizeEppsRow(row, idx) {
     rowIndex: source?.rowIndex ?? idx + 1,
     apellidos_nombres: String(source?.apellidos_nombres || "").trim(),
     puesto_trabajo: String(source?.puesto_trabajo || "").trim(),
+    columns,
     epps,
   };
 }
 
-export function serializeTablaEppsRows(rows) {
+export function serializeTablaEppsRows(rows, columns = null) {
   const safeRows = Array.isArray(rows) ? rows : [];
   return safeRows.map((row, idx) => {
-    const normalized = normalizeEppsRow(row, idx);
+    const normalized = normalizeEppsRow(row, idx, columns);
     return {
       id_campo: null,
       item_ref: `row_${idx + 1}`,
@@ -297,7 +321,7 @@ export function deserializeTablaEppsRowsFromRespuestas(respuestas) {
       const tipo = String(x?.row_data?.__tipo || "").toLowerCase();
       return categoria === "TABLA_EPPS" || tipo === "tabla_epps";
     })
-    .map((x, idx) => normalizeEppsRow(x?.row_data || {}, idx));
+    .map((x, idx) => normalizeEppsRow(x?.row_data || {}, idx, x?.row_data?.columns));
 }
 
 

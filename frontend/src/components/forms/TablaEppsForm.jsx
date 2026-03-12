@@ -4,7 +4,7 @@ import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
 import { serializeTablaEppsRows } from "../../utils/plantillaRenderer.js";
 
-const EPP_COLUMNS = [
+const BASE_EPP_COLUMNS = [
   { key: "casco", label: "CASCO" },
   { key: "lentes_luna_clara", label: "LENTES LUNA CLARA" },
   { key: "lentes_luna_oscura", label: "LENTES LUNA OSCURA" },
@@ -18,12 +18,14 @@ const EPP_COLUMNS = [
   { key: "filtros", label: "FILTROS" },
   { key: "barbiquejo", label: "BARBIQUEJO" },
   { key: "mascarilla_n95", label: "MASCARILLA N95" },
-  { key: "otros_1", label: "OTROS 1" },
-  { key: "otros_2", label: "OTROS 2" },
 ];
 
 const ESTADO_OPTIONS = ["", "BUENO", "MALO", "NA"];
 const DEFAULT_ROWS = 5;
+const DEFAULT_OTROS_COLUMNS = [
+  { key: "otros_1", label: "OTROS 1" },
+  { key: "otros_2", label: "OTROS 2" },
+];
 
 function emptyAccion() {
   return { que: "", quien: "", quien_dni: "", cuando: "" };
@@ -54,20 +56,70 @@ function normalizeCell(value) {
   return emptyCell();
 }
 
-function createEmptyEpps() {
-  return EPP_COLUMNS.reduce((acc, c) => {
+function isOtrosColumnKey(key) {
+  return String(key || "").startsWith("otros_");
+}
+
+function getOtrosColumnNumber(key) {
+  return Number(String(key || "").replace("otros_", "")) || 0;
+}
+
+function isRemovableOtrosColumn(key) {
+  return isOtrosColumnKey(key) && getOtrosColumnNumber(key) > 0;
+}
+
+function normalizeColumns(columns) {
+  return (Array.isArray(columns) ? columns : [])
+    .map((col, idx) => {
+      const key = String(col?.key || "").trim();
+      if (!key) return null;
+      const fallbackLabel = isOtrosColumnKey(key) ? `OTROS ${idx + 1}` : key;
+      return {
+        key,
+        label: String(col?.label || fallbackLabel).trim() || fallbackLabel,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildOtrosColumnsFromRows(rows) {
+  const rowList = Array.isArray(rows) ? rows : [];
+  const fromMeta = rowList.find((row) => Array.isArray(row?.columns))?.columns || [];
+  const fromMetaOtros = normalizeColumns(fromMeta).filter((col) => isOtrosColumnKey(col.key));
+  if (fromMetaOtros.length) return fromMetaOtros;
+
+  const dynamicKeys = new Set();
+  rowList.forEach((row) => {
+    Object.keys(row?.epps || {}).forEach((key) => {
+      if (isOtrosColumnKey(key)) dynamicKeys.add(key);
+    });
+  });
+
+  if (!dynamicKeys.size) return DEFAULT_OTROS_COLUMNS;
+
+  return Array.from(dynamicKeys)
+    .sort((a, b) => {
+      const left = Number(String(a).replace("otros_", "")) || 0;
+      const right = Number(String(b).replace("otros_", "")) || 0;
+      return left - right;
+    })
+    .map((key, idx) => ({ key, label: `OTROS ${idx + 1}` }));
+}
+
+function createEmptyEpps(columns) {
+  return columns.reduce((acc, c) => {
     acc[c.key] = emptyCell();
     return acc;
   }, {});
 }
 
-function createEmptyRow(index) {
+function createEmptyRow(index, columns) {
   return {
     rowIndex: index,
     empleado: null,
     apellidos_nombres: "",
     puesto_trabajo: "",
-    epps: createEmptyEpps(),
+    epps: createEmptyEpps(columns),
   };
 }
 
@@ -150,17 +202,17 @@ function getEppTone(value) {
   return null;
 }
 
-function mapInitialRows(rows) {
+function mapInitialRows(rows, columns) {
   const n = Array.isArray(rows) && rows.length ? rows.length : DEFAULT_ROWS;
-  const base = Array.from({ length: n }, (_, i) => createEmptyRow(i + 1));
+  const base = Array.from({ length: n }, (_, i) => createEmptyRow(i + 1, columns));
 
   if (!Array.isArray(rows) || rows.length === 0) return base;
 
   return base.map((blank, idx) => {
     const incoming = rows[idx] || {};
-    const epps = createEmptyEpps();
+    const epps = createEmptyEpps(columns);
 
-    EPP_COLUMNS.forEach((col) => {
+    columns.forEach((col) => {
       epps[col.key] = normalizeCell(incoming?.epps?.[col.key]);
     });
 
@@ -178,7 +230,9 @@ function getCellError(errors, idx, colKey, field) {
 }
 
 export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
-  const [rows, setRows] = useState(() => mapInitialRows(initialRows));
+  const [otrosColumns, setOtrosColumns] = useState(() => buildOtrosColumnsFromRows(initialRows));
+  const eppColumns = useMemo(() => [...BASE_EPP_COLUMNS, ...otrosColumns], [otrosColumns]);
+  const [rows, setRows] = useState(() => mapInitialRows(initialRows, [...BASE_EPP_COLUMNS, ...buildOtrosColumnsFromRows(initialRows)]));
   const [errors, setErrors] = useState({});
 
   const [empOpenIdx, setEmpOpenIdx] = useState(null);
@@ -192,6 +246,62 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   const [whoLoading, setWhoLoading] = useState(false);
 
   const filled = useMemo(() => rows.filter((r) => rowHasAnyData(r)).length, [rows]);
+
+  function addOtrosColumn() {
+    setOtrosColumns((prev) => {
+      const maxId = prev.reduce((max, col) => {
+        const current = Number(String(col.key).replace("otros_", "")) || 0;
+        return Math.max(max, current);
+      }, 0);
+      const id = maxId + 1;
+      const key = `otros_${id}`;
+      const next = [...prev, { key, label: `OTROS ${id}` }];
+
+      setRows((currentRows) =>
+        currentRows.map((row) => ({
+          ...row,
+          epps: {
+            ...(row.epps || {}),
+            [key]: emptyCell(),
+          },
+        }))
+      );
+
+      return next;
+    });
+  }
+
+  function updateOtrosColumnLabel(key, label) {
+    setOtrosColumns((prev) =>
+      prev.map((col) => (col.key === key ? { ...col, label: String(label || "") } : col))
+    );
+  }
+
+  function removeOtrosColumn(key) {
+    if (!isRemovableOtrosColumn(key)) return;
+
+    setOtrosColumns((prev) => prev.filter((col) => col.key !== key));
+    setRows((prev) =>
+      prev.map((row) => {
+        const nextEpps = { ...(row.epps || {}) };
+        delete nextEpps[key];
+        return { ...row, epps: nextEpps };
+      })
+    );
+    setErrors((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([errorKey, value]) => {
+        if (!errorKey.includes(`:col:${key}:`)) next[errorKey] = value;
+      });
+      return next;
+    });
+    if (whoOpenCell && String(whoOpenCell).endsWith(`:${key}`)) {
+      setWhoOpenCell(null);
+      setWhoQuery("");
+      setWhoOptions([]);
+      setWhoLoading(false);
+    }
+  }
 
   function reindexRows(next) {
     return next.map((r, i) => ({ ...r, rowIndex: i + 1 }));
@@ -237,7 +347,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   }
 
   function addRow() {
-    setRows((prev) => reindexRows([...prev, createEmptyRow(prev.length + 1)]));
+    setRows((prev) => reindexRows([...prev, createEmptyRow(prev.length + 1, eppColumns)]));
   }
 
   function removeRow(idx) {
@@ -257,7 +367,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
     rows.forEach((row, idx) => {
       if (!rowHasAnyData(row)) return;
 
-      EPP_COLUMNS.forEach((col) => {
+      eppColumns.forEach((col) => {
         const cell = normalizeCell(row?.epps?.[col.key]);
         if (!isMaloCell(cell)) return;
 
@@ -286,7 +396,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
 
     onSubmit?.({
       tipo: "tabla_epps",
-      respuestas: serializeTablaEppsRows(rows),
+      respuestas: serializeTablaEppsRows(rows, eppColumns),
       resumen: { total: rows.length, respondidas: filled },
       rows,
     });
@@ -382,9 +492,28 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
               <th>N</th>
               <th style={{ minWidth: 280 }}>Apellidos y Nombres</th>
               <th style={{ minWidth: 180 }}>Puesto de Trabajo</th>
-              {EPP_COLUMNS.map((c) => (
+              {eppColumns.map((c) => (
                 <th key={c.key} style={{ minWidth: 240 }}>
-                  {c.label}
+                  {isOtrosColumnKey(c.key) ? (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <input
+                        className="ins-input"
+                        value={c.label}
+                        onChange={(e) => updateOtrosColumnLabel(c.key, e.target.value)}
+                        placeholder="OTROS"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => removeOtrosColumn(c.key)}
+                        disabled={!isRemovableOtrosColumn(c.key)}
+                      >
+                        Eliminar
+                      </Button>
+                    </div>
+                  ) : (
+                    c.label
+                  )}
                 </th>
               ))}
               <th style={{ width: 70 }}></th>
@@ -408,6 +537,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
                 setEmpQuery={setEmpQuery}
                 empOptions={empOptions}
                 empLoading={empLoading}
+                columns={eppColumns}
                 whoOpenCell={whoOpenCell}
                 setWhoOpenCell={setWhoOpenCell}
                 whoQuery={whoQuery}
@@ -421,9 +551,14 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-        <Button type="button" variant="secondary" onClick={addRow}>
-          + Agregar trabajador
-        </Button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <Button type="button" variant="secondary" onClick={addRow}>
+            + Agregar trabajador
+          </Button>
+          <Button type="button" variant="secondary" onClick={addOtrosColumn}>
+            + Agregar columna
+          </Button>
+        </div>
         <div style={{ color: "var(--muted)", fontSize: 12 }}>
           Tip: Escribe DNI / apellido / nombre para seleccionar al trabajador.
         </div>
@@ -446,6 +581,7 @@ function FragmentRow({
   setEmpQuery,
   empOptions,
   empLoading,
+  columns,
   whoOpenCell,
   setWhoOpenCell,
   whoQuery,
@@ -494,7 +630,7 @@ function FragmentRow({
         />
       </td>
 
-      {EPP_COLUMNS.map((c) => {
+      {columns.map((c) => {
         const cell = normalizeCell(row?.epps?.[c.key]);
         const malo = isMaloCell(cell);
         const whoCellKey = `${idx}:${c.key}`;
