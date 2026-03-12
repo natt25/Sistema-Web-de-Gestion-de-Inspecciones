@@ -234,6 +234,17 @@ export default function Pendientes() {
       label: "Estado",
       render: (a) => renderEstadoBadge(a?.estado),
     },
+    {
+      key: "acciones_mias",
+      label: "Mis acciones",
+      render: (a) => {
+        const total = Number(a?.total_acciones_mias);
+        const pendientes = Number(a?.acciones_mias_pendientes);
+        if (!Number.isFinite(total) || total <= 0) return "-";
+        if (!Number.isFinite(pendientes)) return `- pendientes de ${total}`;
+        return `${pendientes} pendientes de ${total}`;
+      },
+    },
 
     {
       key: "dias_restantes",

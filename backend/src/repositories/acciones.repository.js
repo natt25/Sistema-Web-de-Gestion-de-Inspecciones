@@ -72,6 +72,7 @@ async function listarPendientes({
         a.id_accion,
         a.desc_accion,
         a.fecha_compromiso,
+        ISNULL(a.porcentaje_cumplimiento, 0) AS porcentaje_cumplimiento,
         ${estadoCalculadoExpr} AS estado,
         CASE
           WHEN a.fecha_compromiso IS NULL THEN NULL
@@ -94,17 +95,7 @@ async function listarPendientes({
           @solo_mias = 0
           OR (
             @dni_usuario IS NOT NULL
-            AND EXISTS (
-              SELECT 1
-              FROM SSOMA.INS_OBSERVACION o2
-              JOIN SSOMA.INS_ACCION a2
-                ON a2.id_observacion = o2.id_observacion
-              JOIN SSOMA.INS_ACCION_RESPONSABLE ar2
-                ON ar2.id_acc_responsable = a2.id_acc_responsable
-              WHERE
-                o2.id_inspeccion = i.id_inspeccion
-                AND LTRIM(RTRIM(CAST(ar2.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
-            )
+            AND LTRIM(RTRIM(CAST(ar.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
           )
         )
         AND (
@@ -141,6 +132,9 @@ async function listarPendientes({
         MIN(b.fecha_compromiso) AS fecha_compromiso,
         MIN(CASE WHEN b.fecha_compromiso IS NULL THEN 1 ELSE 0 END) AS _null_first,
         MIN(b.dias_restantes) AS dias_restantes,
+        COUNT(*) AS total_acciones_mias,
+        SUM(CASE WHEN b.porcentaje_cumplimiento >= 100 THEN 1 ELSE 0 END) AS acciones_mias_completadas,
+        SUM(CASE WHEN b.porcentaje_cumplimiento < 100 THEN 1 ELSE 0 END) AS acciones_mias_pendientes,
         CASE
           WHEN COUNT(CASE WHEN b.estado = 'VENCIDA' THEN 1 END) > 0 THEN 'VENCIDA'
           WHEN COUNT(*) = COUNT(CASE WHEN b.estado = 'CERRADA' THEN 1 END) THEN 'CERRADA'
@@ -165,8 +159,14 @@ async function listarPendientes({
     SELECT *
     FROM inspecciones
     WHERE
-      @estado = 'ALL'
-      OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(estado)), ' ', '_'), '-', '_')) = @estado
+      (
+        @estado = 'ALL'
+        OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(estado)), ' ', '_'), '-', '_')) = @estado
+      )
+      AND (
+        @solo_mias = 0
+        OR acciones_mias_pendientes > 0
+      )
     ORDER BY
       _null_first,
       fecha_compromiso ASC,
@@ -208,6 +208,9 @@ async function contarPendientesPorInspeccion({
     ;WITH inspecciones AS (
       SELECT
         i.id_inspeccion,
+        COUNT(*) AS total_acciones_mias,
+        SUM(CASE WHEN ISNULL(a.porcentaje_cumplimiento, 0) >= 100 THEN 1 ELSE 0 END) AS acciones_mias_completadas,
+        SUM(CASE WHEN ISNULL(a.porcentaje_cumplimiento, 0) < 100 THEN 1 ELSE 0 END) AS acciones_mias_pendientes,
         CASE
           WHEN COUNT(CASE WHEN ${estadoCalculadoExpr} = 'VENCIDA' THEN 1 END) > 0 THEN 'VENCIDA'
           WHEN COUNT(*) = COUNT(CASE WHEN ${estadoCalculadoExpr} = 'CERRADA' THEN 1 END) THEN 'CERRADA'
@@ -226,17 +229,7 @@ async function contarPendientesPorInspeccion({
           @solo_mias = 0
           OR (
             @dni_usuario IS NOT NULL
-            AND EXISTS (
-              SELECT 1
-              FROM SSOMA.INS_OBSERVACION o2
-              JOIN SSOMA.INS_ACCION a2
-                ON a2.id_observacion = o2.id_observacion
-              JOIN SSOMA.INS_ACCION_RESPONSABLE ar2
-                ON ar2.id_acc_responsable = a2.id_acc_responsable
-              WHERE
-                o2.id_inspeccion = i.id_inspeccion
-                AND LTRIM(RTRIM(CAST(ar2.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
-            )
+            AND LTRIM(RTRIM(CAST(ar.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
           )
         )
         AND (
@@ -253,8 +246,14 @@ async function contarPendientesPorInspeccion({
     SELECT COUNT(1) AS total
     FROM inspecciones
     WHERE
-      @estado = 'ALL'
-      OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(estado)), ' ', '_'), '-', '_')) = @estado;
+      (
+        @estado = 'ALL'
+        OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(estado)), ' ', '_'), '-', '_')) = @estado
+      )
+      AND (
+        @solo_mias = 0
+        OR acciones_mias_pendientes > 0
+      );
   `;
 
   const result = await request.query(query);
