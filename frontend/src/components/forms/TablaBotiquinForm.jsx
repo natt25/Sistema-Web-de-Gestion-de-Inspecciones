@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeTablaBotiquin } from "../../utils/plantillaRenderer.js";
 
 const MESES = [
@@ -74,17 +75,6 @@ function validateCell(cell) {
   if (!String(cell?.accion?.quien || "").trim()) return "Acción (quién) obligatoria.";
   if (!String(cell?.accion?.cuando || "").trim()) return "Acción (cuándo) obligatoria.";
   return null;
-}
-
-function getEmpleadoLabel(e) {
-  const nom = `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim();
-  const dni = e?.dni ? `(${e.dni})` : "";
-  const cargo = e?.cargo ? `— ${e.cargo}` : e?.desc_cargo ? `— ${e.desc_cargo}` : "";
-  return `${nom} ${dni} ${cargo}`.trim();
-}
-
-function getEmpleadoFullName(e) {
-  return `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim() || e?.dni || "";
 }
 
 function getFirmaFromEmpleado(e) {
@@ -418,7 +408,7 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                       displayValue={mes?.realizado_por_text || ""}
                       options={empOptions}
                       loading={searching}
-                      getOptionLabel={getEmpleadoLabel}
+                      getOptionLabel={buildEmpleadoOptionLabel}
                       onInputChange={async (text) => {
                         updateMetaMes(m.key, { realizado_por_text: text, realizado_por: null, cargo: "", firma: "" });
                         const opts = await buscarEmpleadosForAutocomplete(text);
@@ -427,7 +417,7 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                       onSelect={(it) => {
                         updateMetaMes(m.key, {
                           realizado_por: it,
-                          realizado_por_text: getEmpleadoFullName(it),
+                          realizado_por_text: buildEmpleadoDisplayName(it),
                           cargo: it?.cargo ?? it?.desc_cargo ?? "",
                           firma: getFirmaFromEmpleado(it) || "",
                         });
@@ -542,7 +532,7 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                               displayValue={row?.checks?.[m.key]?.accion?.quien || ""}
                               options={empOptions}
                               loading={searching}
-                              getOptionLabel={getEmpleadoLabel}
+                              getOptionLabel={buildEmpleadoOptionLabel}
                               onInputChange={async (text) => {
                                 updateCell(idx, m.key, {
                                   accion: { ...(row?.checks?.[m.key]?.accion || {}), quien: text, quien_dni: "" },
@@ -554,7 +544,7 @@ export default function TablaBotiquinForm({ definicion = {}, initial = null, onS
                                 updateCell(idx, m.key, {
                                   accion: {
                                     ...(row?.checks?.[m.key]?.accion || {}),
-                                    quien: getEmpleadoFullName(it),
+                                    quien: buildEmpleadoDisplayName(it),
                                     quien_dni: String(it?.dni || ""),
                                   },
                                 });

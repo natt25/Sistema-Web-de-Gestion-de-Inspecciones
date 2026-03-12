@@ -1,32 +1,10 @@
 import { useMemo, useState } from "react";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import Button from "../ui/Button.jsx";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeObservacionesAccionesRows } from "../../utils/plantillaRenderer.js";
 
 const RISK_OPTIONS = ["BAJO", "MEDIO", "ALTO"];
-
-function buildResponsableNombreCompleto(e) {
-  return (
-    String(e?.nombreCompleto ?? "").trim() ||
-    [e?.nombres, e?.apellido_paterno, e?.apellido_materno]
-      .map((part) => String(part ?? "").trim())
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
-    [e?.nombres, e?.apellidos]
-      .map((part) => String(part ?? "").trim())
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
-    String(e?.dni ?? "").trim()
-  );
-}
-
-function buildResponsableOptionLabel(e) {
-  const nombreCompleto = buildResponsableNombreCompleto(e);
-  const dni = String(e?.dni ?? "").trim();
-  return dni ? `${nombreCompleto} (${dni})` : nombreCompleto;
-}
 
 function createEmptyRow() {
   return {
@@ -239,7 +217,7 @@ export default function TablaObservacionesSeguridadForm({
                     placeholder="DNI / Apellido / Nombre"
                     displayValue={row.responsable || ""}
                     options={respOptions[idx] || []}
-                    getOptionLabel={buildResponsableOptionLabel}
+                    getOptionLabel={buildEmpleadoOptionLabel}
                     onFocus={async () => {
                       const items = await buscarEmpleados?.("");
                       setRespOptions((prev) => ({ ...prev, [idx]: Array.isArray(items) ? items : [] }));
@@ -250,7 +228,7 @@ export default function TablaObservacionesSeguridadForm({
                       setRespOptions((prev) => ({ ...prev, [idx]: Array.isArray(items) ? items : [] }));
                     }}
                     onSelect={(e) => {
-                      const nombreCompleto = buildResponsableNombreCompleto(e);
+                      const nombreCompleto = buildEmpleadoDisplayName(e);
                       updateRow(idx, {
                         responsable: nombreCompleto,
                         responsable_data: {

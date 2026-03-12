@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeTablaKitAntiderrames } from "../../utils/plantillaRenderer.js";
 
 const DIAS = [
@@ -307,14 +308,14 @@ export default function TablaKitAntiderramesForm({ definicion, initial = null, o
                       displayValue={dia.realizado_por_text || ""}
                       options={empOptions}
                       loading={searching}
-                      getOptionLabel={getEmpleadoLabel}
+                      getOptionLabel={buildEmpleadoOptionLabel}
                       onInputChange={async (text) => {
                         updateMetaDia(d.key, { realizado_por_text: text, realizado_por: null, cargo: "", firma: "" });
                         const opts = await buscarEmpleadosForAutocomplete(text);
                         setEmpOptions(opts);
                       }}
                       onSelect={(it) => {
-                        const full = getEmpleadoFullName(it);
+                        const full = buildEmpleadoDisplayName(it);
                         updateMetaDia(d.key, {
                           realizado_por: it,
                           realizado_por_text: full,
@@ -476,7 +477,7 @@ export default function TablaKitAntiderramesForm({ definicion, initial = null, o
                               displayValue={row.checks?.[d.key]?.accion?.quien || ""}
                               options={empOptions}
                               loading={searching}
-                              getOptionLabel={getEmpleadoLabel}
+                              getOptionLabel={buildEmpleadoOptionLabel}
                               onInputChange={async (text) => {
                                 updateCell(idx, d.key, {
                                   accion: {
@@ -489,7 +490,7 @@ export default function TablaKitAntiderramesForm({ definicion, initial = null, o
                                 setEmpOptions(opts);
                               }}
                               onSelect={(it) => {
-                                const nombre = getEmpleadoFullName(it);
+                                const nombre = buildEmpleadoDisplayName(it);
                                 const dni = String(it?.dni ?? "").trim();
                                 updateCell(idx, d.key, {
                                   accion: {

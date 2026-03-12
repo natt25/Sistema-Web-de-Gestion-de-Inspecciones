@@ -12,6 +12,7 @@ import {
   crearArea,
   crearLugar,
 } from "../../api/busquedas.api";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 
 const DEBOUNCE_MS = 250;
 const API_BASE = String(import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/+$/, "");
@@ -25,19 +26,8 @@ function buildFirmaUrl(raw) {
 }
 
 function buildNombreCreador(user) {
-  const nombres = String(user?.nombres ?? "").trim();
-  const apellidoPaterno = String(user?.apellido_paterno ?? "").trim();
-  const apellidoMaterno = String(user?.apellido_materno ?? "").trim();
-  const apellidos = String(user?.apellidos ?? "").trim();
-  const nombre = String(user?.nombre ?? "").trim();
   const dni = String(user?.dni ?? "").trim();
-
-  return (
-    [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ").trim() ||
-    [nombres, apellidos].filter(Boolean).join(" ").trim() ||
-    nombre ||
-    dni
-  );
+  return buildEmpleadoDisplayName(user) || dni;
 }
 
 function normalizeClienteId(value) {
@@ -59,22 +49,6 @@ function getServicioLabel(servicio) {
     servicio?.nombre_servicio ??
     servicio?.nombre ??
     String(servicio?.id_servicio ?? "")
-  );
-}
-
-function buildNombreCompletoEmpleado(e) {
-  const apellidoPaterno = String(e?.apellido_paterno ?? "").trim();
-  const apellidoMaterno = String(e?.apellido_materno ?? "").trim();
-  const apellidos = String(e?.apellidos ?? "").trim();
-  const nombres = String(e?.nombres ?? e?.nombre ?? "").trim();
-  const dni = String(e?.dni ?? "").trim();
-
-  return (
-    [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ").trim() ||
-    [nombres, apellidos].filter(Boolean).join(" ").trim() ||
-    String(e?.nombre_completo ?? "").trim() ||
-    dni ||
-    "SIN NOMBRE"
   );
 }
 
@@ -595,7 +569,7 @@ export default function InspeccionHeaderForm({
                     <tr key={`${p.dni || p.nombreCompleto || "p"}-${idx}`}>
                       <td>
                         <span style={{ fontWeight: 800 }}>
-                          {p?.nombreCompleto || p?.nombre || p?.dni || "SIN NOMBRE"}
+                          {buildEmpleadoDisplayName(p) || p?.nombre || p?.dni || "SIN NOMBRE"}
                         </span>
                       </td>
 
@@ -645,14 +619,14 @@ export default function InspeccionHeaderForm({
                   loading={loadingColab}
                   options={optColabs}
                   getOptionLabel={(e) => {
-                    const nom = buildNombreCompletoEmpleado(e);
+                    const nom = buildEmpleadoDisplayName(e);
                     const dni = String(e?.dni ?? "").trim();
-                    const cargo = String(e?.cargo ?? "").trim();
+                    const cargo = "";
                     return `${nom}${dni ? ` (${dni})` : ""}${cargo ? ` — ${cargo}` : ""}`.trim();
                   }}
                   onSelect={(e) => {
                     const dni = String(e.dni ?? "").trim();
-                    const nombreCompleto = buildNombreCompletoEmpleado(e);
+                    const nombreCompleto = buildEmpleadoDisplayName(e);
                     const cargo = e.cargo ?? "";
                     const firmaUrl = e.firma_url || e.firma_ruta || null;
 

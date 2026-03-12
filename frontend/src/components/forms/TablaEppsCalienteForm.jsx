@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeTablaEppsCalienteRows } from "../../utils/plantillaRenderer.js";
 
 const DEFAULT_COLS = [
@@ -101,17 +102,6 @@ function validateRows(rows, cols) {
   }
 
   return null;
-}
-
-function getEmpleadoLabel(e) {
-  const nom = `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim();
-  const dni = e?.dni ? `(${e.dni})` : "";
-  const cargo = e?.cargo ? `- ${e.cargo}` : e?.desc_cargo ? `- ${e.desc_cargo}` : "";
-  return `${nom} ${dni} ${cargo}`.trim();
-}
-
-function getEmpleadoFullName(e) {
-  return `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim() || String(e?.dni || "").trim();
 }
 
 export default function TablaEppsCalienteForm({ definicion, value, onChange, onSubmit }) {
@@ -274,7 +264,7 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
 
   const handleTrabajadorSelect = useCallback(
     (rowIdx, emp) => {
-      const fullName = getEmpleadoFullName(emp);
+      const fullName = buildEmpleadoDisplayName(emp);
       updateRow(rowIdx, {
         trabajador: fullName,
         trabajador_text: fullName,
@@ -377,7 +367,7 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
                     displayValue={row?.trabajador_text || row?.trabajador || ""}
                     options={activeRowIdx === rowIdx ? empOptionsTrabajador : []}
                     loading={activeRowIdx === rowIdx && searchingTrabajador}
-                    getOptionLabel={getEmpleadoLabel}
+                    getOptionLabel={buildEmpleadoOptionLabel}
                     onFocus={async () => {
                       setActiveRowIdx(rowIdx);
                       const currentText = String(row?.trabajador_text || row?.trabajador || "").trim();
@@ -453,7 +443,7 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
                                 displayValue={cell?.accion?.quien || ""}
                                 options={empOptions}
                                 loading={searching}
-                                getOptionLabel={getEmpleadoLabel}
+                                getOptionLabel={buildEmpleadoOptionLabel}
                                 onInputChange={async (text) => {
                                   updateCell(rowIdx, c.key, {
                                     accion: { ...(cell?.accion || {}), quien: text, quien_dni: "" },
@@ -465,7 +455,7 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
                                   updateCell(rowIdx, c.key, {
                                     accion: {
                                       ...(cell?.accion || {}),
-                                      quien: getEmpleadoFullName(it),
+                                      quien: buildEmpleadoDisplayName(it),
                                       quien_dni: String(it?.dni || "").trim(),
                                     },
                                   });

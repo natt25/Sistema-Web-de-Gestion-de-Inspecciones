@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeTablaLavaojos } from "../../utils/plantillaRenderer.js";
 
 const DIAS = [
@@ -41,17 +42,6 @@ function validateCell(cell) {
   if (!String(cell?.accion?.quien || "").trim()) return "Accion (quien) obligatoria.";
   if (!String(cell?.accion?.cuando || "").trim()) return "Accion (cuando) obligatoria.";
   return null;
-}
-
-function getEmpleadoLabel(e) {
-  const nom = `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim();
-  const dni = e?.dni ? `(${e.dni})` : "";
-  const cargo = e?.cargo ? `- ${e.cargo}` : e?.desc_cargo ? `- ${e.desc_cargo}` : "";
-  return `${nom} ${dni} ${cargo}`.trim();
-}
-
-function getEmpleadoFullName(e) {
-  return `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim() || e?.dni || "";
 }
 
 function getFirmaFromEmpleado(e) {
@@ -349,14 +339,14 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
                       displayValue={dia?.realizado_por_text || ""}
                       options={empOptions}
                       loading={searching}
-                      getOptionLabel={getEmpleadoLabel}
+                      getOptionLabel={buildEmpleadoOptionLabel}
                       onInputChange={async (text) => {
                         updateMetaDia(d.key, { realizado_por_text: text, realizado_por: null, cargo: "", firma: "" });
                         const opts = await buscarEmpleadosForAutocomplete(text);
                         setEmpOptions(opts);
                       }}
                       onSelect={(it) => {
-                        const full = getEmpleadoFullName(it);
+                        const full = buildEmpleadoDisplayName(it);
                         updateMetaDia(d.key, {
                           realizado_por: it,
                           realizado_por_text: full,
@@ -449,7 +439,7 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
                               displayValue={row?.checks?.[d.key]?.accion?.quien || ""}
                               options={empOptions}
                               loading={searching}
-                              getOptionLabel={getEmpleadoLabel}
+                              getOptionLabel={buildEmpleadoOptionLabel}
                               onInputChange={async (text) => {
                                 updateCell(idx, d.key, { accion: { ...(row?.checks?.[d.key]?.accion || {}), quien: text, quien_dni: "" } });
                                 const opts = await buscarEmpleadosForAutocomplete(text);
@@ -459,7 +449,7 @@ export default function TablaLavaojosForm({ definicion = {}, initial = null, onS
                                 updateCell(idx, d.key, {
                                   accion: {
                                     ...(row?.checks?.[d.key]?.accion || {}),
-                                    quien: getEmpleadoFullName(it),
+                                    quien: buildEmpleadoDisplayName(it),
                                     quien_dni: String(it?.dni || ""),
                                   },
                                 });

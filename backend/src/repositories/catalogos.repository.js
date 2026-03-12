@@ -441,8 +441,8 @@ async function buscarEmpleados(q) {
     const cargo = cargoRaw || await resolveCargoNombre(pool, r.id_cargo);
     const firma_ruta = await getFirmaRutaByDni(pool, r.dni);
     const nombreCompleto =
-      [nombres, apellido_paterno, apellido_materno].filter(Boolean).join(" ").trim() ||
-      [nombres, apellidos].filter(Boolean).join(" ").trim() ||
+      [apellido_paterno, apellido_materno, nombres].filter(Boolean).join(" ").trim() ||
+      [apellidos, nombres].filter(Boolean).join(" ").trim() ||
       (r.dni ? String(r.dni) : "");
     return {
       dni: r.dni ? String(r.dni) : "",

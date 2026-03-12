@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeTablaEppsRows } from "../../utils/plantillaRenderer.js";
 
 const BASE_EPP_COLUMNS = [
@@ -144,28 +145,6 @@ function rowHasAnyData(row) {
 
 function isMaloCell(cell) {
   return String(cell?.estado || "").toUpperCase() === "MALO";
-}
-
-function buildEmpleadoNombreCompleto(emp) {
-  if (!emp) return "";
-
-  const apellidoPaterno = String(emp?.apellido_paterno ?? "").trim();
-  const apellidoMaterno = String(emp?.apellido_materno ?? "").trim();
-  const apellidos = String(emp?.apellidos ?? emp?.apellido ?? "").trim();
-  const nombres = String(emp?.nombres ?? emp?.nombre ?? "").trim();
-  const full = String(emp?.apellidos_nombres ?? emp?.label ?? emp?.nombreCompleto ?? "").trim();
-
-  return (
-    [apellidoPaterno, apellidoMaterno, nombres].filter(Boolean).join(" ").trim() ||
-    [apellidos, nombres].filter(Boolean).join(" ").trim() ||
-    full
-  );
-}
-
-function buildEmpleadoOptionLabel(emp) {
-  const dni = String(emp?.dni ?? "").trim();
-  const nombreCompleto = buildEmpleadoNombreCompleto(emp);
-  return dni ? `${dni} - ${nombreCompleto}`.trim() : nombreCompleto;
 }
 
 function extractCargo(emp) {
@@ -610,7 +589,7 @@ function FragmentRow({
             updateRow(idx, { apellidos_nombres: txt, empleado: null });
           }}
           onSelect={(emp) => {
-            const label = buildEmpleadoNombreCompleto(emp);
+            const label = buildEmpleadoDisplayName(emp);
             const cargo = extractCargo(emp);
             updateRow(idx, {
               empleado: emp,
@@ -712,7 +691,7 @@ function FragmentRow({
                         });
                       }}
                       onSelect={(emp) => {
-                        const nombreCompleto = buildEmpleadoNombreCompleto(emp);
+                        const nombreCompleto = buildEmpleadoDisplayName(emp);
                         setWhoOpenCell(whoCellKey);
                         setWhoQuery(nombreCompleto);
                         updateCell(idx, c.key, {

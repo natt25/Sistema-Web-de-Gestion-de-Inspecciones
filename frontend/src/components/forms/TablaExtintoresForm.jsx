@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeTablaExtintoresRows } from "../../utils/plantillaRenderer.js";
 
 const TIPOS_DEFAULT = ["PQS", "CO2", "AGUA", "OTROS"];
@@ -473,12 +474,7 @@ export default function TablaExtintoresForm({ onSubmit, initialRows = [], defini
                                     placeholder="DNI / Apellido / Nombre"
                                     displayValue={act.quien || ""}
                                     options={respOptions[`${idx}:${it.key}`] || []}
-                                    getOptionLabel={(e) => {
-                                      const nom = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                                      const dni = e.dni ? `(${e.dni})` : "";
-                                      const cargo = e.cargo ? `- ${e.cargo}` : "";
-                                      return `${nom} ${dni} ${cargo}`.trim();
-                                    }}
+                                    getOptionLabel={buildEmpleadoOptionLabel}
                                     onFocus={async () => {
                                       try {
                                         const list = await buscarEmpleados("");
@@ -508,10 +504,9 @@ export default function TablaExtintoresForm({ onSubmit, initialRows = [], defini
                                       }
                                     }}
                                     onSelect={(e) => {
-                                      const nombre = `${e.apellidos ?? ""} ${e.nombres ?? ""}`.trim();
-                                      const label = `${nombre}${e.dni ? ` (${e.dni})` : ""}`;
+                                      const nombre = buildEmpleadoDisplayName(e);
                                       setRevisionAccion(idx, it.key, {
-                                        quien: label,
+                                        quien: nombre,
                                         responsable: {
                                           tipo: "INTERNO",
                                           dni: e.dni || "",

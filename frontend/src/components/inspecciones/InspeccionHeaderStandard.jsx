@@ -12,21 +12,11 @@ import {
   crearArea,
   crearLugar,
 } from "../../api/busquedas.api";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 
 function buildNombreCreador(user) {
-  const nombres = String(user?.nombres ?? "").trim();
-  const apellidoPaterno = String(user?.apellido_paterno ?? "").trim();
-  const apellidoMaterno = String(user?.apellido_materno ?? "").trim();
-  const apellidos = String(user?.apellidos ?? "").trim();
-  const nombre = String(user?.nombre ?? "").trim();
   const dni = String(user?.dni ?? "").trim();
-
-  return (
-    [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ").trim() ||
-    [nombres, apellidos].filter(Boolean).join(" ").trim() ||
-    nombre ||
-    dni
-  );
+  return buildEmpleadoDisplayName(user) || dni;
 }
 
 export default function InspeccionHeaderStandard({ value, onChange, user }) {
@@ -141,10 +131,10 @@ export default function InspeccionHeaderStandard({ value, onChange, user }) {
           onInputChange={(t) => { setQEmp(t); doSearchEmp(t); }}
           options={optEmp}
           loading={loading.emp}
-          getOptionLabel={(e) => `${e.apellido_paterno ?? ""} ${e.apellido_materno ?? ""} ${e.nombres ?? ""}`.trim() || e.dni}
+          getOptionLabel={buildEmpleadoOptionLabel}
           onSelect={(e) => {
             setField("empleado", e);
-            setQEmp(`${e.apellido_paterno ?? ""} ${e.apellido_materno ?? ""} ${e.nombres ?? ""}`.trim());
+            setQEmp(buildEmpleadoDisplayName(e));
             // si tu backend te devuelve id_cargo del empleado, aquí podrías setear cargo directo
           }}
         />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Button from "../ui/Button.jsx";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
+import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 
 const ESTADOS = ["", "BUENO", "MALO", "NA"];
 
@@ -10,16 +11,6 @@ const DEFAULT_COLS = [
   { key: "mangas_anticorte", label: "Mangas anticorte" },
   { key: "guantes_anticorte", label: "Guantes anticorte" },
 ];
-
-function getEmpleadoLabel(e) {
-  const nom = `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim();
-  const dni = e?.dni ? `(${e.dni})` : "";
-  const cargo = e?.cargo ? `- ${e.cargo}` : e?.desc_cargo ? `- ${e.desc_cargo}` : "";
-  return `${nom} ${dni} ${cargo}`.trim();
-}
-function getEmpleadoFullName(e) {
-  return `${e?.apellidos ?? e?.apellido ?? ""} ${e?.nombres ?? e?.nombre ?? ""}`.trim() || e?.dni || "";
-}
 
 function emptyRow(cols) {
   const epps = {};
@@ -68,13 +59,13 @@ export default function TablaEppsCorteForm({ definicion = {}, initial = null, on
         ...emptyRow(cols),
         ...r,
         trabajador: r?.trabajador || null,
-        trabajador_text: r?.trabajador_text || (r?.trabajador ? getEmpleadoFullName(r.trabajador) : ""),
+        trabajador_text: r?.trabajador_text || (r?.trabajador ? buildEmpleadoDisplayName(r.trabajador) : ""),
         accion: {
           que: r?.accion?.que || "",
           quien: r?.accion?.quien || null,
           quien_text:
             r?.accion?.quien_text ||
-            (r?.accion?.quien ? getEmpleadoFullName(r.accion.quien) : "") ||
+            (r?.accion?.quien ? buildEmpleadoDisplayName(r.accion.quien) : "") ||
             "",
           cuando: r?.accion?.cuando || "",
         },
@@ -207,14 +198,14 @@ export default function TablaEppsCorteForm({ definicion = {}, initial = null, on
                       displayValue={row?.trabajador_text || ""}
                       options={empOptions}
                       loading={searching}
-                      getOptionLabel={getEmpleadoLabel}
+                      getOptionLabel={buildEmpleadoOptionLabel}
                       onInputChange={async (text) => {
                         updateRow(idx, { trabajador_text: text, trabajador: null });
                         const opts = await buscarEmpleadosForAutocomplete(text);
                         setEmpOptions(opts);
                       }}
                       onSelect={(emp) => {
-                        updateRow(idx, { trabajador: emp, trabajador_text: getEmpleadoFullName(emp) });
+                        updateRow(idx, { trabajador: emp, trabajador_text: buildEmpleadoDisplayName(emp) });
                       }}
                     />
 
@@ -248,7 +239,7 @@ export default function TablaEppsCorteForm({ definicion = {}, initial = null, on
                               displayValue={row?.accion?.quien_text || ""}
                               options={empOptions}
                               loading={searching}
-                              getOptionLabel={getEmpleadoLabel}
+                              getOptionLabel={buildEmpleadoOptionLabel}
                               onInputChange={async (text) => {
                                 updateRow(idx, { accion: { ...(row.accion || {}), quien_text: text, quien: null } });
                                 const opts = await buscarEmpleadosForAutocomplete(text);
@@ -259,7 +250,7 @@ export default function TablaEppsCorteForm({ definicion = {}, initial = null, on
                                   accion: {
                                     ...(row.accion || {}),
                                     quien: emp,
-                                    quien_text: getEmpleadoFullName(emp),
+                                    quien_text: buildEmpleadoDisplayName(emp),
                                   },
                                 });
                               }}
