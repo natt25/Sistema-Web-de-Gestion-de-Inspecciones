@@ -335,6 +335,18 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
         <table className="table" style={{ minWidth: 1600 }}>
           <thead>
             <tr>
+              <th
+                style={{
+                  width: 50,
+                  minWidth: 50,
+                  position: "sticky",
+                  left: 0,
+                  background: "#fff",
+                  zIndex: 6,
+                }}
+              >
+                N
+              </th>
               <th style={{ minWidth: 280 }}>Trabajador (Apellidos y nombres)</th>
               {cols.map((c) => (
                 <th key={c.key} style={{ minWidth: 230 }}>
@@ -348,6 +360,17 @@ export default function TablaEppsCalienteForm({ definicion, value, onChange, onS
           <tbody>
             {rows.map((row, rowIdx) => (
               <tr key={`row-${rowIdx}`}>
+                <td
+                  style={{
+                    position: "sticky",
+                    left: 0,
+                    background: "#fff",
+                    zIndex: 4,
+                    fontWeight: 800,
+                  }}
+                >
+                  {rowIdx + 1}
+                </td>
                 <td style={{ verticalAlign: "top" }}>
                   <Autocomplete
                     placeholder="DNI / Apellido / Nombre"
