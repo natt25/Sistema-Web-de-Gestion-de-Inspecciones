@@ -455,6 +455,26 @@ async function obtenerEstadoInspeccion(id_inspeccion) {
   return result.recordset[0] || null;
 }
 
+async function obtenerEstadoYNombreInspeccion(id_inspeccion) {
+  const query = `
+    SELECT
+      i.id_inspeccion,
+      i.id_estado_inspeccion,
+      ei.nombre_estado
+    FROM SSOMA.INS_INSPECCION i
+    JOIN SSOMA.INS_CAT_ESTADO_INSPECCION ei
+      ON ei.id_estado_inspeccion = i.id_estado_inspeccion
+    WHERE i.id_inspeccion = @id_inspeccion;
+  `;
+
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_inspeccion", sql.Int, id_inspeccion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
 async function actualizarEstadoInspeccion({ id_inspeccion, id_estado_inspeccion }) {
   const query = `
     UPDATE SSOMA.INS_INSPECCION
@@ -1002,6 +1022,7 @@ export default {
   listarInspecciones,
   obtenerInspeccionPorId,
   obtenerEstadoInspeccion,
+  obtenerEstadoYNombreInspeccion,
   actualizarEstadoInspeccion,
   listarInspectoresPorInspeccion,
   listarParticipantesPorInspeccion,

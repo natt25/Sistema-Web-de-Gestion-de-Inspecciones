@@ -9,7 +9,9 @@ export async function listarPendientes({
 } = {}) {
   const q = new URLSearchParams();
 
-  if (dias !== null && dias !== undefined) {
+  if (dias === null) {
+    q.set("dias", "null");
+  } else if (dias !== undefined) {
     q.set("dias", String(dias));
   }
 
@@ -40,7 +42,9 @@ export async function contarPendientes({
 } = {}) {
   const q = new URLSearchParams();
 
-  if (dias !== null && dias !== undefined) {
+  if (dias === null) {
+    q.set("dias", "null");
+  } else if (dias !== undefined) {
     q.set("dias", String(dias));
   }
 

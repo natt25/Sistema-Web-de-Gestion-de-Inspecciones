@@ -3,6 +3,36 @@ import observacionesRepo from "../repositories/observaciones.repository.js";
 import plantillasRepo from "../repositories/plantillas.repository.js";
 import usuariosService from "./usuarios.service.js";
 
+function normalizeRol(user) {
+  return String(user?.rol || user?.role || user?.nombre_rol || "").trim().toUpperCase();
+}
+
+export async function validarInspeccionEditable({ id_inspeccion, user }) {
+  const id = Number(id_inspeccion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_inspeccion invalido" };
+  }
+
+  const inspeccion = await repo.obtenerEstadoYNombreInspeccion(id);
+  if (!inspeccion) {
+    return { ok: false, status: 404, message: "Inspección no encontrada" };
+  }
+
+  const estado = String(inspeccion?.nombre_estado || "").trim().toUpperCase();
+  const rol = normalizeRol(user);
+
+  if (estado === "CERRADA" && rol !== "ADMIN_PRINCIPAL") {
+    return {
+      ok: false,
+      status: 403,
+      message: "La inspección está cerrada y no puede ser modificada.",
+      data: { inspeccion },
+    };
+  }
+
+  return { ok: true, inspeccion };
+}
+
 function validarCatalogoVsOtro({ id_otro, id_cliente, id_servicio }) {
   const hasOtro = id_otro != null;
   const hasCliente = id_cliente != null && String(id_cliente).trim() !== "";
@@ -199,11 +229,14 @@ async function obtenerDetalleInspeccionFull(id_inspeccion) {
   };
 }
 
-async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
+async function actualizarEstadoInspeccion({ id_inspeccion, body, user }) {
   const id = Number(id_inspeccion);
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, message: "id_inspeccion invalido" };
   }
+
+  const editable = await validarInspeccionEditable({ id_inspeccion: id, user });
+  if (!editable.ok) return editable;
 
   const nuevo = Number(body?.id_estado_inspeccion);
   if (!nuevo || Number.isNaN(nuevo)) {
@@ -236,18 +269,29 @@ async function actualizarEstadoInspeccion({ id_inspeccion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
-async function actualizarEstadoObservacion({ id_observacion, body }) {
+async function actualizarEstadoObservacion({ id_observacion, body, user }) {
+  const id = Number(id_observacion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_observacion invalido" };
+  }
+
+  const id_inspeccion = await observacionesRepo.obtenerInspeccionIdPorObservacion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Observacion no existe." };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
+
   const id_estado_observacion = Number(body?.id_estado_observacion);
 
   if (!id_estado_observacion) {
     return { ok: false, status: 400, message: "Falta id_estado_observacion." };
   }
 
-  const actual = await observacionesRepo.obtenerEstadoObservacion(id_observacion);
+  const actual = await observacionesRepo.obtenerEstadoObservacion(id);
   if (!actual) return { ok: false, status: 404, message: "Observacion no existe." };
 
   if (id_estado_observacion === 3) {
-    const pendientes = await observacionesRepo.contarAccionesNoFinalizadas(id_observacion);
+    const pendientes = await observacionesRepo.contarAccionesNoFinalizadas(id);
     if (pendientes > 0) {
       return {
         ok: false,
@@ -258,21 +302,32 @@ async function actualizarEstadoObservacion({ id_observacion, body }) {
   }
 
   const updated = await observacionesRepo.actualizarEstadoObservacion({
-    id_observacion,
+    id_observacion: id,
     id_estado_observacion,
   });
 
   return { ok: true, status: 200, data: updated };
 }
 
-async function actualizarEstadoAccion({ id_accion, body }) {
+async function actualizarEstadoAccion({ id_accion, body, user }) {
+  const id = Number(id_accion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_accion invalido" };
+  }
+
+  const id_inspeccion = await observacionesRepo.obtenerInspeccionIdPorAccion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Accion no existe." };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
+
   const id_estado_accion = Number(body?.id_estado_accion);
 
   if (!id_estado_accion) {
     return { ok: false, status: 400, message: "Falta id_estado_accion." };
   }
 
-  const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
+  const actual = await observacionesRepo.obtenerEstadoAccion(id);
   if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
 
   if (id_estado_accion !== 3) {
@@ -284,23 +339,34 @@ async function actualizarEstadoAccion({ id_accion, body }) {
   }
 
   const updated = await observacionesRepo.actualizarPorcentajeAccion({
-    id_accion,
+    id_accion: id,
     porcentaje_cumplimiento: 100,
   });
 
   return { ok: true, status: 200, data: updated };
 }
 
-async function actualizarPorcentajeAccion({ id_accion, body }) {
+async function actualizarPorcentajeAccion({ id_accion, body, user }) {
+  const id = Number(id_accion);
+  if (!id || Number.isNaN(id)) {
+    return { ok: false, status: 400, message: "id_accion invalido" };
+  }
+
+  const id_inspeccion = await observacionesRepo.obtenerInspeccionIdPorAccion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Accion no existe." };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
+
   const raw = body?.porcentaje_cumplimiento;
 
   // permitir null para â€œvaciarâ€
   if (raw === "" || raw == null) {
-    const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
+    const actual = await observacionesRepo.obtenerEstadoAccion(id);
     if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
 
     const updated = await observacionesRepo.actualizarPorcentajeAccion({
-      id_accion,
+      id_accion: id,
       porcentaje_cumplimiento: null,
     });
     return { ok: true, status: 200, data: updated };
@@ -311,11 +377,11 @@ async function actualizarPorcentajeAccion({ id_accion, body }) {
     return { ok: false, status: 400, message: "porcentaje_cumplimiento invalido (0-100)." };
   }
 
-  const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
+  const actual = await observacionesRepo.obtenerEstadoAccion(id);
   if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
 
   const updated = await observacionesRepo.actualizarPorcentajeAccion({
-    id_accion,
+    id_accion: id,
     porcentaje_cumplimiento: Math.round(n),
   });
 

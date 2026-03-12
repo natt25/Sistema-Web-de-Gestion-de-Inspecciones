@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { clearAuth, getUser } from "../auth/auth.storage";
+import { getUser } from "../auth/auth.storage";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -16,11 +16,15 @@ function normalizeRows(payload) {
 }
 
 function estadoBadge(estadoRaw) {
-  const e = String(estadoRaw || "").trim().toUpperCase();
-  if (e.includes("VENC")) return { text: "VENCIDO", bg: "#fee2e2", color: "#b91c1c" };
-  if (e.includes("PROG")) return { text: "EN PROGRESO", bg: "#dbeafe", color: "#1d4ed8" };
-  if (e.includes("COMP") || e.includes("CERR")) return { text: "CERRADO", bg: "#dcfce7", color: "#166534" };
-  return { text: e || "PENDIENTE", bg: "#fef3c7", color: "#92400e" };
+  const e = String(estadoRaw || "").trim().toUpperCase().replace(/[_-]+/g, " ");
+  if (e === "VENCIDA") return { text: "VENCIDA", bg: "#fee2e2", color: "#b91c1c" };
+  if (e === "EN PROGRESO") return { text: "EN PROGRESO", bg: "#dbeafe", color: "#1d4ed8" };
+  if (e === "CERRADA") return { text: "CERRADA", bg: "#dcfce7", color: "#166534" };
+  return { text: "PENDIENTE", bg: "#fef3c7", color: "#92400e" };
+}
+
+function normalizeEstado(estadoRaw) {
+  return String(estadoRaw || "").trim().toUpperCase().replace(/[_-]+/g, " ");
 }
 
 export default function Home() {
@@ -60,26 +64,24 @@ export default function Home() {
 
       if (results[0].status === "fulfilled") {
         const rows = normalizeRows(results[0].value);
+        const pendientes = rows.filter((x) => normalizeEstado(x?.estado) === "PENDIENTE").length;
+        const vencidas = rows.filter((x) => normalizeEstado(x?.estado) === "VENCIDA").length;
+        const enProceso = rows.filter((x) => normalizeEstado(x?.estado) === "EN PROGRESO").length;
+        const cerradas = rows.filter((x) => normalizeEstado(x?.estado) === "CERRADA").length;
 
-        const vencidas = rows.filter((x) => Number(x?.dias_restantes) < 0).length;
-        const enProceso = rows.filter((x) => String(x?.estado || "").toUpperCase().includes("PROG")).length;
-        const cerradas = rows.filter((x) => {
-          const e = String(x?.estado || "").toUpperCase();
-          return e.includes("COMP") || e.includes("CERR");
-        }).length;
-        const pendientes = rows.length - cerradas;
-
-        const sortedAcciones = [...rows].sort((a, b) => {
-          const da = Number(a?.dias_restantes);
-          const db = Number(b?.dias_restantes);
-          const aV = Number.isFinite(da) && da < 0;
-          const bV = Number.isFinite(db) && db < 0;
-          if (aV !== bV) return aV ? -1 : 1;
-          if (!Number.isFinite(da) && !Number.isFinite(db)) return 0;
-          if (!Number.isFinite(da)) return 1;
-          if (!Number.isFinite(db)) return -1;
-          return da - db;
-        });
+        const sortedAcciones = rows
+          .filter((x) => normalizeEstado(x?.estado) !== "CERRADA")
+          .sort((a, b) => {
+            const da = Number(a?.dias_restantes);
+            const db = Number(b?.dias_restantes);
+            const aV = Number.isFinite(da) && da < 0;
+            const bV = Number.isFinite(db) && db < 0;
+            if (aV !== bV) return aV ? -1 : 1;
+            if (!Number.isFinite(da) && !Number.isFinite(db)) return 0;
+            if (!Number.isFinite(da)) return 1;
+            if (!Number.isFinite(db)) return -1;
+            return da - db;
+          });
 
         if (alive) {
           setKpis({ pendientes, vencidas, enProceso, cerradas });
@@ -146,7 +148,7 @@ export default function Home() {
         label: "Descripcion",
         render: (a) => <span>{a?.desc_accion || "-"}</span>,
       },
-      { key: "responsable", label: "Responsable", render: (a) => a?.responsable || "-" },
+      { key: "responsables", label: "Responsables", render: (a) => a?.responsables || "-" },
       {
         key: "fecha_compromiso",
         label: "Fecha",
