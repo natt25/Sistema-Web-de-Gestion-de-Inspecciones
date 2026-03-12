@@ -11,6 +11,7 @@ router.post("/", authMiddleware, guestReadOnlyMiddleware, controller.crear);
 
 // GET /api/inspecciones
 router.get("/", authMiddleware, controller.listar);
+router.get("/mis-inspecciones", authMiddleware, controller.listarMisInspecciones);
 
 // ✅ EXPORT DEBE IR ANTES QUE "/:id"
 router.get("/:id/export/xlsx", authMiddleware, exportXlsx);

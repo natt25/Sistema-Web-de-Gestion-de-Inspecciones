@@ -16,6 +16,16 @@ export async function listarInspecciones(params) {
   return res.data;
 }
 
+export async function listarMisInspecciones() {
+  const res = await http.get("/api/inspecciones/mis-inspecciones", {
+    headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+  return res.data;
+}
+
 // crear inspeccion + respuestas
 export async function crearInspeccion(payload) {
   const res = await http.post("/api/inspecciones", payload);

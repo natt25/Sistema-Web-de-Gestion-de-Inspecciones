@@ -147,6 +147,20 @@ async function listarInspecciones({ query }) {
   return { ok: true, status: 200, data };
 }
 
+async function listarMisInspecciones({ user }) {
+  const id_usuario = Number(user?.id_usuario);
+  if (!id_usuario || Number.isNaN(id_usuario)) {
+    return { ok: false, status: 401, message: "Usuario no autenticado" };
+  }
+
+  const data = await repo.listarMisInspecciones({
+    id_usuario,
+    dni_usuario: user?.dni ?? null,
+  });
+
+  return { ok: true, status: 200, data };
+}
+
 async function obtenerDetalleInspeccion(id_inspeccion) {
   const id = Number(id_inspeccion);
   if (!id || Number.isNaN(id)) {
@@ -688,6 +702,7 @@ function mapRiesgoToId(riesgo) {
 export default {
   crearInspeccionCabecera,
   listarInspecciones,
+  listarMisInspecciones,
   obtenerDetalleInspeccion,
   obtenerDetalleInspeccionFull,
   crearInspeccionCompleta,

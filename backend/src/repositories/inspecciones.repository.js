@@ -433,6 +433,138 @@ async function listarInspecciones(filtros) {
   return result.recordset;
 }
 
+async function listarMisInspecciones({ id_usuario, dni_usuario }) {
+  const userId = Number(id_usuario);
+  const dni = String(dni_usuario || "").trim();
+
+  if (!userId || Number.isNaN(userId)) return [];
+
+  const pool = await getPool();
+  const request = pool.request();
+  const estadoAccionCase = buildEstadoAccionCase("a2");
+  const participantesTable = await getParticipantesTable();
+
+  request.input("id_usuario", sql.Int, userId);
+  request.input("dni_usuario", sql.NVarChar(30), dni || null);
+
+  let lugarJoin = "";
+  let lugarSelect = "NULL AS desc_lugar";
+
+  const colsInspeccion = await getColumns("SSOMA", "INS_INSPECCION");
+  const hasLugarTable = await objectExists("SSOMA.INS_LUGAR", "U");
+  if (colsInspeccion.has("id_lugar") && hasLugarTable) {
+    lugarJoin = "LEFT JOIN SSOMA.INS_LUGAR l ON l.id_lugar = i.id_lugar";
+    lugarSelect = "l.desc_lugar AS desc_lugar";
+  }
+
+  const participanteUnion = participantesTable
+    ? `
+      UNION ALL
+
+      SELECT
+        p.id_inspeccion,
+        CAST('PARTICIPANTE' AS NVARCHAR(30)) AS relacion
+      FROM ${participantesTable} p
+      WHERE p.id_usuario = @id_usuario
+    `
+    : "";
+
+  const query = `
+    ;WITH rel_raw AS (
+      SELECT
+        i.id_inspeccion,
+        CAST('CREADOR' AS NVARCHAR(30)) AS relacion
+      FROM SSOMA.INS_INSPECCION i
+      WHERE i.id_usuario = @id_usuario
+      ${participanteUnion}
+
+      UNION ALL
+
+      SELECT
+        o.id_inspeccion,
+        CAST('RESPONSABLE' AS NVARCHAR(30)) AS relacion
+      FROM SSOMA.INS_OBSERVACION o
+      JOIN SSOMA.INS_ACCION a
+        ON a.id_observacion = o.id_observacion
+      JOIN SSOMA.INS_ACCION_RESPONSABLE ar
+        ON ar.id_acc_responsable = a.id_acc_responsable
+      WHERE
+        @dni_usuario IS NOT NULL
+        AND LTRIM(RTRIM(CAST(ar.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
+    ),
+    rel AS (
+      SELECT DISTINCT
+        rr.id_inspeccion,
+        rr.relacion
+      FROM rel_raw rr
+    ),
+    rel_agg AS (
+      SELECT
+        r.id_inspeccion,
+        STRING_AGG(r.relacion, ', ') AS relacion_usuario
+      FROM (
+        SELECT
+          rd.id_inspeccion,
+          rd.relacion
+        FROM rel rd
+        GROUP BY
+          rd.id_inspeccion,
+          rd.relacion
+      ) r
+      GROUP BY r.id_inspeccion
+    )
+    SELECT
+      i.id_inspeccion,
+      i.id_plantilla_inspec,
+      p.codigo_formato,
+      p.nombre_formato,
+      i.fecha_inspeccion,
+      i.created_at,
+      i.id_area,
+      a.desc_area,
+      ${lugarSelect},
+      i.id_cliente,
+      c.raz_social,
+      estado_calc.estado_inspeccion_calculado,
+      rel_agg.relacion_usuario
+    FROM rel_agg
+    JOIN SSOMA.INS_INSPECCION i
+      ON i.id_inspeccion = rel_agg.id_inspeccion
+    JOIN SSOMA.INS_AREA a
+      ON a.id_area = i.id_area
+    JOIN SSOMA.INS_PLANTILLA_INSPECCION p
+      ON p.id_plantilla_inspec = i.id_plantilla_inspec
+    LEFT JOIN SSOMA.V_CLIENTE c
+      ON LTRIM(RTRIM(c.id_cliente)) = LTRIM(RTRIM(i.id_cliente))
+    ${lugarJoin}
+    OUTER APPLY (
+      SELECT
+        CASE
+          WHEN SUM(CASE WHEN est.estado_accion = 'VENCIDA' THEN 1 ELSE 0 END) > 0 THEN 'VENCIDA'
+          WHEN COUNT(est.id_accion) > 0
+            AND SUM(CASE WHEN est.estado_accion = 'CERRADA' THEN 1 ELSE 0 END) = COUNT(est.id_accion) THEN 'CERRADA'
+          WHEN SUM(CASE WHEN est.estado_accion = 'EN PROGRESO' THEN 1 ELSE 0 END) > 0 THEN 'EN PROGRESO'
+          ELSE 'PENDIENTE'
+        END AS estado_inspeccion_calculado
+      FROM (
+        SELECT
+          a2.id_accion,
+          ${estadoAccionCase} AS estado_accion
+        FROM SSOMA.INS_OBSERVACION o2
+        JOIN SSOMA.INS_ACCION a2
+          ON a2.id_observacion = o2.id_observacion
+        WHERE o2.id_inspeccion = i.id_inspeccion
+      ) est
+    ) estado_calc
+    ORDER BY
+      COALESCE(i.fecha_inspeccion, i.created_at) DESC,
+      i.id_inspeccion DESC;
+  `;
+
+  const result = await request.query(query);
+  return result.recordset;
+}
+
 async function obtenerInspeccionPorId(id_inspeccion) {
   const estadoAccionCase = buildEstadoAccionCase("a2");
   const query = `
@@ -1082,6 +1214,7 @@ async function obtenerJsonRespuestasPorInspeccion(id_inspeccion) {
 export default {
   crearInspeccionCabecera,
   listarInspecciones,
+  listarMisInspecciones,
   obtenerInspeccionPorId,
   obtenerEstadoInspeccion,
   obtenerEstadoYNombreInspeccion,

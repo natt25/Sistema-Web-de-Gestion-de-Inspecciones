@@ -14,6 +14,7 @@ import Pendientes from "../pages/Pendientes";
 import AdminUsuarios from "../pages/AdminUsuarios";
 import Perfil from "../pages/Perfil";
 import Home from "../pages/Home";
+import MisInspecciones from "../pages/MisInspecciones";
 
 const NON_GUEST_ROLES = ["ADMIN_PRINCIPAL", "ADMIN", "INSPECTOR"];
 
@@ -34,6 +35,7 @@ export default function AppRouter() {
           <Route path="inspecciones/:id" element={<InspeccionDetail />} />
 
           <Route element={<RequireRole roles={NON_GUEST_ROLES} />}>
+            <Route path="mis-inspecciones" element={<MisInspecciones />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="pendientes" element={<Pendientes />} />
             <Route path="perfil" element={<Perfil />} />

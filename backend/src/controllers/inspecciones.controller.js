@@ -48,6 +48,21 @@ async function listar(req, res) {
   }
 }
 
+async function listarMisInspecciones(req, res) {
+  try {
+    const result = await service.listarMisInspecciones({ user: req.user });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.json(result.data);
+  } catch (err) {
+    console.error("inspecciones.listarMisInspecciones:", err);
+    return res.status(500).json({ message: "Error interno", error: err.message });
+  }
+}
+
 async function obtenerDetalle(req, res) {
   try {
     const { id } = req.params;
@@ -168,6 +183,7 @@ async function actualizarEstadoAccion(req, res) {
 export default {
   crear,
   listar,
+  listarMisInspecciones,
   obtenerDetalle,
   obtenerDetalleFull,
   actualizarEstado,
