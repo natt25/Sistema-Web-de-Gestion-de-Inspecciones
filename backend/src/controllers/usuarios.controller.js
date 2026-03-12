@@ -6,6 +6,11 @@ async function list(req, res) {
   res.json(data);
 }
 
+async function listCatalogos(req, res) {
+  const data = await usuariosService.listCatalogos();
+  res.json(data);
+}
+
 async function create(req, res) {
   const { dni, id_rol, id_estado_usuario, password } = req.body;
   const r = await usuariosService.create({ dni, id_rol, id_estado_usuario, password });
@@ -58,4 +63,4 @@ async function ensureInspector(req, res) {
   return res.status(r.status).json(r.data);
 }
 
-export default { list, create, ensureInspector, update, changeStatus, resetPassword, me, buscar };
+export default { list, listCatalogos, create, ensureInspector, update, changeStatus, resetPassword, me, buscar };

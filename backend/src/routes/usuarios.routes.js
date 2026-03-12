@@ -14,6 +14,13 @@ router.get(
   usuariosController.list
 );
 
+router.get(
+  "/catalogos",
+  roleMiddleware(["ADMIN_PRINCIPAL", "ADMIN"]),
+  audit("USUARIO_CATALOGOS", { entity: "INS_USUARIO" }),
+  usuariosController.listCatalogos
+);
+
 router.post(
   "/",
   roleMiddleware(["ADMIN_PRINCIPAL", "ADMIN"]),

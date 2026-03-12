@@ -6,6 +6,18 @@ async function list() {
   return usuariosRepo.list();
 }
 
+async function listCatalogos() {
+  const [roles, estados] = await Promise.all([
+    usuariosRepo.listRoles(),
+    usuariosRepo.listEstados(),
+  ]);
+
+  return {
+    roles: Array.isArray(roles) ? roles : [],
+    estados: Array.isArray(estados) ? estados : [],
+  };
+}
+
 async function create({ dni, id_rol, id_estado_usuario, password }) {
   const err = validatePassword(password);
   if (err) return { ok: false, status: 400, message: err };
@@ -81,6 +93,7 @@ async function buscar(q) {
 
 export default {
   list,
+  listCatalogos,
   create,
   ensureUserForInspectorByDni,
   update,

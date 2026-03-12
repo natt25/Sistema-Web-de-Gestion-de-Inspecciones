@@ -94,6 +94,8 @@ async function list() {
   const query = `
     SELECT
       u.id_usuario, u.dni,
+      u.id_rol,
+      u.id_estado_usuario,
       r.nombre_rol AS rol,
       eu.nombre_estado AS estado,
       u.debe_cambiar_password,
@@ -107,6 +109,30 @@ async function list() {
   `;
   const pool = await getPool();
   const result = await pool.request().query(query);
+  return result.recordset;
+}
+
+async function listRoles() {
+  const pool = await getPool();
+  const result = await pool.request().query(`
+    SELECT
+      id_rol,
+      nombre_rol
+    FROM SSOMA.INS_CAT_ROL
+    ORDER BY id_rol;
+  `);
+  return result.recordset;
+}
+
+async function listEstados() {
+  const pool = await getPool();
+  const result = await pool.request().query(`
+    SELECT
+      id_estado_usuario,
+      nombre_estado
+    FROM SSOMA.INS_CAT_ESTADO_USUARIO
+    ORDER BY id_estado_usuario;
+  `);
   return result.recordset;
 }
 
@@ -476,6 +502,8 @@ async function ensureInspectorUserByDni({
 
 export default {
   list,
+  listRoles,
+  listEstados,
   create,
   update,
   setEstado,

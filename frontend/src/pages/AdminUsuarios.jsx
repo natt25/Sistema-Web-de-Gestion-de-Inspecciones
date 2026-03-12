@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   listarUsuarios,
+  listarCatalogosUsuarios,
   crearUsuario,
   cambiarEstadoUsuario,
   resetPasswordUsuario,
@@ -15,6 +16,8 @@ import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
 export default function AdminUsuarios() {
   const [rows, setRows] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [estados, setEstados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   useLoadingWatchdog({
@@ -26,17 +29,42 @@ export default function AdminUsuarios() {
   });
 
   const [dni, setDni] = useState("");
-  const [idRol, setIdRol] = useState(3);
-  const [idEstado, setIdEstado] = useState(1);
+  const [idRol, setIdRol] = useState("");
+  const [idEstado, setIdEstado] = useState("");
   const [password, setPassword] = useState("Cambio123*");
 
   async function load() {
     setLoading(true);
     setMsg("");
     try {
-      const data = await listarUsuarios();
-      setRows(Array.isArray(data) ? data : []);
+      const [usuariosData, catalogosData] = await Promise.all([
+        listarUsuarios(),
+        listarCatalogosUsuarios(),
+      ]);
+
+      setRows(Array.isArray(usuariosData) ? usuariosData : []);
+      setRoles(Array.isArray(catalogosData?.roles) ? catalogosData.roles : []);
+      setEstados(Array.isArray(catalogosData?.estados) ? catalogosData.estados : []);
+
+      setIdRol((prev) => {
+        if (prev) return prev;
+        const rolInspector = (catalogosData?.roles || []).find(
+          (it) => String(it?.nombre_rol || "").trim().toUpperCase() === "INSPECTOR"
+        );
+        const fallback = rolInspector?.id_rol ?? catalogosData?.roles?.[0]?.id_rol ?? "";
+        return fallback === "" ? "" : String(fallback);
+      });
+
+      setIdEstado((prev) => {
+        if (prev) return prev;
+        const estadoActivo = (catalogosData?.estados || []).find(
+          (it) => String(it?.nombre_estado || "").trim().toUpperCase() === "ACTIVO"
+        );
+        const fallback = estadoActivo?.id_estado_usuario ?? catalogosData?.estados?.[0]?.id_estado_usuario ?? "";
+        return fallback === "" ? "" : String(fallback);
+      });
     } catch (e) {
+      console.error("admin.usuarios.load:", e);
       setMsg("No se pudo cargar usuarios");
     } finally {
       setLoading(false);
@@ -48,6 +76,12 @@ export default function AdminUsuarios() {
   async function onCreate(e) {
     e.preventDefault();
     setMsg("");
+
+    if (!idRol || !idEstado) {
+      setMsg("Debes seleccionar rol y estado.");
+      return;
+    }
+
     try {
       await crearUsuario({ dni, id_rol: Number(idRol), id_estado_usuario: Number(idEstado), password });
       setMsg("Usuario creado");
@@ -95,8 +129,28 @@ export default function AdminUsuarios() {
         <Card title="Crear usuario">
           <form className="form" onSubmit={onCreate}>
             <Input label="DNI" value={dni} onChange={(e) => setDni(e.target.value)} required />
-            <Input label="Rol (id_rol)" type="number" value={idRol} onChange={(e) => setIdRol(e.target.value)} />
-            <Input label="Estado (id_estado_usuario)" type="number" value={idEstado} onChange={(e) => setIdEstado(e.target.value)} />
+            <label className="ins-field">
+              <span>Rol</span>
+              <select className="ins-input" value={idRol} onChange={(e) => setIdRol(e.target.value)} required>
+                <option value="">Selecciona un rol</option>
+                {roles.map((rol) => (
+                  <option key={rol.id_rol} value={String(rol.id_rol)}>
+                    {rol.nombre_rol}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="ins-field">
+              <span>Estado</span>
+              <select className="ins-input" value={idEstado} onChange={(e) => setIdEstado(e.target.value)} required>
+                <option value="">Selecciona un estado</option>
+                {estados.map((estado) => (
+                  <option key={estado.id_estado_usuario} value={String(estado.id_estado_usuario)}>
+                    {estado.nombre_estado}
+                  </option>
+                ))}
+              </select>
+            </label>
             <Input label="Password inicial" value={password} onChange={(e) => setPassword(e.target.value)} />
             <Button variant="primary" type="submit">Crear</Button>
             {msg && <Badge>{msg}</Badge>}
