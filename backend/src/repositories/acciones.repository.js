@@ -1,6 +1,12 @@
 import { sql, getPool } from "../config/database.js";
 
-async function listarPendientes({ dias = 7, solo_mias = 0, estado = "ALL", id_usuario = null }) {
+async function listarPendientes({
+  dias = 7,
+  solo_mias = 0,
+  estado = "ALL",
+  id_usuario = null,
+  id_plantilla_inspec = null,
+}) {
   const pool = await getPool();
   const request = pool.request();
 
@@ -10,6 +16,7 @@ async function listarPendientes({ dias = 7, solo_mias = 0, estado = "ALL", id_us
   request.input("solo_mias", sql.Bit, solo_mias ? 1 : 0);
   request.input("estado", sql.NVarChar(40), estadoNormalizado || "ALL");
   request.input("id_usuario", sql.Int, id_usuario ?? null);
+  request.input("id_plantilla_inspec", sql.Int, id_plantilla_inspec ?? null);
 
   const query = `
     DECLARE @hoy DATE = CAST(SYSDATETIME() AS DATE);
@@ -75,6 +82,10 @@ async function listarPendientes({ dias = 7, solo_mias = 0, estado = "ALL", id_us
       AND (
         @estado = 'ALL'
         OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(ea.nombre_estado)), ' ', '_'), '-', '_')) = @estado
+      )
+      AND (
+        @id_plantilla_inspec IS NULL
+        OR i.id_plantilla_inspec = @id_plantilla_inspec
       )
     ORDER BY
       CASE WHEN a.fecha_compromiso IS NULL THEN 1 ELSE 0 END,

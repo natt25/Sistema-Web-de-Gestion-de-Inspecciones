@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listarPendientes } from "../api/pendientes.api";
+import { listarPlantillas } from "../api/plantillas.api.js";
 import { getUser } from "../auth/auth.storage";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
@@ -74,9 +75,11 @@ export default function Pendientes() {
     hasta: "",
     soloMias: 1,
     estado: "ALL",
+    idPlantilla: "",
   });
 
   const [rows, setRows] = useState([]);
+  const [plantillas, setPlantillas] = useState([]);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [estadoMenuOpen, setEstadoMenuOpen] = useState(false);
@@ -115,6 +118,7 @@ export default function Pendientes() {
           dias: diasComputed,
           solo_mias: filters.soloMias,
           estado: filters.estado,
+          id_plantilla_inspec: filters.idPlantilla,
         });
         setRows(Array.isArray(data) ? data : []);
       } catch (e) {
@@ -130,6 +134,7 @@ export default function Pendientes() {
           dias: null,
           solo_mias: filters.soloMias,
           estado: filters.estado,
+          id_plantilla_inspec: filters.idPlantilla,
         });
         setRows(Array.isArray(data) ? data : []);
       }
@@ -141,6 +146,25 @@ export default function Pendientes() {
   }
 
   useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const data = await listarPlantillas();
+        if (!alive) return;
+        setPlantillas(Array.isArray(data) ? data : []);
+      } catch {
+        if (!alive) return;
+        setPlantillas([]);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (filters.range === "custom" && (!filters.desde || !filters.hasta)) {
       setMsg("Completa 'desde' y 'hasta' para el rango personalizado.");
       return;
@@ -148,7 +172,7 @@ export default function Pendientes() {
     setMsg("");
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diasComputed, filters.soloMias, filters.estado, filters.range, filters.desde, filters.hasta]);
+  }, [diasComputed, filters.soloMias, filters.estado, filters.idPlantilla, filters.range, filters.desde, filters.hasta]);
 
   function onChange(e) {
     const { name, value, type, checked } = e.target;
@@ -310,6 +334,24 @@ export default function Pendientes() {
             </div>
           </label>
 
+          <label className="ins-field">
+            <span>Tipo de inspección</span>
+            <select className="ins-input" name="idPlantilla" value={filters.idPlantilla} onChange={onChange}>
+              <option value="">Todos</option>
+              {plantillas.map((plantilla) => {
+                const id = plantilla?.id_plantilla_inspec;
+                if (id == null) return null;
+                const codigo = String(plantilla?.codigo_formato || "").trim() || "-";
+                const nombre = String(plantilla?.nombre_formato || "").trim() || "SIN NOMBRE";
+                return (
+                  <option key={id} value={String(id)}>
+                    {`${codigo} - ${nombre}`}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+
           {filters.range === "custom" ? (
             <>
               <Input label="Desde" type="date" name="desde" value={filters.desde} onChange={onChange} />
@@ -377,7 +419,7 @@ export default function Pendientes() {
             variant="outline"
             type="button"
             onClick={() => {
-              setFilters({ range: "7d", desde: "", hasta: "", soloMias: 1, estado: "ALL" });
+              setFilters({ range: "7d", desde: "", hasta: "", soloMias: 1, estado: "ALL", idPlantilla: "" });
               setMsg("");
             }}
             disabled={loading}

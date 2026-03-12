@@ -20,7 +20,7 @@ function parseEstado(estadoRaw) {
   return estado || "ALL";
 }
 
-async function pendientes({ dias, solo_mias, estado, id_usuario }) {
+async function pendientes({ dias, solo_mias, estado, id_usuario, id_plantilla_inspec }) {
   const d = parseDias(dias);
   if (typeof d === "object" && d?.error) {
     return { ok: false, status: 400, message: d.error };
@@ -30,12 +30,15 @@ async function pendientes({ dias, solo_mias, estado, id_usuario }) {
   const e = parseEstado(estado);
   const id = Number(id_usuario);
   const idNormalizado = Number.isFinite(id) && id > 0 ? id : null;
+  const plantilla = Number(id_plantilla_inspec);
+  const idPlantillaNormalizado = Number.isFinite(plantilla) && plantilla > 0 ? plantilla : null;
 
   const rows = await accionesRepo.listarPendientes({
     dias: d,
     solo_mias: s,
     estado: e,
     id_usuario: idNormalizado,
+    id_plantilla_inspec: idPlantillaNormalizado,
   });
 
   return { ok: true, status: 200, data: rows };

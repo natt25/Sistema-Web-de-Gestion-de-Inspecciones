@@ -5,6 +5,7 @@ export async function listarPendientes({
   solo_mias = 0,
   estado = "ALL",
   id_usuario,
+  id_plantilla_inspec,
 } = {}) {
   const q = new URLSearchParams();
 
@@ -20,6 +21,10 @@ export async function listarPendientes({
 
   if (id_usuario !== null && id_usuario !== undefined && id_usuario !== "") {
     q.set("id_usuario", String(id_usuario));
+  }
+
+  if (id_plantilla_inspec !== null && id_plantilla_inspec !== undefined && id_plantilla_inspec !== "") {
+    q.set("id_plantilla_inspec", String(id_plantilla_inspec));
   }
 
   const res = await http.get(`/api/inspecciones/acciones/pendientes?${q.toString()}`);
