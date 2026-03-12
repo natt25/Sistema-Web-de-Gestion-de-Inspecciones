@@ -29,9 +29,27 @@ function normalizeEstado(estadoRaw) {
 
 const cellTextStyle = {
   display: "block",
-  maxWidth: 280,
-  lineHeight: 1.4,
+  maxWidth: 220,
+  lineHeight: "20px",
   wordBreak: "break-word",
+  margin: 0,
+  padding: 0,
+};
+
+const actionCellStyle = {
+  display: "block",
+  minWidth: 90,
+  lineHeight: "20px",
+  margin: 0,
+  padding: 0,
+};
+
+const shortCellStyle = {
+  display: "block",
+  minWidth: 70,
+  lineHeight: "20px",
+  margin: 0,
+  padding: 0,
 };
 
 export default function Home() {
@@ -150,23 +168,55 @@ export default function Home() {
         label: "Inspeccion",
         render: (a) => {
           const nombre = a?.nombre_formato || "Inspeccion";
-          return <span style={{ ...cellTextStyle, fontWeight: 800 }}>{nombre}</span>;
+          return (
+            <span
+              style={{
+                ...cellTextStyle,
+                maxWidth: 170,
+                fontWeight: 800,
+              }}
+            >
+              {nombre}
+            </span>
+          );
         },
       },
       {
         key: "desc_accion",
         label: "Descripcion",
-        render: (a) => <span style={cellTextStyle}>{a?.desc_accion || "-"}</span>,
+        render: (a) => (
+          <span
+            style={{
+              ...cellTextStyle,
+              maxWidth: 180,
+            }}
+          >
+            {a?.desc_accion || "-"}
+          </span>
+        ),
       },
       {
         key: "responsables",
         label: "Responsables",
-        render: (a) => <span style={{ ...cellTextStyle, maxWidth: 240 }}>{a?.responsables || "-"}</span>,
+        render: (a) => (
+          <span
+            style={{
+              ...cellTextStyle,
+              maxWidth: 190,
+            }}
+          >
+            {a?.responsables || "-"}
+          </span>
+        ),
       },
       {
         key: "fecha_compromiso",
         label: "Fecha",
-        render: (a) => (a?.fecha_compromiso ? String(a.fecha_compromiso).slice(0, 10) : "-"),
+        render: (a) => (
+          <span style={shortCellStyle}>
+            {a?.fecha_compromiso ? String(a.fecha_compromiso).slice(0, 10) : "-"}
+          </span>
+        ),
       },
       {
         key: "estado",
@@ -174,18 +224,20 @@ export default function Home() {
         render: (a) => {
           const ui = estadoBadge(a?.estado);
           return (
-            <span
-              style={{
-                display: "inline-block",
-                padding: "4px 10px",
-                borderRadius: 999,
-                background: ui.bg,
-                color: ui.color,
-                fontWeight: 900,
-                fontSize: 12,
-              }}
-            >
-              {ui.text}
+            <span style={actionCellStyle}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  background: ui.bg,
+                  color: ui.color,
+                  fontWeight: 900,
+                  fontSize: 12,
+                }}
+              >
+                {ui.text}
+              </span>
             </span>
           );
         },
@@ -195,9 +247,13 @@ export default function Home() {
         label: "Dias",
         render: (a) => {
           const val = Number(a?.dias_restantes);
-          if (!Number.isFinite(val)) return a?.dias_restantes ?? "-";
+          if (!Number.isFinite(val)) return <span style={shortCellStyle}>{a?.dias_restantes ?? "-"}</span>;
           const color = val < 0 ? "#b91c1c" : val > 0 ? "#16a34a" : "#92400e";
-          return <span style={{ color, fontWeight: 900 }}>{val}</span>;
+          return (
+            <span style={{ ...shortCellStyle, color, fontWeight: 900 }}>
+              {val}
+            </span>
+          );
         },
       },
     ],
@@ -206,35 +262,59 @@ export default function Home() {
 
   const colsInspecciones = useMemo(
     () => [
-      { key: "id_inspeccion", label: "ID", render: (it) => it?.id_inspeccion ?? "-" },
+      {
+        key: "id_inspeccion",
+        label: "ID",
+        render: (it) => <span style={shortCellStyle}>{it?.id_inspeccion ?? "-"}</span>,
+      },
       {
         key: "tipo",
         label: "Tipo",
         render: (it) => (
-          <span style={cellTextStyle}>
+          <span
+            style={{
+              ...cellTextStyle,
+              maxWidth: 150,
+            }}
+          >
             {it?.nombre_formato || it?.codigo_formato || `Plantilla ${it?.id_plantilla_inspec ?? "-"}`}
           </span>
         ),
       },
-      { key: "area", label: "Area", render: (it) => it?.desc_area || it?.area || it?.id_area || "-" },
+      {
+        key: "area",
+        label: "Area",
+        render: (it) => (
+          <span
+            style={{
+              ...cellTextStyle,
+              maxWidth: 90,
+            }}
+          >
+            {it?.desc_area || it?.area || it?.id_area || "-"}
+          </span>
+        ),
+      },
       {
         key: "estado",
         label: "Estado",
         render: (it) => {
           const ui = estadoBadge(it?.estado_inspeccion_calculado || it?.estado || it?.estado_inspeccion);
           return (
-            <span
-              style={{
-                display: "inline-block",
-                padding: "4px 10px",
-                borderRadius: 999,
-                background: ui.bg,
-                color: ui.color,
-                fontWeight: 900,
-                fontSize: 12,
-              }}
-            >
-              {ui.text}
+            <span style={actionCellStyle}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  background: ui.bg,
+                  color: ui.color,
+                  fontWeight: 900,
+                  fontSize: 12,
+                }}
+              >
+                {ui.text}
+              </span>
             </span>
           );
         },
@@ -244,7 +324,7 @@ export default function Home() {
         label: "Fecha",
         render: (it) => {
           const raw = it?.fecha_inspeccion || it?.created_at;
-          return raw ? String(raw).slice(0, 10) : "-";
+          return <span style={shortCellStyle}>{raw ? String(raw).slice(0, 10) : "-"}</span>;
         },
       },
     ],
@@ -285,18 +365,27 @@ export default function Home() {
               data={misAcciones}
               emptyText={loading ? "Cargando..." : pendientesError || "No tienes acciones pendientes."}
               renderActions={(a) => (
-                <div style={{ display: "flex", alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    display: "block",
+                    margin: 0,
+                    padding: 0,
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => a?.id_inspeccion && navigate(`/inspecciones/${a.id_inspeccion}`)}
                     style={{
                       padding: 0,
+                      margin: 0,
                       border: 0,
                       background: "transparent",
                       color: "#f97316",
                       textDecoration: "none",
                       cursor: "pointer",
                       fontWeight: 900,
+                      lineHeight: "20px",
+                      display: "inline-block",
                     }}
                   >
                     Ver detalle
@@ -324,18 +413,27 @@ export default function Home() {
             data={inspeccionesRecientes}
             emptyText={loading ? "Cargando..." : inspeccionesError || "Sin inspecciones recientes."}
             renderActions={(it) => (
-              <div style={{ display: "flex", alignItems: "flex-start" }}>
+              <div
+                style={{
+                  display: "block",
+                  margin: 0,
+                  padding: 0,
+                }}
+              >
                 <button
                   type="button"
-                  onClick={() => it?.id_inspeccion && navigate(`/inspecciones/${it.id_inspeccion}`)}
+                  onClick={() => a?.id_inspeccion && navigate(`/inspecciones/${a.id_inspeccion}`)}
                   style={{
                     padding: 0,
+                    margin: 0,
                     border: 0,
                     background: "transparent",
                     color: "#f97316",
                     textDecoration: "none",
                     cursor: "pointer",
                     fontWeight: 900,
+                    lineHeight: "20px",
+                    display: "inline-block",
                   }}
                 >
                   Ver detalle

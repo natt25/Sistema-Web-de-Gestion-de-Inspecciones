@@ -300,8 +300,13 @@
 }
 
 .table-row-actions{
-  display: flex;
-  gap: 8px;
+  display: table-cell;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.table-row-actions > *{
+  display: inline-block;
 }
 
 /* Drawer overlay */
