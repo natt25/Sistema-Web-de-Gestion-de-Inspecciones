@@ -2091,11 +2091,11 @@ export default function InspeccionDetail() {
               </Badge>
 
               <Badge variant={getMetaBadgeVariant()}>
-                Codigo: {codigoFormatoTexto}
+                Código: {codigoFormatoTexto}
               </Badge>
 
               <Badge variant={getMetaBadgeVariant()}>
-                Version: {versionTexto}
+                Versión: {versionTexto}
               </Badge>
             </div>
 
