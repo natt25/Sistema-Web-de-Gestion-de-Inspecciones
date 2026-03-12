@@ -208,27 +208,64 @@ export function serializeTablaExtintoresRows(rows) {
   }));
 }
 
-function normalizeEppsRow(row, idx) {
-  const epps = row?.epps && typeof row.epps === "object" ? row.epps : {};
-  const hasMalo = Object.values(epps).some((v) => String(v).toUpperCase() === "MALO");
+function normalizeEppsCell(cellLike, legacyRow = null) {
+  if (cellLike && typeof cellLike === "object" && !Array.isArray(cellLike)) {
+    const estado = String(cellLike?.estado || "").toUpperCase();
+    const observacion = estado === "MALO" ? String(cellLike?.observacion || cellLike?.observaciones || "").trim() : "";
+    return {
+      estado,
+      observacion,
+      accion:
+        estado === "MALO"
+          ? {
+              que: String(cellLike?.accion?.que || "").trim(),
+              quien: String(cellLike?.accion?.quien || "").trim(),
+              quien_dni: String(cellLike?.accion?.quien_dni || "").trim(),
+              cuando: String(cellLike?.accion?.cuando || "").trim(),
+            }
+          : { que: "", quien: "", quien_dni: "", cuando: "" },
+    };
+  }
 
-  const observaciones = hasMalo ? String(row?.observaciones || "").trim() : "";
-  const accion = hasMalo
-    ? {
-        que: String(row?.accion?.que || "").trim(),
-        quien: String(row?.accion?.quien || "").trim(),
-        cuando: String(row?.accion?.cuando || "").trim(),
-      }
-    : { que: "", quien: "", cuando: "" };
+  if (typeof cellLike === "string") {
+    const estado = String(cellLike || "").toUpperCase();
+    const useLegacy = estado === "MALO" && legacyRow && typeof legacyRow === "object";
+    return {
+      estado,
+      observacion: useLegacy ? String(legacyRow?.observaciones || "").trim() : "",
+      accion: useLegacy
+        ? {
+            que: String(legacyRow?.accion?.que || "").trim(),
+            quien: String(legacyRow?.accion?.quien || "").trim(),
+            quien_dni: String(legacyRow?.accion?.quien_dni || "").trim(),
+            cuando: String(legacyRow?.accion?.cuando || "").trim(),
+          }
+        : { que: "", quien: "", quien_dni: "", cuando: "" },
+    };
+  }
+
+  return {
+    estado: "",
+    observacion: "",
+    accion: { que: "", quien: "", quien_dni: "", cuando: "" },
+  };
+}
+
+function normalizeEppsRow(row, idx) {
+  const source = row && typeof row === "object" ? row : {};
+  const rawEpps = source?.epps && typeof source.epps === "object" ? source.epps : {};
+  const epps = {};
+
+  Object.keys(rawEpps).forEach((key) => {
+    epps[key] = normalizeEppsCell(rawEpps[key], source);
+  });
 
   return {
     __tipo: "tabla_epps",
-    rowIndex: row?.rowIndex ?? idx + 1,
-    apellidos_nombres: String(row?.apellidos_nombres || "").trim(),
-    puesto_trabajo: String(row?.puesto_trabajo || "").trim(),
+    rowIndex: source?.rowIndex ?? idx + 1,
+    apellidos_nombres: String(source?.apellidos_nombres || "").trim(),
+    puesto_trabajo: String(source?.puesto_trabajo || "").trim(),
     epps,
-    observaciones,
-    accion,
   };
 }
 
@@ -245,8 +282,8 @@ export function serializeTablaEppsRows(rows) {
         normalized.puesto_trabajo ||
         `Fila ${idx + 1}`,
       estado: null,
-      observacion: normalized.observaciones,
-      accion: normalized.accion,
+      observacion: "",
+      accion: null,
       row_data: normalized,
     };
   });
@@ -541,4 +578,3 @@ export function serializeTablaCamilla({ codigo_camilla, meta, rows }) {
       : [],
   };
 }
-

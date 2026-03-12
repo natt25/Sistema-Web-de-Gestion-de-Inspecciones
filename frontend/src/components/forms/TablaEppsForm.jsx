@@ -25,9 +25,38 @@ const EPP_COLUMNS = [
 const ESTADO_OPTIONS = ["", "BUENO", "MALO", "NA"];
 const DEFAULT_ROWS = 5;
 
+function emptyAccion() {
+  return { que: "", quien: "", quien_dni: "", cuando: "" };
+}
+
+function emptyCell() {
+  return { estado: "", observacion: "", accion: emptyAccion() };
+}
+
+function normalizeCell(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return {
+      estado: String(value?.estado || "").toUpperCase(),
+      observacion: String(value?.observacion || value?.observaciones || ""),
+      accion: {
+        que: String(value?.accion?.que || ""),
+        quien: String(value?.accion?.quien || ""),
+        quien_dni: String(value?.accion?.quien_dni || ""),
+        cuando: String(value?.accion?.cuando || ""),
+      },
+    };
+  }
+
+  if (typeof value === "string") {
+    return { ...emptyCell(), estado: String(value || "").toUpperCase() };
+  }
+
+  return emptyCell();
+}
+
 function createEmptyEpps() {
   return EPP_COLUMNS.reduce((acc, c) => {
-    acc[c.key] = "";
+    acc[c.key] = emptyCell();
     return acc;
   }, {});
 }
@@ -39,35 +68,30 @@ function createEmptyRow(index) {
     apellidos_nombres: "",
     puesto_trabajo: "",
     epps: createEmptyEpps(),
-    observaciones: "",
-    accion: { que: "", quien: "", cuando: "" },
   };
+}
+
+function cellHasAnyData(cell) {
+  const normalized = normalizeCell(cell);
+  if (String(normalized.estado || "").trim()) return true;
+  if (String(normalized.observacion || "").trim()) return true;
+  if (String(normalized.accion?.que || "").trim()) return true;
+  if (String(normalized.accion?.quien || "").trim()) return true;
+  if (String(normalized.accion?.quien_dni || "").trim()) return true;
+  if (String(normalized.accion?.cuando || "").trim()) return true;
+  return false;
 }
 
 function rowHasAnyData(row) {
   if (!row) return false;
   if (String(row.apellidos_nombres || "").trim()) return true;
   if (String(row.puesto_trabajo || "").trim()) return true;
-  if (Object.values(row.epps || {}).some((v) => String(v || "").trim())) return true;
-  if (String(row.observaciones || "").trim()) return true;
-  if (String(row.accion?.que || "").trim()) return true;
-  if (String(row.accion?.quien || "").trim()) return true;
-  if (String(row.accion?.cuando || "").trim()) return true;
+  if (Object.values(row.epps || {}).some((cell) => cellHasAnyData(cell))) return true;
   return false;
 }
 
-function rowHasMalo(row) {
-  return Object.values(row?.epps || {}).some((v) => String(v).toUpperCase() === "MALO");
-}
-
-function normalizeEmpleadoLabel(emp) {
-  if (!emp) return "";
-  const dni = emp?.dni ? String(emp.dni).trim() : "";
-  const ap = emp?.apellidos ? String(emp.apellidos).trim() : (emp?.apellido ? String(emp.apellido).trim() : "");
-  const nom = emp?.nombres ? String(emp.nombres).trim() : (emp?.nombre ? String(emp.nombre).trim() : "");
-  const full = (emp?.apellidos_nombres ? String(emp.apellidos_nombres).trim() : "").trim();
-  const labelBase = full || `${ap} ${nom}`.trim();
-  return dni ? `${dni} - ${labelBase}`.trim() : labelBase;
+function isMaloCell(cell) {
+  return String(cell?.estado || "").toUpperCase() === "MALO";
 }
 
 function buildEmpleadoNombreCompleto(emp) {
@@ -77,9 +101,7 @@ function buildEmpleadoNombreCompleto(emp) {
   const apellidoMaterno = String(emp?.apellido_materno ?? "").trim();
   const apellidos = String(emp?.apellidos ?? emp?.apellido ?? "").trim();
   const nombres = String(emp?.nombres ?? emp?.nombre ?? "").trim();
-  const full = String(
-    emp?.apellidos_nombres ?? emp?.label ?? emp?.nombreCompleto ?? ""
-  ).trim();
+  const full = String(emp?.apellidos_nombres ?? emp?.label ?? emp?.nombreCompleto ?? "").trim();
 
   return (
     [apellidoPaterno, apellidoMaterno, nombres].filter(Boolean).join(" ").trim() ||
@@ -95,14 +117,7 @@ function buildEmpleadoOptionLabel(emp) {
 }
 
 function extractCargo(emp) {
-  return (
-    emp?.cargo ||
-    emp?.desc_cargo ||
-    emp?.nombre_cargo ||
-    emp?.puesto ||
-    emp?.desc_puesto ||
-    ""
-  );
+  return emp?.cargo || emp?.desc_cargo || emp?.nombre_cargo || emp?.puesto || emp?.desc_puesto || "";
 }
 
 function getEppTone(value) {
@@ -143,19 +158,23 @@ function mapInitialRows(rows) {
 
   return base.map((blank, idx) => {
     const incoming = rows[idx] || {};
-    const epps = { ...createEmptyEpps(), ...(incoming.epps || {}) };
+    const epps = createEmptyEpps();
+
+    EPP_COLUMNS.forEach((col) => {
+      epps[col.key] = normalizeCell(incoming?.epps?.[col.key]);
+    });
+
     return {
       ...blank,
       ...incoming,
       rowIndex: idx + 1,
       epps,
-      accion: {
-        que: incoming?.accion?.que || "",
-        quien: incoming?.accion?.quien || "",
-        cuando: incoming?.accion?.cuando || "",
-      },
     };
   });
+}
+
+function getCellError(errors, idx, colKey, field) {
+  return errors[`row:${idx}:col:${colKey}:${field}`];
 }
 
 export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
@@ -167,7 +186,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   const [empOptions, setEmpOptions] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
 
-  const [whoOpenIdx, setWhoOpenIdx] = useState(null);
+  const [whoOpenCell, setWhoOpenCell] = useState(null);
   const [whoQuery, setWhoQuery] = useState("");
   const [whoOptions, setWhoOptions] = useState([]);
   const [whoLoading, setWhoLoading] = useState(false);
@@ -182,21 +201,39 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   }
 
-  function updateEppState(idx, key, value) {
+  function updateCell(idx, key, patch) {
     setRows((prev) =>
       prev.map((r, i) => {
         if (i !== idx) return r;
 
-        const epps = { ...(r.epps || {}), [key]: value };
-        const next = { ...r, epps };
+        const current = normalizeCell(r?.epps?.[key]);
+        const nextCell = {
+          ...current,
+          ...patch,
+          accion: {
+            ...current.accion,
+            ...(patch?.accion || {}),
+          },
+        };
 
-        if (value !== "MALO" && !rowHasMalo(next)) {
-          next.observaciones = "";
-          next.accion = { que: "", quien: "", cuando: "" };
+        if (!isMaloCell(nextCell)) {
+          nextCell.observacion = "";
+          nextCell.accion = emptyAccion();
         }
-        return next;
+
+        return {
+          ...r,
+          epps: {
+            ...(r.epps || {}),
+            [key]: nextCell,
+          },
+        };
       })
     );
+  }
+
+  function updateEstado(idx, key, value) {
+    updateCell(idx, key, { estado: String(value || "").toUpperCase() });
   }
 
   function addRow() {
@@ -220,20 +257,23 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
     rows.forEach((row, idx) => {
       if (!rowHasAnyData(row)) return;
 
-      if (rowHasMalo(row)) {
-        if (!String(row.observaciones || "").trim()) {
-          nextErrors[`row:${idx}:obs`] = "Observación obligatoria cuando existe MALO.";
+      EPP_COLUMNS.forEach((col) => {
+        const cell = normalizeCell(row?.epps?.[col.key]);
+        if (!isMaloCell(cell)) return;
+
+        if (!String(cell.observacion || "").trim()) {
+          nextErrors[`row:${idx}:col:${col.key}:obs`] = "Observación obligatoria cuando la celda está en MALO.";
         }
-        if (!String(row.accion?.que || "").trim()) {
-          nextErrors[`row:${idx}:que`] = "Acción (qué) obligatoria cuando existe MALO.";
+        if (!String(cell.accion?.que || "").trim()) {
+          nextErrors[`row:${idx}:col:${col.key}:que`] = "Acción (qué) obligatoria cuando la celda está en MALO.";
         }
-        if (!String(row.accion?.quien || "").trim()) {
-          nextErrors[`row:${idx}:quien`] = "Acción (quién) obligatoria cuando existe MALO.";
+        if (!String(cell.accion?.quien || "").trim()) {
+          nextErrors[`row:${idx}:col:${col.key}:quien`] = "Acción (quién) obligatoria cuando la celda está en MALO.";
         }
-        if (!String(row.accion?.cuando || "").trim()) {
-          nextErrors[`row:${idx}:cuando`] = "Acción (cuándo) obligatoria cuando existe MALO.";
+        if (!String(cell.accion?.cuando || "").trim()) {
+          nextErrors[`row:${idx}:col:${col.key}:cuando`] = "Acción (cuándo) obligatoria cuando la celda está en MALO.";
         }
-      }
+      });
     });
 
     setErrors(nextErrors);
@@ -286,7 +326,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
   }, [empQuery, empOpenIdx]);
 
   useEffect(() => {
-    if (whoOpenIdx == null) return;
+    if (!whoOpenCell) return;
 
     const q = String(whoQuery || "").trim();
     if (!q) {
@@ -316,7 +356,7 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
       alive = false;
       clearTimeout(t);
     };
-  }, [whoQuery, whoOpenIdx]);
+  }, [whoQuery, whoOpenCell]);
 
   return (
     <form onSubmit={handleSubmit} className="ins-form">
@@ -324,11 +364,13 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
         <div>
           <div className="ins-title">Inspección de EPPs</div>
           <div className="ins-sub">
-            FOR-033. Si existe al menos un MALO en una fila, se exige observación y plan de acción.
+            FOR-033. Cada celda marcada como MALO exige su propia observación y plan de acción.
           </div>
         </div>
         <div className="ins-progress">
-          <span>{filled}/{rows.length} filas con datos</span>
+          <span>
+            {filled}/{rows.length} filas con datos
+          </span>
           <Button type="submit">Guardar</Button>
         </div>
       </div>
@@ -341,7 +383,9 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
               <th style={{ minWidth: 280 }}>Apellidos y Nombres</th>
               <th style={{ minWidth: 180 }}>Puesto de Trabajo</th>
               {EPP_COLUMNS.map((c) => (
-                <th key={c.key}>{c.label}</th>
+                <th key={c.key} style={{ minWidth: 240 }}>
+                  {c.label}
+                </th>
               ))}
               <th style={{ width: 70 }}></th>
             </tr>
@@ -353,9 +397,9 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
                 key={row.rowIndex}
                 row={row}
                 idx={idx}
-                showMalo={rowHasMalo(row)}
                 updateRow={updateRow}
-                updateEppState={updateEppState}
+                updateCell={updateCell}
+                updateEstado={updateEstado}
                 errors={errors}
                 removeRow={removeRow}
                 empOpenIdx={empOpenIdx}
@@ -364,8 +408,8 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
                 setEmpQuery={setEmpQuery}
                 empOptions={empOptions}
                 empLoading={empLoading}
-                whoOpenIdx={whoOpenIdx}
-                setWhoOpenIdx={setWhoOpenIdx}
+                whoOpenCell={whoOpenCell}
+                setWhoOpenCell={setWhoOpenCell}
                 whoQuery={whoQuery}
                 setWhoQuery={setWhoQuery}
                 whoOptions={whoOptions}
@@ -391,9 +435,9 @@ export default function TablaEppsForm({ onSubmit, initialRows = [] }) {
 function FragmentRow({
   row,
   idx,
-  showMalo,
   updateRow,
-  updateEppState,
+  updateCell,
+  updateEstado,
   errors,
   removeRow,
   empOpenIdx,
@@ -402,62 +446,66 @@ function FragmentRow({
   setEmpQuery,
   empOptions,
   empLoading,
-  whoOpenIdx,
-  setWhoOpenIdx,
+  whoOpenCell,
+  setWhoOpenCell,
   whoQuery,
   setWhoQuery,
   whoOptions,
   whoLoading,
 }) {
   return (
-    <>
-      <tr style={showMalo ? { background: "rgba(254, 242, 242, .45)" } : undefined}>
-        <td>{row.rowIndex}</td>
+    <tr>
+      <td style={{ verticalAlign: "top" }}>{row.rowIndex}</td>
 
-        <td>
-          <Autocomplete
-            placeholder="DNI / Apellido / Nombre"
-            displayValue={row.apellidos_nombres}
-            options={empOpenIdx === idx ? empOptions : []}
-            loading={empOpenIdx === idx ? empLoading : false}
-            getOptionLabel={buildEmpleadoOptionLabel}
-            onFocus={() => {
-              setEmpOpenIdx(idx);
-              setEmpQuery(row.apellidos_nombres || "");
-            }}
-            onInputChange={(txt) => {
-              setEmpOpenIdx(idx);
-              setEmpQuery(txt);
-              updateRow(idx, { apellidos_nombres: txt, empleado: null });
-            }}
-            onSelect={(emp) => {
-              const label = buildEmpleadoNombreCompleto(emp);
-              const cargo = extractCargo(emp);
-              updateRow(idx, {
-                empleado: emp,
-                apellidos_nombres: label,
-                puesto_trabajo: cargo || row.puesto_trabajo || "",
-              });
-            }}
-          />
-        </td>
+      <td style={{ verticalAlign: "top" }}>
+        <Autocomplete
+          placeholder="DNI / Apellido / Nombre"
+          displayValue={row.apellidos_nombres}
+          options={empOpenIdx === idx ? empOptions : []}
+          loading={empOpenIdx === idx ? empLoading : false}
+          getOptionLabel={buildEmpleadoOptionLabel}
+          onFocus={() => {
+            setEmpOpenIdx(idx);
+            setEmpQuery(row.apellidos_nombres || "");
+          }}
+          onInputChange={(txt) => {
+            setEmpOpenIdx(idx);
+            setEmpQuery(txt);
+            updateRow(idx, { apellidos_nombres: txt, empleado: null });
+          }}
+          onSelect={(emp) => {
+            const label = buildEmpleadoNombreCompleto(emp);
+            const cargo = extractCargo(emp);
+            updateRow(idx, {
+              empleado: emp,
+              apellidos_nombres: label,
+              puesto_trabajo: cargo || row.puesto_trabajo || "",
+            });
+          }}
+        />
+      </td>
 
-        <td>
-          <input
-            className="ins-input"
-            value={row.puesto_trabajo}
-            onChange={(e) => updateRow(idx, { puesto_trabajo: e.target.value })}
-            placeholder="Puesto"
-          />
-        </td>
+      <td style={{ verticalAlign: "top" }}>
+        <input
+          className="ins-input"
+          value={row.puesto_trabajo}
+          onChange={(e) => updateRow(idx, { puesto_trabajo: e.target.value })}
+          placeholder="Puesto"
+        />
+      </td>
 
-        {EPP_COLUMNS.map((c) => (
-          <td key={`${row.rowIndex}-${c.key}`}>
+      {EPP_COLUMNS.map((c) => {
+        const cell = normalizeCell(row?.epps?.[c.key]);
+        const malo = isMaloCell(cell);
+        const whoCellKey = `${idx}:${c.key}`;
+
+        return (
+          <td key={`${row.rowIndex}-${c.key}`} style={{ verticalAlign: "top" }}>
             <select
               className="ins-input"
-              value={row.epps?.[c.key] || ""}
-              onChange={(e) => updateEppState(idx, c.key, e.target.value)}
-              style={getEppTone(row.epps?.[c.key]) || undefined}
+              value={cell.estado || ""}
+              onChange={(e) => updateEstado(idx, c.key, e.target.value)}
+              style={getEppTone(cell.estado) || undefined}
             >
               {ESTADO_OPTIONS.map((opt) => (
                 <option key={opt || "empty"} value={opt}>
@@ -465,95 +513,114 @@ function FragmentRow({
                 </option>
               ))}
             </select>
-          </td>
-        ))}
 
-        <td>
-          <Button type="button" variant="outline" onClick={() => removeRow(idx)}>
-            X
-          </Button>
-        </td>
-      </tr>
+            {malo ? (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 10,
+                  border: "1px solid #f3c6c6",
+                  borderRadius: 12,
+                  background: "#fff5f5",
+                }}
+              >
+                <div style={{ fontWeight: 900, color: "#b91c1c" }}>Observación (obligatoria)</div>
+                <textarea
+                  className={`ins-note-input ${getCellError(errors, idx, c.key, "obs") ? "is-error" : ""}`}
+                  rows={2}
+                  value={cell.observacion || ""}
+                  onChange={(e) => updateCell(idx, c.key, { observacion: e.target.value })}
+                  placeholder="Detalla observaciones y medidas correctivas..."
+                />
+                {getCellError(errors, idx, c.key, "obs") ? (
+                  <div className="ins-error">{getCellError(errors, idx, c.key, "obs")}</div>
+                ) : null}
 
-      {showMalo ? (
-        <tr>
-          <td colSpan={EPP_COLUMNS.length + 4} style={{ padding: 0 }}>
-            <div
-              style={{
-                marginTop: 10,
-                padding: 10,
-                border: "1px solid #f3c6c6",
-                borderRadius: 12,
-                background: "#fff5f5",
-              }}
-            >
-              <div style={{ fontWeight: 900, color: "#b91c1c" }}>Observación (obligatoria)</div>
-              <textarea
-                className={`ins-note-input ${errors[`row:${idx}:obs`] ? "is-error" : ""}`}
-                rows={2}
-                value={row.observaciones}
-                onChange={(e) => updateRow(idx, { observaciones: e.target.value })}
-                placeholder="Detalla observaciones y medidas correctivas..."
-              />
-              {errors[`row:${idx}:obs`] ? <div className="ins-error">{errors[`row:${idx}:obs`]}</div> : null}
+                <div style={{ marginTop: 10, fontWeight: 900 }}>Plan de acción (obligatorio)</div>
 
-              <div style={{ marginTop: 10, fontWeight: 900 }}>Plan de acción (obligatorio)</div>
+                <div className="ins-grid">
+                  <label className="ins-field">
+                    <span>Qué</span>
+                    <input
+                      className={`ins-input ${getCellError(errors, idx, c.key, "que") ? "is-error" : ""}`}
+                      value={cell.accion?.que || ""}
+                      onChange={(e) =>
+                        updateCell(idx, c.key, {
+                          accion: { ...(cell.accion || {}), que: e.target.value },
+                        })
+                      }
+                      placeholder="Describe la acción correctiva inmediata..."
+                    />
+                    {getCellError(errors, idx, c.key, "que") ? (
+                      <div className="ins-error">{getCellError(errors, idx, c.key, "que")}</div>
+                    ) : null}
+                  </label>
 
-              <div className="ins-grid">
-                <label className="ins-field">
-                  <span>Qué</span>
-                  <input
-                    className={`ins-input ${errors[`row:${idx}:que`] ? "is-error" : ""}`}
-                    value={row.accion?.que || ""}
-                    onChange={(e) => updateRow(idx, { accion: { ...(row.accion || {}), que: e.target.value } })}
-                    placeholder="Describe la acción correctiva inmediata..."
-                  />
-                  {errors[`row:${idx}:que`] ? <div className="ins-error">{errors[`row:${idx}:que`]}</div> : null}
-                </label>
+                  <label className="ins-field">
+                    <span>Quién</span>
+                    <Autocomplete
+                      placeholder="DNI / Apellido / Nombre"
+                      displayValue={cell.accion?.quien || ""}
+                      options={whoOpenCell === whoCellKey ? whoOptions : []}
+                      loading={whoOpenCell === whoCellKey ? whoLoading : false}
+                      getOptionLabel={buildEmpleadoOptionLabel}
+                      onFocus={() => {
+                        setWhoOpenCell(whoCellKey);
+                        setWhoQuery(cell.accion?.quien || "");
+                      }}
+                      onInputChange={(txt) => {
+                        setWhoOpenCell(whoCellKey);
+                        setWhoQuery(txt);
+                        updateCell(idx, c.key, {
+                          accion: { ...(cell.accion || {}), quien: txt, quien_dni: "" },
+                        });
+                      }}
+                      onSelect={(emp) => {
+                        const nombreCompleto = buildEmpleadoNombreCompleto(emp);
+                        setWhoOpenCell(whoCellKey);
+                        setWhoQuery(nombreCompleto);
+                        updateCell(idx, c.key, {
+                          accion: {
+                            ...(cell.accion || {}),
+                            quien: nombreCompleto,
+                            quien_dni: String(emp?.dni || "").trim(),
+                          },
+                        });
+                      }}
+                    />
+                    {getCellError(errors, idx, c.key, "quien") ? (
+                      <div className="ins-error">{getCellError(errors, idx, c.key, "quien")}</div>
+                    ) : null}
+                  </label>
 
-                <label className="ins-field">
-                  <span>Quién</span>
-                  <Autocomplete
-                    placeholder="DNI / Apellido / Nombre"
-                    displayValue={row.accion?.quien || ""}
-                    options={whoOpenIdx === idx ? whoOptions : []}
-                    loading={whoOpenIdx === idx ? whoLoading : false}
-                    getOptionLabel={buildEmpleadoOptionLabel}
-                    onFocus={() => {
-                      setWhoOpenIdx(idx);
-                      setWhoQuery(row.accion?.quien || "");
-                    }}
-                    onInputChange={(txt) => {
-                      setWhoOpenIdx(idx);
-                      setWhoQuery(txt);
-                      updateRow(idx, { accion: { ...(row.accion || {}), quien: txt } });
-                    }}
-                    onSelect={(emp) => {
-                      const nombreCompleto = buildEmpleadoNombreCompleto(emp);
-                      setWhoQuery(nombreCompleto);
-                      updateRow(idx, {
-                        accion: { ...(row.accion || {}), quien: nombreCompleto },
-                      });
-                    }}
-                  />
-                  {errors[`row:${idx}:quien`] ? <div className="ins-error">{errors[`row:${idx}:quien`]}</div> : null}
-                </label>
-
-                <label className="ins-field">
-                  <span>Cuándo</span>
-                  <input
-                    type="date"
-                    className={`ins-input ${errors[`row:${idx}:cuando`] ? "is-error" : ""}`}
-                    value={row.accion?.cuando || ""}
-                    onChange={(e) => updateRow(idx, { accion: { ...(row.accion || {}), cuando: e.target.value } })}
-                  />
-                  {errors[`row:${idx}:cuando`] ? <div className="ins-error">{errors[`row:${idx}:cuando`]}</div> : null}
-                </label>
+                  <label className="ins-field">
+                    <span>Cuándo</span>
+                    <input
+                      type="date"
+                      className={`ins-input ${getCellError(errors, idx, c.key, "cuando") ? "is-error" : ""}`}
+                      value={cell.accion?.cuando || ""}
+                      onChange={(e) =>
+                        updateCell(idx, c.key, {
+                          accion: { ...(cell.accion || {}), cuando: e.target.value },
+                        })
+                      }
+                    />
+                    {getCellError(errors, idx, c.key, "cuando") ? (
+                      <div className="ins-error">{getCellError(errors, idx, c.key, "cuando")}</div>
+                    ) : null}
+                  </label>
+                </div>
               </div>
-            </div>
+            ) : null}
           </td>
-        </tr>
-      ) : null}
-    </>
+        );
+      })}
+
+      <td style={{ verticalAlign: "top" }}>
+        <Button type="button" variant="outline" onClick={() => removeRow(idx)}>
+          X
+        </Button>
+      </td>
+    </tr>
   );
 }
