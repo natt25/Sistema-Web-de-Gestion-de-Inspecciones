@@ -5,7 +5,8 @@ async function crear(req, res) {
 
     const result = await service.crearObservacion({
       id_inspeccion: id,
-      body: req.body
+      body: req.body,
+      user: req.user
     });
 
     if (!result.ok) {
@@ -40,7 +41,8 @@ async function crearEvidencia(req, res) {
     const { id } = req.params; // id_observacion
     const result = await service.crearEvidenciaObservacion({
       id_observacion: id,
-      body: req.body
+      body: req.body,
+      user: req.user
     });
 
     if (!result.ok) {
@@ -75,7 +77,8 @@ async function crearAccion(req, res) {
     const { id } = req.params; // id_observacion
     const result = await service.crearAccionObservacion({
       id_observacion: id,
-      body: req.body
+      body: req.body,
+      user: req.user
     });
 
     if (!result.ok) {
@@ -110,7 +113,8 @@ async function crearEvidenciaAccion(req, res) {
     const { id } = req.params; // id_accion
     const result = await service.crearEvidenciaAccion({
       id_accion: id,
-      body: req.body
+      body: req.body,
+      user: req.user
     });
 
     if (!result.ok) {
@@ -145,7 +149,8 @@ async function actualizarEstadoObservacion(req, res) {
     const { id } = req.params; // id_observacion
     const result = await service.actualizarEstadoObservacion({
       id_observacion: id,
-      body: req.body
+      body: req.body,
+      user: req.user
     });
 
     if (!result.ok) {
@@ -164,7 +169,8 @@ async function actualizarEstadoAccion(req, res) {
     const { id } = req.params; // id_accion
     const result = await service.actualizarEstadoAccion({
       id_accion: id,
-      body: req.body
+      body: req.body,
+      user: req.user
     });
 
     if (!result.ok) {

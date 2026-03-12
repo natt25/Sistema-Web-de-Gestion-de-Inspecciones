@@ -7,6 +7,7 @@ import obsRepo from "../repositories/observaciones.repository.js";
 import fsp from "fs/promises";
 import usuariosRepo from "../repositories/usuarios.repository.js";
 import { getPool } from "../config/database.js";
+import { validarInspeccionEditable } from "./inspecciones.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,11 +37,17 @@ function crearStorageEvidencia(destDir, prefix) {
 const uploadObsMiddleware = multer({ storage: crearStorageEvidencia(OBS_DIR, "obs") }).single("file");
 const uploadAccMiddleware = multer({ storage: crearStorageEvidencia(ACC_DIR, "acc") }).single("file");
 
-async function subirEvidenciaObservacion({ id_observacion, file }) {
+async function subirEvidenciaObservacion({ id_observacion, file, user }) {
   const id = Number(id_observacion);
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, message: "id_observacion invalido" };
   }
+
+  const id_inspeccion = await obsRepo.obtenerInspeccionIdPorObservacion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Observacion no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   if (!file) {
     return { ok: false, status: 400, message: "Archivo no enviado" };
@@ -76,11 +83,17 @@ async function subirEvidenciaObservacion({ id_observacion, file }) {
   return { ok: true, status: 201, data: creado };
 }
 
-async function subirEvidenciaAccion({ id_accion, file }) {
+async function subirEvidenciaAccion({ id_accion, file, user }) {
   const id = Number(id_accion);
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, message: "id_accion invalido" };
   }
+
+  const id_inspeccion = await obsRepo.obtenerInspeccionIdPorAccion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Accion no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   if (!file) {
     return { ok: false, status: 400, message: "Archivo no enviado" };
@@ -247,9 +260,15 @@ async function unlinkEvidenceFile(archivoRuta) {
 }
 
 // Borra evidencia de ACCION (id_acc_evidencia)
-async function eliminarEvidenciaAccion({ id_acc_evidencia }) {
+async function eliminarEvidenciaAccion({ id_acc_evidencia, user }) {
   const id = Number(id_acc_evidencia);
   if (!id) return { ok: false, status: 400, message: "id_acc_evidencia invalido" };
+
+  const id_inspeccion = await obsRepo.obtenerInspeccionIdPorAccEvidencia(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Evidencia no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   const pool = await getPool();
 
@@ -279,9 +298,15 @@ async function eliminarEvidenciaAccion({ id_acc_evidencia }) {
 }
 
 // (OPCIONAL) Borra evidencia de OBS (id_obs_evidencia)
-async function eliminarEvidenciaObservacion({ id_obs_evidencia }) {
+async function eliminarEvidenciaObservacion({ id_obs_evidencia, user }) {
   const id = Number(id_obs_evidencia);
   if (!id) return { ok: false, status: 400, message: "id_obs_evidencia invalido" };
+
+  const id_inspeccion = await obsRepo.obtenerInspeccionIdPorObsEvidencia(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Evidencia no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   const pool = await getPool();
 

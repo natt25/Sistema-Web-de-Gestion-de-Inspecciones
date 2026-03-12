@@ -1,6 +1,10 @@
 import repo from "../repositories/observaciones.repository.js";
 import inspeccionesRepo from "../repositories/inspecciones.repository.js";
-async function crearObservacion({ id_inspeccion, body }) {
+import { validarInspeccionEditable } from "./inspecciones.service.js";
+async function crearObservacion({ id_inspeccion, body, user }) {
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
+
   const {
     id_nivel_riesgo,
     id_estado_observacion,
@@ -38,11 +42,17 @@ async function listarPorInspeccion(id_inspeccion) {
   return { ok: true, status: 200, data };
 }
 
-async function crearEvidenciaObservacion({ id_observacion, body }) {
+async function crearEvidenciaObservacion({ id_observacion, body, user }) {
   const id = Number(id_observacion);
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, message: "id_observacion inválido" };
   }
+
+  const id_inspeccion = await repo.obtenerInspeccionIdPorObservacion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Observación no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   const {
     archivo_nombre,
@@ -97,11 +107,17 @@ async function listarEvidenciasPorObservacion(id_observacion) {
   return { ok: true, status: 200, data };
 }
 
-async function crearAccionObservacion({ id_observacion, body }) {
+async function crearAccionObservacion({ id_observacion, body, user }) {
   const idObs = Number(id_observacion);
   if (!idObs || Number.isNaN(idObs)) {
     return { ok: false, status: 400, message: "id_observacion inválido" };
   }
+
+  const id_inspeccion = await repo.obtenerInspeccionIdPorObservacion(idObs);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Observación no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   const {
     desc_accion,
@@ -162,11 +178,17 @@ async function listarAccionesPorObservacion(id_observacion) {
   return { ok: true, status: 200, data };
 }
 
-async function crearEvidenciaAccion({ id_accion, body }) {
+async function crearEvidenciaAccion({ id_accion, body, user }) {
   const id = Number(id_accion);
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, message: "id_accion inválido" };
   }
+
+  const id_inspeccion = await repo.obtenerInspeccionIdPorAccion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Acción no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   const {
     archivo_nombre,
@@ -221,11 +243,17 @@ async function listarEvidenciasPorAccion(id_accion) {
   return { ok: true, status: 200, data };
 }
 
-async function actualizarEstadoObservacion({ id_observacion, body }) {
+async function actualizarEstadoObservacion({ id_observacion, body, user }) {
   const id = Number(id_observacion);
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, message: "id_observacion inválido" };
   }
+
+  const id_inspeccion = await repo.obtenerInspeccionIdPorObservacion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Observación no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   const nuevo = Number(body?.id_estado_observacion);
   if (!nuevo || Number.isNaN(nuevo)) {
@@ -262,11 +290,17 @@ async function actualizarEstadoObservacion({ id_observacion, body }) {
   return { ok: true, status: 200, data: updated };
 }
 
-async function actualizarEstadoAccion({ id_accion, body }) {
+async function actualizarEstadoAccion({ id_accion, body, user }) {
   const id = Number(id_accion);
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, message: "id_accion inválido" };
   }
+
+  const id_inspeccion = await repo.obtenerInspeccionIdPorAccion(id);
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Acción no encontrada" };
+
+  const editable = await validarInspeccionEditable({ id_inspeccion, user });
+  if (!editable.ok) return editable;
 
   const nuevo = Number(body?.id_estado_accion);
   if (!nuevo || Number.isNaN(nuevo)) {

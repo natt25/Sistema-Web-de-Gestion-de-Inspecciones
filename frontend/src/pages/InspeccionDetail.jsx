@@ -18,7 +18,7 @@ import {
   getInspeccionCache, setInspeccionCache,
 } from "../utils/offlineQueue";
 import { obtenerDefinicionPlantilla } from "../api/plantillas.api";
-import { getToken } from "../auth/auth.storage";
+import { getToken, getUser } from "../auth/auth.storage";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const DEBUG_SYNC = import.meta.env.DEV;
@@ -1222,6 +1222,7 @@ function getAprobacionBadgeVariant(fechaAprobacion) {
 }
 
 export default function InspeccionDetail() {
+  const currentUser = getUser();
   const [porcentajeDraft, setPorcentajeDraft] = useState({});
 
   function getPorcentajeDraftValue(accionDb, row) {
@@ -1824,6 +1825,9 @@ export default function InspeccionDetail() {
   return map;
 }, [data?.observaciones]);
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
+  const puedeEditarInspeccionCerrada =
+    String(currentUser?.rol || "").trim().toUpperCase() === "ADMIN_PRINCIPAL";
+  const inspeccionBloqueada = inspeccionCerrada && !puedeEditarInspeccionCerrada;
   const visiblePageError = online ? pageError : "";
   const nombreTipoInspeccion = pickFirst(
     cab?.nombre_formato,
@@ -2242,7 +2246,7 @@ export default function InspeccionDetail() {
                           hasLev &&
                           deadlineDay != null &&
                           todayDay <= deadlineDay &&
-                          !inspeccionCerrada;
+                          !inspeccionBloqueada;
 
                         const isExpired = deadlineDay != null && todayDay > deadlineDay;
                         const cumplimientoPlaceholder = !hasLev
@@ -2310,7 +2314,7 @@ export default function InspeccionDetail() {
                                         idTarget={accionDb.id_accion}
                                         onUploaded={handleEvidenceUploaded}
                                         disabled={false}
-                                        inspeccionCerrada={inspeccionCerrada}
+                                        inspeccionCerrada={inspeccionBloqueada}
                                         online={online}
                                         maxFiles={2}
                                         currentCount={evidLev.length}
@@ -2449,12 +2453,12 @@ export default function InspeccionDetail() {
           <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
             <label style={{ display: "grid", gap: 6 }}>
               item_ref
-              <input name="item_ref" value={form.item_ref} onChange={onChangeForm} placeholder="Ej: 1.1" disabled={inspeccionCerrada} />
+              <input name="item_ref" value={form.item_ref} onChange={onChangeForm} placeholder="Ej: 1.1" disabled={inspeccionBloqueada} />
             </label>
 
             <label style={{ display: "grid", gap: 6 }}>
               Nivel de riesgo (id_nivel_riesgo)
-              <select name="id_nivel_riesgo" value={form.id_nivel_riesgo} onChange={onChangeForm} disabled={inspeccionCerrada}>
+              <select name="id_nivel_riesgo" value={form.id_nivel_riesgo} onChange={onChangeForm} disabled={inspeccionBloqueada}>
                 <option value="1">1 - BAJO</option>
                 <option value="2">2 - MEDIO</option>
                 <option value="3">3 - ALTO</option>
@@ -2463,7 +2467,7 @@ export default function InspeccionDetail() {
 
             <label style={{ display: "grid", gap: 6 }}>
               Estado observacion (id_estado_observacion)
-              <select name="id_estado_observacion" value={form.id_estado_observacion} onChange={onChangeForm} disabled={inspeccionCerrada}>
+              <select name="id_estado_observacion" value={form.id_estado_observacion} onChange={onChangeForm} disabled={inspeccionBloqueada}>
                 <option value="1">1 - ABIERTA</option>
                 <option value="2">2 - EN PROCESO</option>
                 <option value="3">3 - CERRADA</option>
@@ -2478,7 +2482,7 @@ export default function InspeccionDetail() {
                 onChange={onChangeForm}
                 rows={3}
                 placeholder="Describe la observacion..."
-                disabled={inspeccionCerrada}
+                disabled={inspeccionBloqueada}
               />
             </label>
 
@@ -2494,8 +2498,8 @@ export default function InspeccionDetail() {
               </div>
             )}
 
-            <Button variant="primary" disabled={savingObs || inspeccionCerrada} type="submit">
-              {inspeccionCerrada ? "Inspección cerrada" : savingObs ? "Guardando..." : "Crear observacion"}
+            <Button variant="primary" disabled={savingObs || inspeccionBloqueada} type="submit">
+              {inspeccionBloqueada ? "Inspección cerrada" : savingObs ? "Guardando..." : "Crear observacion"}
             </Button>
           </form>
         </Card>
@@ -2540,7 +2544,7 @@ export default function InspeccionDetail() {
                       const pctValue = acc?.porcentaje_cumplimiento ?? "";
 
                       const disabledPct =
-                        inspeccionCerrada ||
+                        inspeccionBloqueada ||
                         !acc ||
                         !tieneEvidAcc ||
                         isAccionCerrada(acc);
@@ -2577,7 +2581,7 @@ export default function InspeccionDetail() {
                                 idTarget={acc.id_accion}
                                 onUploaded={handleEvidenceUploaded}
                                 disabled={isAccionCerrada(acc)}
-                                inspeccionCerrada={inspeccionCerrada}
+                                inspeccionCerrada={inspeccionBloqueada}
                                 online={online}
                               />
 
@@ -2685,7 +2689,7 @@ export default function InspeccionDetail() {
                         idTarget={o.id_observacion}
                         onUploaded={handleEvidenceUploaded}
                         disabled={o.id_estado_observacion === 3}
-                        inspeccionCerrada={inspeccionCerrada}
+                        inspeccionCerrada={inspeccionBloqueada}
                         online={online}
                       />
                     </>
@@ -2696,7 +2700,7 @@ export default function InspeccionDetail() {
                       idObservacion={o.id_observacion}
                       onCreated={handleAccionCreated}
                       onMsg={showAccionMsg}
-                      inspeccionCerrada={inspeccionCerrada || o.id_estado_observacion === 3}
+                      inspeccionCerrada={inspeccionBloqueada || o.id_estado_observacion === 3}
                       online={online}
                     />
                   )}
@@ -2768,7 +2772,7 @@ export default function InspeccionDetail() {
                             idTarget={a.id_accion}
                             onUploaded={handleEvidenceUploaded}
                             disabled={isAccionCerrada(a)}
-                            inspeccionCerrada={inspeccionCerrada}
+                            inspeccionCerrada={inspeccionBloqueada}
                             online={online}
                           />
                         </div>

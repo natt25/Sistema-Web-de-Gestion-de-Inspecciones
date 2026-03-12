@@ -4,7 +4,8 @@ async function subirObs(req, res) {
     const { id } = req.params; // id_observacion
     const result = await service.subirEvidenciaObservacion({
       id_observacion: id,
-      file: req.file
+      file: req.file,
+      user: req.user
     });
 
     if (!result.ok) {
@@ -23,7 +24,8 @@ async function subirAcc(req, res) {
     const { id } = req.params; // id_accion
     const result = await service.subirEvidenciaAccion({
       id_accion: id,
-      file: req.file
+      file: req.file,
+      user: req.user
     });
 
     if (!result.ok) {
@@ -60,7 +62,7 @@ async function subirFirma(req, res) {
 async function eliminarAccEvidenciaAcc(req, res) {
   try {
     const { id_acc_evidencia } = req.params;
-    const result = await service.eliminarEvidenciaAccion({ id_acc_evidencia });
+    const result = await service.eliminarEvidenciaAccion({ id_acc_evidencia, user: req.user });
 
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
@@ -76,7 +78,7 @@ async function eliminarAccEvidenciaAcc(req, res) {
 async function eliminarObsEvidencia(req, res) {
   try {
     const { id } = req.params; // id_obs_evidencia
-    const result = await service.eliminarEvidenciaObservacion({ id_obs_evidencia: id });
+    const result = await service.eliminarEvidenciaObservacion({ id_obs_evidencia: id, user: req.user });
 
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
