@@ -1,21 +1,28 @@
 // frontend/src/components/layout/Sidebar.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { clearAuth } from "../../auth/auth.storage";
+import { clearAuth, getUser } from "../../auth/auth.storage";
 import { contarPendientes } from "../../api/pendientes.api";
-
-const items = [
-  { to: "/home", label: "Home", icon: "🏠" },
-  { to: "/inspecciones/plantillas", label: "Inspecciones", icon: "📋" },
-  { to: "/pendientes", label: "Pendientes", icon: "⏰" },
-  { to: "/admin/usuarios", label: "Usuarios", icon: "👥" },
-];
 
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const user = getUser();
+  const rol = String(user?.rol || "").trim().toUpperCase();
 
   const [pendientesCount, setPendientesCount] = useState(0);
+
+  const items = useMemo(
+    () => [
+      { to: "/home", label: "Home", icon: "🏠" },
+      { to: "/inspecciones/plantillas", label: "Inspecciones", icon: "📋" },
+      { to: "/pendientes", label: "Pendientes", icon: "⏰" },
+      ...((rol === "ADMIN_PRINCIPAL" || rol === "ADMIN")
+        ? [{ to: "/admin/usuarios", label: "Usuarios", icon: "👥" }]
+        : []),
+    ],
+    [rol]
+  );
 
   const isActive = (to) => {
     const p = location.pathname;
@@ -78,7 +85,7 @@ export default function Sidebar({ onNavigate }) {
       if (it.to !== "/pendientes") return it;
       return { ...it, badge: pendientesCount };
     });
-  }, [pendientesCount]);
+  }, [items, pendientesCount]);
 
   return (
     <>
@@ -88,11 +95,11 @@ export default function Sidebar({ onNavigate }) {
             <rect x="10" y="6" width="34" height="50" rx="8" fill="rgba(255,122,26,.15)" />
             <rect x="14" y="10" width="34" height="50" rx="8" fill="rgba(255,122,26,.25)" />
 
-            <rect x="20" y="18" width="18" height="4" rx="2" fill="#ff7a1a"/>
-            <rect x="20" y="28" width="14" height="4" rx="2" fill="#ff7a1a"/>
-            <rect x="20" y="38" width="10" height="4" rx="2" fill="#ff7a1a"/>
+            <rect x="20" y="18" width="18" height="4" rx="2" fill="#ff7a1a" />
+            <rect x="20" y="28" width="14" height="4" rx="2" fill="#ff7a1a" />
+            <rect x="20" y="38" width="10" height="4" rx="2" fill="#ff7a1a" />
 
-            <circle cx="48" cy="44" r="10" fill="#ff7a1a"/>
+            <circle cx="48" cy="44" r="10" fill="#ff7a1a" />
             <path
               d="M42 44l3 3 6-7"
               fill="none"
@@ -126,7 +133,6 @@ export default function Sidebar({ onNavigate }) {
               <span>{it.label}</span>
             </span>
 
-            {/* 🔔 badge a la derecha */}
             {it.to === "/pendientes" && Number(it.badge) > 0 ? (
               <span
                 title="Mis acciones pendientes"
