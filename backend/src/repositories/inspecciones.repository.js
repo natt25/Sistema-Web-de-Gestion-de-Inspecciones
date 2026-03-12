@@ -280,6 +280,7 @@ async function listarInspecciones(filtros) {
   const where = [];
   const pool = await getPool();
   const request = pool.request();
+  const estadoAccionCase = buildEstadoAccionCase("a2");
   let otroJoin = "";
   let otroClienteSelect = "NULL AS otro_cliente_texto";
   let otroServicioSelect = "NULL AS otro_servicio_texto";
@@ -378,6 +379,7 @@ async function listarInspecciones(filtros) {
 
       i.id_estado_inspeccion,
       ei.nombre_estado AS estado_inspeccion,
+      estado_calc.estado_inspeccion_calculado,
 
       i.id_modo_registro,
       mr.nombre_modo AS modo_registro,
@@ -403,6 +405,25 @@ async function listarInspecciones(filtros) {
     LEFT JOIN SSOMA.V_CLIENTE c ON LTRIM(RTRIM(c.id_cliente)) = LTRIM(RTRIM(i.id_cliente))
     LEFT JOIN SSOMA.V_SERVICIO s
       ON LTRIM(RTRIM(CAST(s.id_servicio AS NVARCHAR(100)))) = LTRIM(RTRIM(CAST(i.id_servicio AS NVARCHAR(100))))
+    OUTER APPLY (
+      SELECT
+        CASE
+          WHEN SUM(CASE WHEN est.estado_accion = 'VENCIDA' THEN 1 ELSE 0 END) > 0 THEN 'VENCIDA'
+          WHEN COUNT(est.id_accion) > 0
+            AND SUM(CASE WHEN est.estado_accion = 'CERRADA' THEN 1 ELSE 0 END) = COUNT(est.id_accion) THEN 'CERRADA'
+          WHEN SUM(CASE WHEN est.estado_accion = 'EN PROGRESO' THEN 1 ELSE 0 END) > 0 THEN 'EN PROGRESO'
+          ELSE 'PENDIENTE'
+        END AS estado_inspeccion_calculado
+      FROM (
+        SELECT
+          a2.id_accion,
+          ${estadoAccionCase} AS estado_accion
+        FROM SSOMA.INS_OBSERVACION o2
+        JOIN SSOMA.INS_ACCION a2
+          ON a2.id_observacion = o2.id_observacion
+        WHERE o2.id_inspeccion = i.id_inspeccion
+      ) est
+    ) estado_calc
     ${otroJoin}
     ${whereSql}
     ORDER BY ${fechaExpr} DESC, i.id_inspeccion DESC;

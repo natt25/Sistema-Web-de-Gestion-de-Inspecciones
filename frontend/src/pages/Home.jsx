@@ -27,6 +27,13 @@ function normalizeEstado(estadoRaw) {
   return String(estadoRaw || "").trim().toUpperCase().replace(/[_-]+/g, " ");
 }
 
+const cellTextStyle = {
+  display: "block",
+  maxWidth: 280,
+  lineHeight: 1.4,
+  wordBreak: "break-word",
+};
+
 export default function Home() {
   const navigate = useNavigate();
   const user = getUser();
@@ -140,15 +147,19 @@ export default function Home() {
         label: "Inspeccion",
         render: (a) => {
           const nombre = a?.nombre_formato || "Inspeccion";
-          return <span style={{ fontWeight: 800 }}>{nombre}</span>;
+          return <span style={{ ...cellTextStyle, fontWeight: 800 }}>{nombre}</span>;
         },
       },
       {
         key: "desc_accion",
         label: "Descripcion",
-        render: (a) => <span>{a?.desc_accion || "-"}</span>,
+        render: (a) => <span style={cellTextStyle}>{a?.desc_accion || "-"}</span>,
       },
-      { key: "responsables", label: "Responsables", render: (a) => a?.responsables || "-" },
+      {
+        key: "responsables",
+        label: "Responsables",
+        render: (a) => <span style={{ ...cellTextStyle, maxWidth: 240 }}>{a?.responsables || "-"}</span>,
+      },
       {
         key: "fecha_compromiso",
         label: "Fecha",
@@ -196,10 +207,35 @@ export default function Home() {
       {
         key: "tipo",
         label: "Tipo",
-        render: (it) => it?.nombre_formato || it?.codigo_formato || `Plantilla ${it?.id_plantilla_inspec ?? "-"}`,
+        render: (it) => (
+          <span style={cellTextStyle}>
+            {it?.nombre_formato || it?.codigo_formato || `Plantilla ${it?.id_plantilla_inspec ?? "-"}`}
+          </span>
+        ),
       },
       { key: "area", label: "Area", render: (it) => it?.desc_area || it?.area || it?.id_area || "-" },
-      { key: "estado", label: "Estado", render: (it) => it?.estado_inspeccion || it?.estado || "-" },
+      {
+        key: "estado",
+        label: "Estado",
+        render: (it) => {
+          const ui = estadoBadge(it?.estado_inspeccion_calculado || it?.estado || it?.estado_inspeccion);
+          return (
+            <span
+              style={{
+                display: "inline-block",
+                padding: "4px 10px",
+                borderRadius: 999,
+                background: ui.bg,
+                color: ui.color,
+                fontWeight: 900,
+                fontSize: 12,
+              }}
+            >
+              {ui.text}
+            </span>
+          );
+        },
+      },
       {
         key: "fecha",
         label: "Fecha",
@@ -239,21 +275,23 @@ export default function Home() {
             data={misAcciones}
             emptyText={loading ? "Cargando..." : pendientesError || "No tienes acciones pendientes."}
             renderActions={(a) => (
-              <button
-                type="button"
-                onClick={() => a?.id_inspeccion && navigate(`/inspecciones/${a.id_inspeccion}`)}
-                style={{
-                  padding: 0,
-                  border: 0,
-                  background: "transparent",
-                  color: "#f97316",
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Ver detalle
-              </button>
+              <div style={{ display: "flex", alignItems: "flex-start" }}>
+                <button
+                  type="button"
+                  onClick={() => a?.id_inspeccion && navigate(`/inspecciones/${a.id_inspeccion}`)}
+                  style={{
+                    padding: 0,
+                    border: 0,
+                    background: "transparent",
+                    color: "#f97316",
+                    textDecoration: "none",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                  }}
+                >
+                  Ver detalle
+                </button>
+              </div>
             )}
           />
         </Card>
@@ -271,21 +309,23 @@ export default function Home() {
             data={inspeccionesRecientes}
             emptyText={loading ? "Cargando..." : inspeccionesError || "Sin inspecciones recientes."}
             renderActions={(it) => (
-              <button
-                type="button"
-                onClick={() => it?.id_inspeccion && navigate(`/inspecciones/${it.id_inspeccion}`)}
-                style={{
-                  padding: 0,
-                  border: 0,
-                  background: "transparent",
-                  color: "#f97316",
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Ver detalle
-              </button>
+              <div style={{ display: "flex", alignItems: "flex-start" }}>
+                <button
+                  type="button"
+                  onClick={() => it?.id_inspeccion && navigate(`/inspecciones/${it.id_inspeccion}`)}
+                  style={{
+                    padding: 0,
+                    border: 0,
+                    background: "transparent",
+                    color: "#f97316",
+                    textDecoration: "none",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                  }}
+                >
+                  Ver detalle
+                </button>
+              </div>
             )}
           />
         </Card>

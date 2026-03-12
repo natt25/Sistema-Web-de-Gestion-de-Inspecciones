@@ -26,7 +26,7 @@ export default function Table({ columns, data, emptyText = "Sin registros.", ren
               {renderActions && (
                 <td
                   className="table-row-actions"
-                  style={{ verticalAlign: "top", whiteSpace: "nowrap" }}
+                  style={{ verticalAlign: "top", whiteSpace: "nowrap", textAlign: "left" }}
                 >
                   {renderActions(row)}
                 </td>
