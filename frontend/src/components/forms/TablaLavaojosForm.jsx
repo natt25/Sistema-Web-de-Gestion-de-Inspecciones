@@ -81,17 +81,17 @@ function buildBaseItems(definicion) {
     [];
 
   const fallback = [
-    "Ubicacion",
+    "Ubicación",
     "Pictograma de forma de uso",
     "Acceso sin obstrucciones",
     "Carga requerida",
     "Flujo de agua",
-    "Valvula del sistema",
-    "Palanca de activacion",
+    "Válvula del sistema",
+    "Palanca de activación",
     "Estado general del contenedor",
     "Estado de los componentes",
-    "Senaletica",
-    "Tarjeta de inspeccion mensual",
+    "Señalética",
+    "Tarjeta de inspección mensual",
   ].map((descripcion, i) => ({ item_ref: `i${i + 1}`, descripcion }));
 
   const finalItems = Array.isArray(rawItems) && rawItems.length ? rawItems : fallback;
