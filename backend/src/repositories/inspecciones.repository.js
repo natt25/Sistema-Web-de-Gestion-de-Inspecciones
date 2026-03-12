@@ -58,6 +58,26 @@ function normalizeCatalogText(value) {
   return text || null;
 }
 
+function buildEstadoAccionCase(alias = "a") {
+  return `
+    CASE
+      WHEN ISNULL(${alias}.porcentaje_cumplimiento, 0) >= 100 THEN 'CERRADA'
+      WHEN ${alias}.fecha_compromiso IS NOT NULL
+        AND ${alias}.fecha_compromiso < CAST(SYSDATETIME() AS DATE)
+        AND ISNULL(${alias}.porcentaje_cumplimiento, 0) < 100 THEN 'VENCIDA'
+      WHEN (
+        ISNULL(${alias}.porcentaje_cumplimiento, 0) > 0
+        OR EXISTS (
+          SELECT 1
+          FROM SSOMA.INS_ACCION_EVIDENCIA ae
+          WHERE ae.id_accion = ${alias}.id_accion
+        )
+      ) THEN 'EN PROGRESO'
+      ELSE 'PENDIENTE'
+    END
+  `;
+}
+
 async function getPreferredEstadoUsuarioId(tx) {
   const rCols = await new sql.Request(tx)
     .input("schema", sql.NVarChar, "SSOMA")
@@ -393,6 +413,7 @@ async function listarInspecciones(filtros) {
 }
 
 async function obtenerInspeccionPorId(id_inspeccion) {
+  const estadoAccionCase = buildEstadoAccionCase("a2");
   const query = `
     SELECT
       i.id_inspeccion,
@@ -404,6 +425,7 @@ async function obtenerInspeccionPorId(id_inspeccion) {
 
       i.id_estado_inspeccion,
       ei.nombre_estado AS estado_inspeccion,
+      estado_calc.estado_inspeccion_calculado,
 
       i.id_modo_registro,
       mr.nombre_modo AS modo_registro,
@@ -429,6 +451,25 @@ async function obtenerInspeccionPorId(id_inspeccion) {
     LEFT JOIN SSOMA.V_CLIENTE c ON LTRIM(RTRIM(c.id_cliente)) = LTRIM(RTRIM(i.id_cliente))
     LEFT JOIN SSOMA.V_SERVICIO s
       ON LTRIM(RTRIM(CAST(s.id_servicio AS NVARCHAR(100)))) = LTRIM(RTRIM(CAST(i.id_servicio AS NVARCHAR(100))))
+    OUTER APPLY (
+      SELECT
+        CASE
+          WHEN SUM(CASE WHEN est.estado_accion = 'VENCIDA' THEN 1 ELSE 0 END) > 0 THEN 'VENCIDA'
+          WHEN COUNT(est.id_accion) > 0
+            AND SUM(CASE WHEN est.estado_accion = 'CERRADA' THEN 1 ELSE 0 END) = COUNT(est.id_accion) THEN 'CERRADA'
+          WHEN SUM(CASE WHEN est.estado_accion = 'EN PROGRESO' THEN 1 ELSE 0 END) > 0 THEN 'EN PROGRESO'
+          ELSE 'PENDIENTE'
+        END AS estado_inspeccion_calculado
+      FROM (
+        SELECT
+          a2.id_accion,
+          ${estadoAccionCase} AS estado_accion
+        FROM SSOMA.INS_OBSERVACION o2
+        JOIN SSOMA.INS_ACCION a2
+          ON a2.id_observacion = o2.id_observacion
+        WHERE o2.id_inspeccion = i.id_inspeccion
+      ) est
+    ) estado_calc
     WHERE i.id_inspeccion = @id_inspeccion;
   `;
 

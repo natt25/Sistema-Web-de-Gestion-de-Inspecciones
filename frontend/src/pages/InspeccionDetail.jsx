@@ -1825,6 +1825,10 @@ export default function InspeccionDetail() {
   return map;
 }, [data?.observaciones]);
   const inspeccionCerrada = String(cab?.estado_inspeccion || "").toUpperCase() === "CERRADA";
+  const estadoInspeccionVisible = pickFirst(
+    cab?.estado_inspeccion_calculado,
+    cab?.estado_inspeccion
+  );
   const puedeEditarInspeccionCerrada =
     String(currentUser?.rol || "").trim().toUpperCase() === "ADMIN_PRINCIPAL";
   const inspeccionBloqueada = inspeccionCerrada && !puedeEditarInspeccionCerrada;
@@ -2082,8 +2086,8 @@ export default function InspeccionDetail() {
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Badge variant={getEstadoBadgeVariant(cab?.estado_inspeccion)}>
-                Estado: {pickFirst(cab?.estado_inspeccion)}
+              <Badge variant={getEstadoBadgeVariant(estadoInspeccionVisible)}>
+                Estado: {pickFirst(estadoInspeccionVisible)}
               </Badge>
 
               <Badge variant={getMetaBadgeVariant()}>
