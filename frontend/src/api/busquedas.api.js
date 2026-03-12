@@ -1,8 +1,11 @@
 import http from "./http";
+import { filterActiveEmpleados } from "../utils/empleados.js";
 
 // q = texto que escribe el usuario
 export const buscarEmpleados = async (q) =>
-  http.get("/api/catalogos/empleados/buscar", { params: { q } }).then(r => r.data);
+  http
+    .get("/api/catalogos/empleados/buscar", { params: { q } })
+    .then((r) => filterActiveEmpleados(r.data));
 
 export const buscarCargos = async (q) =>
   http.get("/api/catalogos/cargos/buscar", { params: { q } }).then(r => r.data);

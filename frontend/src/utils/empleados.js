@@ -2,6 +2,15 @@ function cleanPart(value) {
   return String(value ?? "").trim();
 }
 
+export function isEmpleadoActivo(emp) {
+  const estado = cleanPart(emp?.estado_empleado).toUpperCase();
+  return !estado || estado === "A";
+}
+
+export function filterActiveEmpleados(rows) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => isEmpleadoActivo(row));
+}
+
 export function buildEmpleadoDisplayName(emp) {
   const apellidoPaterno = cleanPart(emp?.apellido_paterno);
   const apellidoMaterno = cleanPart(emp?.apellido_materno);

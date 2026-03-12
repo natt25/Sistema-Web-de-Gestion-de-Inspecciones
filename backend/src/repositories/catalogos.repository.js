@@ -383,6 +383,11 @@ async function buscarEmpleados(q) {
     cols.has("apellidos") ? "apellidos" :
     cols.has("apellido") ? "apellido" : null;
 
+  const cEstadoEmpleado =
+    cols.has("estado_empleado") ? "estado_empleado" :
+    cols.has("estado") ? "estado" :
+    null;
+
   // si tu vista ya trae cargo en una columna directa
   const cCargo =
     cols.has("cargo") ? "cargo" :
@@ -402,6 +407,7 @@ async function buscarEmpleados(q) {
     cApellidoPaterno ? `${cApellidoPaterno} AS apellido_paterno` : `CAST('' AS NVARCHAR(150)) AS apellido_paterno`,
     cApellidoMaterno ? `${cApellidoMaterno} AS apellido_materno` : `CAST('' AS NVARCHAR(150)) AS apellido_materno`,
     cApellidos ? `${cApellidos} AS apellidos` : `CAST('' AS NVARCHAR(150)) AS apellidos`,
+    cEstadoEmpleado ? `${cEstadoEmpleado} AS estado_empleado` : `CAST('A' AS NVARCHAR(10)) AS estado_empleado`,
     cCargo ? `${cCargo} AS cargo` : `CAST('' AS NVARCHAR(150)) AS cargo`,
     cIdCargo ? `CAST(${cIdCargo} AS NVARCHAR(50)) AS id_cargo` : `CAST('' AS NVARCHAR(50)) AS id_cargo`,
   ].join(", ");
@@ -419,7 +425,11 @@ async function buscarEmpleados(q) {
     if (cApellidos) whereParts.push(`${cApellidos} LIKE @q`);
   }
 
-  const whereSql = whereParts.length ? `WHERE (${whereParts.join(" OR ")})` : "";
+  const activeFilter = cEstadoEmpleado
+    ? `UPPER(LTRIM(RTRIM(CAST(${cEstadoEmpleado} AS NVARCHAR(20))))) = 'A'`
+    : "1 = 1";
+  const searchFilter = whereParts.length ? `(${whereParts.join(" OR ")})` : "1 = 1";
+  const whereSql = `WHERE ${activeFilter} AND ${searchFilter}`;
   const orderSql = cApellidos ? `ORDER BY ${cApellidos}, ${cNombres || cDni}` : `ORDER BY ${cNombres || cDni}`;
 
   const request = pool.request();
@@ -437,6 +447,7 @@ async function buscarEmpleados(q) {
     const apellido_paterno = String(r.apellido_paterno || "").trim();
     const apellido_materno = String(r.apellido_materno || "").trim();
     const apellidos = String(r.apellidos || "").trim();
+    const estado_empleado = String(r.estado_empleado || "A").trim().toUpperCase() || "A";
     const cargoRaw = String(r.cargo || "").trim();
     const cargo = cargoRaw || await resolveCargoNombre(pool, r.id_cargo);
     const firma_ruta = await getFirmaRutaByDni(pool, r.dni);
@@ -450,6 +461,7 @@ async function buscarEmpleados(q) {
       apellido_paterno,
       apellido_materno,
       apellidos,
+      estado_empleado,
       cargo,
       firma_ruta,
       nombreCompleto,

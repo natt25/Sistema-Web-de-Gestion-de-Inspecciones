@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isEmpleadoActivo } from "../../utils/empleados.js";
 
 export default function Autocomplete({
   label,
@@ -28,7 +29,7 @@ export default function Autocomplete({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const list = Array.isArray(options) ? options : [];
+  const list = (Array.isArray(options) ? options : []).filter((opt) => isEmpleadoActivo(opt));
   const hasOptions = list.length > 0;
   const cleanText = String(displayValue || "").trim();
 
@@ -95,6 +96,10 @@ export default function Autocomplete({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
+                  if (!isEmpleadoActivo(it)) {
+                    console.warn("[Autocomplete] Empleado retirado bloqueado", it);
+                    return;
+                  }
                   onSelect?.(it);
                   setOpen(false);
                 }}
