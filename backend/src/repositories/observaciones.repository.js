@@ -1,4 +1,24 @@
 import { sql, getPool } from "../config/database.js";
+
+function buildEstadoAccionCase(alias = "a") {
+  return `
+    CASE
+      WHEN ISNULL(${alias}.porcentaje_cumplimiento, 0) >= 100 THEN 'CERRADA'
+      WHEN ${alias}.fecha_compromiso IS NOT NULL
+        AND ${alias}.fecha_compromiso < CAST(SYSDATETIME() AS DATE)
+        AND ISNULL(${alias}.porcentaje_cumplimiento, 0) < 100 THEN 'VENCIDA'
+      WHEN (
+        ISNULL(${alias}.porcentaje_cumplimiento, 0) > 0
+        OR EXISTS (
+          SELECT 1
+          FROM SSOMA.INS_ACCION_EVIDENCIA ae
+          WHERE ae.id_accion = ${alias}.id_accion
+        )
+      ) THEN 'EN PROGRESO'
+      ELSE 'PENDIENTE'
+    END
+  `;
+}
 async function crearObservacion(payload) {
   const query = `
     INSERT INTO SSOMA.INS_OBSERVACION
@@ -202,12 +222,13 @@ async function crearAccionObservacion(payload) {
 }
 
 async function listarAccionesPorObservacion(id_observacion) {
+  const estadoCalculadoExpr = buildEstadoAccionCase("a");
   const query = `
     SELECT
       a.id_accion,
       a.id_observacion,
       a.id_estado_accion,
-      ea.nombre_estado AS estado_accion,
+      ${estadoCalculadoExpr} AS estado_accion,
       a.desc_accion,
       a.fecha_compromiso,
       a.item_ref,
@@ -218,8 +239,6 @@ async function listarAccionesPorObservacion(id_observacion) {
       r.externo_responsable_nombre,
       r.externo_responsable_cargo
     FROM SSOMA.INS_ACCION a
-    JOIN SSOMA.INS_CAT_ESTADO_ACCION ea
-      ON ea.id_estado_accion = a.id_estado_accion
     JOIN SSOMA.INS_ACCION_RESPONSABLE r
       ON r.id_acc_responsable = a.id_acc_responsable
     WHERE a.id_observacion = @id_observacion
@@ -400,13 +419,14 @@ async function obtenerInspeccionIdPorObservacion(id_observacion) {
   return result.recordset[0]?.id_inspeccion ?? null;
 }
 
-// Acciones NO finalizadas = no están en (3 CUMPLIDA, 4 NO_APLICA)
+// Acciones no finalizadas = cualquier acción cuyo estado calculado no sea CERRADA.
 async function contarAccionesNoFinalizadas(id_observacion) {
+  const estadoCalculadoExpr = buildEstadoAccionCase("a");
   const query = `
     SELECT COUNT(1) AS pendientes
-    FROM SSOMA.INS_ACCION
-    WHERE id_observacion = @id_observacion
-      AND id_estado_accion NOT IN (3, 4);
+    FROM SSOMA.INS_ACCION a
+    WHERE a.id_observacion = @id_observacion
+      AND ${estadoCalculadoExpr} <> 'CERRADA';
   `;
   const pool = await getPool();
   const request = pool.request();

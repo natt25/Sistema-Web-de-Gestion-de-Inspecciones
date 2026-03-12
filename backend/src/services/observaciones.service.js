@@ -107,7 +107,6 @@ async function crearAccionObservacion({ id_observacion, body }) {
     desc_accion,
     fecha_compromiso,
     item_ref,
-    id_estado_accion,
     responsable_interno_dni,
     responsable_externo_nombre,
     responsable_externo_cargo
@@ -117,10 +116,7 @@ async function crearAccionObservacion({ id_observacion, body }) {
     return { ok: false, status: 400, message: "desc_accion es obligatorio" };
   }
 
-  const estadoAcc = id_estado_accion ? Number(id_estado_accion) : 1; // default PENDIENTE = 1
-  if (!estadoAcc || Number.isNaN(estadoAcc)) {
-    return { ok: false, status: 400, message: "id_estado_accion inválido" };
-  }
+  const estadoAcc = 1;
 
   // Validar responsable interno vs externo
   const esInterno = !!responsable_interno_dni && !responsable_externo_nombre && !responsable_externo_cargo;
@@ -243,7 +239,7 @@ async function actualizarEstadoObservacion({ id_observacion, body }) {
 
   const estadoActual = actual.id_estado_observacion;
 
-  // Transiciones mínimas:
+  // Transiciones mínimas de observación:
   // ABIERTA(1) -> EN_PROCESO(2) o CERRADA(3)
   // EN_PROCESO(2) -> CERRADA(3)
   // CERRADA(3) -> (no cambia)
@@ -282,26 +278,17 @@ async function actualizarEstadoAccion({ id_accion, body }) {
     return { ok: false, status: 404, message: "Acción no encontrada" };
   }
 
-  const estadoActual = actual.id_estado_accion;
-
-  const permitidas = {
-    1: [2, 4], // PENDIENTE
-    2: [3, 4], // EN_PROCESO
-    3: [],     // CUMPLIDA
-    4: []      // NO_APLICA
-  };
-
-  if (!permitidas[estadoActual]?.includes(nuevo)) {
+  if (nuevo !== 3) {
     return {
       ok: false,
       status: 400,
-      message: `Transición no permitida: ${estadoActual} -> ${nuevo}`
+      message: "El estado de la acción ahora es automático. Usa porcentaje_cumplimiento y evidencias."
     };
   }
 
-  const updated = await repo.actualizarEstadoAccion({
+  const updated = await repo.actualizarPorcentajeAccion({
     id_accion: id,
-    id_estado_accion: nuevo
+    porcentaje_cumplimiento: 100
   });
 
   await aplicarCierreAutomaticoDesdeObservacion(updated.id_observacion);

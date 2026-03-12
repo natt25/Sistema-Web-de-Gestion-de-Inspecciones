@@ -275,9 +275,17 @@ async function actualizarEstadoAccion({ id_accion, body }) {
   const actual = await observacionesRepo.obtenerEstadoAccion(id_accion);
   if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
 
-  const updated = await observacionesRepo.actualizarEstadoAccion({
+  if (id_estado_accion !== 3) {
+    return {
+      ok: false,
+      status: 400,
+      message: "El estado de la accion ahora es automatico. Usa porcentaje_cumplimiento y evidencias.",
+    };
+  }
+
+  const updated = await observacionesRepo.actualizarPorcentajeAccion({
     id_accion,
-    id_estado_accion,
+    porcentaje_cumplimiento: 100,
   });
 
   return { ok: true, status: 200, data: updated };

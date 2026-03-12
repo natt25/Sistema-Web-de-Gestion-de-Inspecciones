@@ -44,17 +44,16 @@ function rangeToDias(range) {
   return 7;
 }
 
-const ESTADO_OPTIONS = ["ALL", "BORRADOR", "PENDIENTE", "EN_PROCESO", "VENCIDO", "COMPLETADO"];
+const ESTADO_OPTIONS = ["ALL", "PENDIENTE", "EN_PROGRESO", "VENCIDA", "CERRADA"];
 
 function getEstadoMeta(estadoRaw) {
   const estado = String(estadoRaw || "").trim().toUpperCase();
 
   if (!estado || estado === "ALL") return { label: "TODOS", className: "badge-all" };
-  if (estado.includes("BORR")) return { label: "BORRADOR", className: "badge-borrador" };
   if (estado.includes("VENC")) return { label: "VENCIDA", className: "badge-vencida" };
   if (estado.includes("PEND")) return { label: "PENDIENTE", className: "badge-pendiente" };
   if (estado.includes("PROG") || estado.includes("EN_PROCESO")) return { label: "EN PROGRESO", className: "badge-progreso" };
-  if (estado.includes("CERR") || estado.includes("COMPLE")) return { label: "CERRADA", className: "badge-cerrada" };
+  if (estado.includes("CERR")) return { label: "CERRADA", className: "badge-cerrada" };
 
   return { label: estado.replaceAll("_", " "), className: "badge-all" };
 }

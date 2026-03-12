@@ -1,5 +1,25 @@
 import { sql, getPool } from "../config/database.js";
 
+function buildEstadoAccionCase(alias = "a") {
+  return `
+    CASE
+      WHEN ISNULL(${alias}.porcentaje_cumplimiento, 0) >= 100 THEN 'CERRADA'
+      WHEN ${alias}.fecha_compromiso IS NOT NULL
+        AND ${alias}.fecha_compromiso < CAST(SYSDATETIME() AS DATE)
+        AND ISNULL(${alias}.porcentaje_cumplimiento, 0) < 100 THEN 'VENCIDA'
+      WHEN (
+        ISNULL(${alias}.porcentaje_cumplimiento, 0) > 0
+        OR EXISTS (
+          SELECT 1
+          FROM SSOMA.INS_ACCION_EVIDENCIA ae
+          WHERE ae.id_accion = ${alias}.id_accion
+        )
+      ) THEN 'EN PROGRESO'
+      ELSE 'PENDIENTE'
+    END
+  `;
+}
+
 async function listarPendientes({
   dias = 7,
   solo_mias = 0,
@@ -9,6 +29,7 @@ async function listarPendientes({
 }) {
   const pool = await getPool();
   const request = pool.request();
+  const estadoCalculadoExpr = buildEstadoAccionCase("a");
 
   const estadoNormalizado = String(estado || "ALL").trim().toUpperCase().replace(/[-\s]+/g, "_");
 
@@ -51,15 +72,13 @@ async function listarPendientes({
         a.id_accion,
         a.desc_accion,
         a.fecha_compromiso,
-        ea.nombre_estado AS estado,
+        ${estadoCalculadoExpr} AS estado,
         CASE
           WHEN a.fecha_compromiso IS NULL THEN NULL
           ELSE DATEDIFF(DAY, @hoy, a.fecha_compromiso)
         END AS dias_restantes,
         COALESCE(ve.nombre_completo, NULLIF(LTRIM(RTRIM(ar.externo_responsable_nombre)), '')) AS responsable_nombre
       FROM SSOMA.INS_ACCION a
-      JOIN SSOMA.INS_CAT_ESTADO_ACCION ea
-        ON ea.id_estado_accion = a.id_estado_accion
       JOIN SSOMA.INS_ACCION_RESPONSABLE ar
         ON ar.id_acc_responsable = a.id_acc_responsable
       LEFT JOIN empleados ve
@@ -94,10 +113,6 @@ async function listarPendientes({
           OR a.fecha_compromiso <= DATEADD(DAY, @dias, @hoy)
         )
         AND (
-          @estado = 'ALL'
-          OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(ea.nombre_estado)), ' ', '_'), '-', '_')) = @estado
-        )
-        AND (
           @id_plantilla_inspec IS NULL
           OR i.id_plantilla_inspec = @id_plantilla_inspec
         )
@@ -115,38 +130,47 @@ async function listarPendientes({
         WHERE NULLIF(LTRIM(RTRIM(responsable_nombre)), '') IS NOT NULL
       ) b
       GROUP BY b.id_inspeccion
+    ),
+    inspecciones AS (
+      SELECT
+        b.id_inspeccion,
+        b.id_plantilla_inspec,
+        b.codigo_formato,
+        b.nombre_formato,
+        STRING_AGG(NULLIF(LTRIM(RTRIM(b.desc_accion)), ''), ' | ') AS desc_accion,
+        MIN(b.fecha_compromiso) AS fecha_compromiso,
+        MIN(CASE WHEN b.fecha_compromiso IS NULL THEN 1 ELSE 0 END) AS _null_first,
+        MIN(b.dias_restantes) AS dias_restantes,
+        CASE
+          WHEN COUNT(CASE WHEN b.estado = 'VENCIDA' THEN 1 END) > 0 THEN 'VENCIDA'
+          WHEN COUNT(*) = COUNT(CASE WHEN b.estado = 'CERRADA' THEN 1 END) THEN 'CERRADA'
+          WHEN COUNT(CASE WHEN b.estado = 'EN PROGRESO' THEN 1 END) > 0 THEN 'EN PROGRESO'
+          ELSE 'PENDIENTE'
+        END AS estado,
+        CASE
+          WHEN ISNULL(r.total_responsables, 0) > 3 THEN 'VARIOS'
+          ELSE ISNULL(r.responsables, '-')
+        END AS responsables
+      FROM base b
+      LEFT JOIN responsables_por_inspeccion r
+        ON r.id_inspeccion = b.id_inspeccion
+      GROUP BY
+        b.id_inspeccion,
+        b.id_plantilla_inspec,
+        b.codigo_formato,
+        b.nombre_formato,
+        r.total_responsables,
+        r.responsables
     )
-    SELECT
-      b.id_inspeccion,
-      b.id_plantilla_inspec,
-      b.codigo_formato,
-      b.nombre_formato,
-      STRING_AGG(NULLIF(LTRIM(RTRIM(b.desc_accion)), ''), ' | ') AS desc_accion,
-      MIN(b.fecha_compromiso) AS fecha_compromiso,
-      MIN(CASE WHEN b.fecha_compromiso IS NULL THEN 1 ELSE 0 END) AS _null_first,
-      MIN(b.dias_restantes) AS dias_restantes,
-      CASE
-        WHEN COUNT(DISTINCT b.estado) = 1 THEN MAX(b.estado)
-        ELSE 'VARIOS'
-      END AS estado,
-      CASE
-        WHEN ISNULL(r.total_responsables, 0) > 3 THEN 'VARIOS'
-        ELSE ISNULL(r.responsables, '-')
-      END AS responsables
-    FROM base b
-    LEFT JOIN responsables_por_inspeccion r
-      ON r.id_inspeccion = b.id_inspeccion
-    GROUP BY
-      b.id_inspeccion,
-      b.id_plantilla_inspec,
-      b.codigo_formato,
-      b.nombre_formato,
-      r.total_responsables,
-      r.responsables
+    SELECT *
+    FROM inspecciones
+    WHERE
+      @estado = 'ALL'
+      OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(estado)), ' ', '_'), '-', '_')) = @estado
     ORDER BY
-      MIN(CASE WHEN b.fecha_compromiso IS NULL THEN 1 ELSE 0 END),
-      MIN(b.fecha_compromiso) ASC,
-      b.id_inspeccion DESC;
+      _null_first,
+      fecha_compromiso ASC,
+      id_inspeccion DESC;
   `;
 
   const result = await request.query(query);
@@ -162,6 +186,7 @@ async function contarPendientesPorInspeccion({
 }) {
   const pool = await getPool();
   const request = pool.request();
+  const estadoCalculadoExpr = buildEstadoAccionCase("a");
 
   const estadoNormalizado = String(estado || "ALL").trim().toUpperCase().replace(/[-\s]+/g, "_");
 
@@ -180,47 +205,56 @@ async function contarPendientesPorInspeccion({
       WHERE id_usuario = @id_usuario
     );
 
-    SELECT COUNT(DISTINCT i.id_inspeccion) AS total
-    FROM SSOMA.INS_ACCION a
-    JOIN SSOMA.INS_CAT_ESTADO_ACCION ea
-      ON ea.id_estado_accion = a.id_estado_accion
-    JOIN SSOMA.INS_ACCION_RESPONSABLE ar
-      ON ar.id_acc_responsable = a.id_acc_responsable
-    JOIN SSOMA.INS_OBSERVACION o
-      ON o.id_observacion = a.id_observacion
-    JOIN SSOMA.INS_INSPECCION i
-      ON i.id_inspeccion = o.id_inspeccion
-    WHERE
-      (
-        @solo_mias = 0
-        OR (
-          @dni_usuario IS NOT NULL
-          AND EXISTS (
-            SELECT 1
-            FROM SSOMA.INS_OBSERVACION o2
-            JOIN SSOMA.INS_ACCION a2
-              ON a2.id_observacion = o2.id_observacion
-            JOIN SSOMA.INS_ACCION_RESPONSABLE ar2
-              ON ar2.id_acc_responsable = a2.id_acc_responsable
-            WHERE
-              o2.id_inspeccion = i.id_inspeccion
-              AND LTRIM(RTRIM(CAST(ar2.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
+    ;WITH inspecciones AS (
+      SELECT
+        i.id_inspeccion,
+        CASE
+          WHEN COUNT(CASE WHEN ${estadoCalculadoExpr} = 'VENCIDA' THEN 1 END) > 0 THEN 'VENCIDA'
+          WHEN COUNT(*) = COUNT(CASE WHEN ${estadoCalculadoExpr} = 'CERRADA' THEN 1 END) THEN 'CERRADA'
+          WHEN COUNT(CASE WHEN ${estadoCalculadoExpr} = 'EN PROGRESO' THEN 1 END) > 0 THEN 'EN PROGRESO'
+          ELSE 'PENDIENTE'
+        END AS estado
+      FROM SSOMA.INS_ACCION a
+      JOIN SSOMA.INS_ACCION_RESPONSABLE ar
+        ON ar.id_acc_responsable = a.id_acc_responsable
+      JOIN SSOMA.INS_OBSERVACION o
+        ON o.id_observacion = a.id_observacion
+      JOIN SSOMA.INS_INSPECCION i
+        ON i.id_inspeccion = o.id_inspeccion
+      WHERE
+        (
+          @solo_mias = 0
+          OR (
+            @dni_usuario IS NOT NULL
+            AND EXISTS (
+              SELECT 1
+              FROM SSOMA.INS_OBSERVACION o2
+              JOIN SSOMA.INS_ACCION a2
+                ON a2.id_observacion = o2.id_observacion
+              JOIN SSOMA.INS_ACCION_RESPONSABLE ar2
+                ON ar2.id_acc_responsable = a2.id_acc_responsable
+              WHERE
+                o2.id_inspeccion = i.id_inspeccion
+                AND LTRIM(RTRIM(CAST(ar2.dni AS NVARCHAR(30)))) = LTRIM(RTRIM(@dni_usuario))
+            )
           )
         )
-      )
-      AND (
-        @dias IS NULL
-        OR a.fecha_compromiso IS NULL
-        OR a.fecha_compromiso <= DATEADD(DAY, @dias, @hoy)
-      )
-      AND (
-        @estado = 'ALL'
-        OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(ea.nombre_estado)), ' ', '_'), '-', '_')) = @estado
-      )
-      AND (
-        @id_plantilla_inspec IS NULL
-        OR i.id_plantilla_inspec = @id_plantilla_inspec
-      );
+        AND (
+          @dias IS NULL
+          OR a.fecha_compromiso IS NULL
+          OR a.fecha_compromiso <= DATEADD(DAY, @dias, @hoy)
+        )
+        AND (
+          @id_plantilla_inspec IS NULL
+          OR i.id_plantilla_inspec = @id_plantilla_inspec
+        )
+      GROUP BY i.id_inspeccion
+    )
+    SELECT COUNT(1) AS total
+    FROM inspecciones
+    WHERE
+      @estado = 'ALL'
+      OR UPPER(REPLACE(REPLACE(LTRIM(RTRIM(estado)), ' ', '_'), '-', '_')) = @estado;
   `;
 
   const result = await request.query(query);

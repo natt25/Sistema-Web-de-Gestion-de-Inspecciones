@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getInspeccionFull } from "../api/inspeccionFull.api";
 import { crearObservacion, actualizarEstadoObservacion } from "../api/observaciones.api";
-import { crearAccion, actualizarEstadoAccion, actualizarPorcentajeAccion } from "../api/acciones.api";
+import { crearAccion, actualizarPorcentajeAccion } from "../api/acciones.api";
 import { uploadEvidenciaObs, uploadEvidenciaAcc, deleteEvidenciaAcc } from "../api/uploads.api";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
@@ -799,7 +799,6 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
   const [form, setForm] = useState({
     desc_accion: "",
     fecha_compromiso: "",
-    id_estado_accion: "1",
     responsable_interno_dni: "",
     responsable_externo_nombre: "",
     responsable_externo_cargo: "",
@@ -836,7 +835,7 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
       const payload = {
         desc_accion: form.desc_accion.trim(),
         fecha_compromiso: form.fecha_compromiso,
-        id_estado_accion: Number(form.id_estado_accion),
+        id_estado_accion: 1,
       };
 
       if (dni) payload.responsable_interno_dni = dni;
@@ -862,7 +861,7 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
           obsRef: idObservacion,
           action: {
             id_accion: tempId,
-            id_estado_accion: payload.id_estado_accion,
+            id_estado_accion: 1,
             estado_accion: "PENDIENTE",
             fecha_compromiso: payload.fecha_compromiso,
             desc_accion: payload.desc_accion,
@@ -924,12 +923,8 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
         </label>
 
         <label style={{ display: "grid", gap: 6 }}>
-          Estado (id_estado_accion)
-          <select name="id_estado_accion" value={form.id_estado_accion} onChange={onChange} disabled={inspeccionCerrada}>
-            <option value="1">1 - ABIERTA</option>
-            <option value="2">2 - EN PROCESO</option>
-            <option value="3">3 - CUMPLIDA</option>
-          </select>
+          Estado inicial
+          <input value="PENDIENTE (automático)" disabled />
         </label>
 
         <label style={{ display: "grid", gap: 6 }}>
@@ -1206,13 +1201,16 @@ function pickFirst(...values) {
 function getEstadoBadgeVariant(estado) {
   const s = String(estado || "").trim().toUpperCase();
 
-  if (s === "BORRADOR") return "status-draft";
   if (s === "PENDIENTE") return "status-pending";
   if (s === "EN PROGRESO") return "status-progress";
   if (s === "VENCIDA" || s === "RECHAZADA") return "status-expired";
   if (s === "CERRADA" || s === "CERRADO") return "status-closed";
 
-  return "status-draft";
+  return "status-pending";
+}
+
+function isAccionCerrada(accion) {
+  return String(accion?.estado_accion || "").trim().toUpperCase() === "CERRADA";
 }
 
 function getMetaBadgeVariant() {
@@ -2513,7 +2511,7 @@ export default function InspeccionDetail() {
             observaciones.map((o) => {
               const acciones = o.acciones || [];
               const hayAcciones = acciones.length > 0;
-              const hayPendientes = acciones.some((x) => ![3, 4].includes(Number(x.id_estado_accion)));
+              const hayPendientes = acciones.some((x) => !isAccionCerrada(x));
 
               return (
                 <div
@@ -2545,7 +2543,7 @@ export default function InspeccionDetail() {
                         inspeccionCerrada ||
                         !acc ||
                         !tieneEvidAcc ||
-                        [3, 4].includes(Number(acc?.id_estado_accion)); // si ya cumplida/final, bloquea
+                        isAccionCerrada(acc);
 
                       return (
                         <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #eee", background: "#fafafa" }}>
@@ -2578,7 +2576,7 @@ export default function InspeccionDetail() {
                                 kind="ACC"
                                 idTarget={acc.id_accion}
                                 onUploaded={handleEvidenceUploaded}
-                                disabled={[3, 4].includes(Number(acc.id_estado_accion))}
+                                disabled={isAccionCerrada(acc)}
                                 inspeccionCerrada={inspeccionCerrada}
                                 online={online}
                               />
@@ -2740,22 +2738,22 @@ export default function InspeccionDetail() {
                           </div>
 
                           <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {![3, 4].includes(Number(a.id_estado_accion)) && (
+                            {!isAccionCerrada(a) && (
                               <Button
                                 variant="outline"
                                 disabled={!online}
                                 onClick={async () => {
                                   try {
-                                    await actualizarEstadoAccion(a.id_accion, 3);
+                                    await actualizarPorcentajeAccion(a.id_accion, 100);
                                     await load();
-                                    alert("Accion cumplida ?");
+                                    alert("Accion cerrada ?");
                                   } catch (err) {
-                                    console.error("inspeccion.detail.cumplirAccion:", err);
+                                    console.error("inspeccion.detail.cerrarAccion:", err);
                                     alert(getErrorMessage(err));
                                   }
                                 }}
                               >
-                                Marcar como cumplida
+                                Marcar como cerrada
                               </Button>
                             )}
                           </div>
@@ -2769,7 +2767,7 @@ export default function InspeccionDetail() {
                             kind="ACC"
                             idTarget={a.id_accion}
                             onUploaded={handleEvidenceUploaded}
-                            disabled={[3, 4].includes(Number(a.id_estado_accion))}
+                            disabled={isAccionCerrada(a)}
                             inspeccionCerrada={inspeccionCerrada}
                             online={online}
                           />
