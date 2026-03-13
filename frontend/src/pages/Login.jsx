@@ -73,11 +73,13 @@ export default function Login() {
 
   return (
     <div className="auth-shell">
-      <img
-        src={logoAqp}
-        alt="AQP Industrial Service"
-        className="aqp-logo"
-      />
+      <div className="aqp-logo-container">
+        <img
+          src={logoAqp}
+          alt="AQP Industrial Service"
+          className="aqp-logo"
+        />
+      </div>
       <div className="auth-card">
         <section className="auth-left">
           <div className="auth-brand">

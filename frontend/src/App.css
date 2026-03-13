@@ -1127,16 +1127,20 @@
   color:#5b6573;
 }
 
-.aqp-logo{
+.aqp-logo-container{
   position: absolute;
-  top: clamp(16px, 2.3vw, 30px);
-  left: clamp(16px, 3vw, 40px);
-  width: clamp(136px, 17vw, 220px);
-  max-width: 40vw;
+  top: 32px;
+  left: 40px;
+  width: 150px;
+  z-index: 5;
+}
+
+.aqp-logo{
+  display: block;
+  width: 180px;
   height: auto;
   object-fit: contain;
   object-position: left top;
-  z-index: 5;
   opacity: 0.95;
 }
 
@@ -1145,11 +1149,9 @@
     padding-top: 84px;
   }
 
-  .aqp-logo{
+  .aqp-logo-container{
     top: 14px;
     left: 16px;
-    width: clamp(120px, 27vw, 176px);
-    max-width: 44vw;
   }
 }
 
@@ -1158,11 +1160,9 @@
     padding-top: 74px;
   }
 
-  .aqp-logo{
+  .aqp-logo-container{
     top: 10px;
     left: 12px;
-    width: min(148px, 44vw);
-    max-width: 44vw;
   }
 }
 
