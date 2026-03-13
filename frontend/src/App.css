@@ -549,6 +549,9 @@
     justify-content: flex-start;
     gap: 10px;
   }
+  .topbar-user-name{
+    max-width: 180px;
+  }
   .auth-card{ grid-template-columns: 1fr; max-width: 560px; }
   .content{ padding: 16px; }
   .dashboard-content{ padding: 12px; }
@@ -563,6 +566,7 @@
   .auth-card{ border-radius: 18px; }
   .topbar{ height: auto; align-items: flex-start; }
   .topbar-left{ width: 100%; }
+  .topbar-user-name{ display: none; }
 }
 
 @media (max-width: 1200px){
@@ -645,6 +649,42 @@
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.topbar-user{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.topbar-user-avatar{
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 900;
+  background: rgba(255,106,0,.12);
+  color: var(--orange-700);
+  border: 1px solid rgba(255,106,0,.24);
+}
+
+.topbar-user-name{
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
 }
 
 .badge.conn-online{

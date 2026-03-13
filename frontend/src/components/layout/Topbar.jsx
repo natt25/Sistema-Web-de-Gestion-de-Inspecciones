@@ -1,10 +1,39 @@
-import { useNavigate } from "react-router-dom";
 import { getUser } from "../../auth/auth.storage";
 
+function buildUserDisplayName(user) {
+  const fullName = String(user?.nombreCompleto || "").trim();
+  if (fullName) return fullName;
+
+  const composedName = [user?.nombres, user?.apellidos]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (composedName) return composedName;
+
+  const fallbackName =
+    String(user?.nombre || "").trim() ||
+    String(user?.name || "").trim() ||
+    String(user?.dni || "").trim();
+
+  return fallbackName || "Usuario";
+}
+
+function getInitials(name) {
+  const words = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!words.length) return "U";
+  if (words.length === 1) return words[0].slice(0, 1).toUpperCase();
+  return `${words[0].slice(0, 1)}${words[1].slice(0, 1)}`.toUpperCase();
+}
+
 export default function Topbar({ title, actions, onToggle, showHamburger = false }) {
-  const navigate = useNavigate();
   const user = getUser();
-  const esInvitado = String(user?.rol || "").trim().toUpperCase() === "INVITADO";
+  const userDisplayName = buildUserDisplayName(user);
+  const userInitials = getInitials(userDisplayName);
 
   return (
     <header className="topbar">
@@ -21,11 +50,10 @@ export default function Topbar({ title, actions, onToggle, showHamburger = false
 
       <div className="topbar-right">
         {actions}
-        {!esInvitado ? (
-          <button type="button" className="btn btn-outline" onClick={() => navigate("/perfil")}>
-            Perfil
-          </button>
-        ) : null}
+        <div className="topbar-user" title={userDisplayName}>
+          <div className="topbar-user-avatar">{userInitials}</div>
+          <div className="topbar-user-name">{userDisplayName}</div>
+        </div>
       </div>
     </header>
   );

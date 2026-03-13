@@ -16,6 +16,7 @@ export default function Sidebar({ onNavigate }) {
       { to: "/inspecciones/plantillas", label: "Inspecciones", icon: "📋" },
       ...(rol !== "INVITADO" ? [{ to: "/mis-inspecciones", label: "Mis inspecciones", icon: "🗂️" }] : []),
       { to: "/pendientes", label: "Pendientes", icon: "⏰" },
+      ...(rol !== "INVITADO" ? [{ to: "/perfil", label: "Perfil", icon: "👤" }] : []),
       ...((rol === "ADMIN_PRINCIPAL" || rol === "ADMIN")
         ? [{ to: "/admin/usuarios", label: "Usuarios", icon: "👥" }]
         : []),
