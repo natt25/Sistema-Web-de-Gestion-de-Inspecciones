@@ -87,14 +87,20 @@ export default function Home() {
       setInspeccionesError("");
 
       const results = await Promise.allSettled([
-        esInvitado
-          ? Promise.resolve([])
-          : listarPendientes({
-              dias: null,
-              solo_mias: 1,
-              estado: "ALL",
-              id_usuario: user?.id_usuario,
-            }),
+        listarPendientes(
+          esInvitado
+            ? {
+                dias: null,
+                solo_mias: 0,
+                estado: "ALL",
+              }
+            : {
+                dias: null,
+                solo_mias: 1,
+                estado: "ALL",
+                id_usuario: user?.id_usuario,
+              }
+        ),
         listarInspecciones({}),
       ]);
 
@@ -367,19 +373,22 @@ export default function Home() {
       ) : null}
 
       <div className="home-panels">
-        {!esInvitado ? (
-          <Card
-            title="Mis acciones (pendientes / vencidas)"
-            actions={
-              <Button variant="outline" onClick={() => navigate("/pendientes")}>
-                Ver todas
-              </Button>
-            }
-          >
+        <Card
+          title={esInvitado ? "Pendientes recientes" : "Mis acciones (pendientes / vencidas)"}
+          actions={
+            <Button variant="outline" onClick={() => navigate("/pendientes")}>
+              Ver todas
+            </Button>
+          }
+        >
           <Table
             columns={colsAcciones}
             data={misAcciones}
-            emptyText={loading ? "Cargando..." : pendientesError || "No tienes acciones pendientes."}
+            emptyText={
+              loading
+                ? "Cargando..."
+                : pendientesError || (esInvitado ? "Sin acciones pendientes." : "No tienes acciones pendientes.")
+            }
             tableClassName="home-dashboard-table"
             renderActions={(a) => (
               <div
@@ -412,12 +421,7 @@ export default function Home() {
               actionsHeaderStyle={homeTableWidths.accion}
               actionsCellStyle={homeTableWidths.accion}
             />
-          </Card>
-        ) : (
-          <Card title="Mis acciones (pendientes / vencidas)">
-            No disponible para invitado.
-          </Card>
-        )}
+        </Card>
 
         <Card
           title="Inspecciones recientes"

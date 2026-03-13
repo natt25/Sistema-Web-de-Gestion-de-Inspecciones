@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
-import Badge from "../ui/Badge";
 import Autocomplete from "../ui/Autocomplete";
 import {
   buscarClientes,
@@ -537,11 +536,6 @@ export default function InspeccionHeaderForm({
                   <tr>
                     <td>
                       <div style={{ display: "grid", gap: 6 }}>
-                        <span>
-                          <Badge className="badge-creator-header">
-                            INSPECCIÓN CREADA POR:
-                          </Badge>
-                        </span>
                         <span style={{ fontWeight: 800 }}>
                           {value?.realizado_por || "SIN NOMBRE"}
                         </span>

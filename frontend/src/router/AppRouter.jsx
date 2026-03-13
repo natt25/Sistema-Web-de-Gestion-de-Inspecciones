@@ -33,11 +33,11 @@ export default function AppRouter() {
           <Route path="inspecciones/plantillas" element={<PlantillasInspeccion />} />
           <Route path="inspecciones" element={<InspeccionesList />} />
           <Route path="inspecciones/:id" element={<InspeccionDetail />} />
+          <Route path="pendientes" element={<Pendientes />} />
 
           <Route element={<RequireRole roles={NON_GUEST_ROLES} />}>
             <Route path="mis-inspecciones" element={<MisInspecciones />} />
             <Route path="change-password" element={<ChangePassword />} />
-            <Route path="pendientes" element={<Pendientes />} />
             <Route path="perfil" element={<Perfil />} />
             <Route path="inspecciones/nueva" element={<InspeccionNueva />} />
             <Route path="inspecciones/nueva/:idPlantilla" element={<InspeccionForm />} />

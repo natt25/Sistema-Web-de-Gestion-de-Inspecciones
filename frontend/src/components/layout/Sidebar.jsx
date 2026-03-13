@@ -15,7 +15,7 @@ export default function Sidebar({ onNavigate }) {
       { to: "/home", label: "Home", icon: "🏠" },
       { to: "/inspecciones/plantillas", label: "Inspecciones", icon: "📋" },
       ...(rol !== "INVITADO" ? [{ to: "/mis-inspecciones", label: "Mis inspecciones", icon: "🗂️" }] : []),
-      ...(rol !== "INVITADO" ? [{ to: "/pendientes", label: "Pendientes", icon: "⏰" }] : []),
+      { to: "/pendientes", label: "Pendientes", icon: "⏰" },
       ...((rol === "ADMIN_PRINCIPAL" || rol === "ADMIN")
         ? [{ to: "/admin/usuarios", label: "Usuarios", icon: "👥" }]
         : []),
@@ -42,13 +42,12 @@ export default function Sidebar({ onNavigate }) {
   }
 
   const loadCount = useCallback(async () => {
-    if (rol === "INVITADO") {
-      setPendientesCount(0);
-      return;
-    }
-
     try {
-      const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
+      const data = await contarPendientes({
+        dias: null,
+        solo_mias: rol === "INVITADO" ? 0 : 1,
+        estado: "ALL",
+      });
       setPendientesCount(Number(data?.total || 0));
     } catch {
       setPendientesCount(0);
@@ -59,13 +58,12 @@ export default function Sidebar({ onNavigate }) {
     let alive = true;
 
     const safeLoad = async () => {
-      if (rol === "INVITADO") {
-        if (alive) setPendientesCount(0);
-        return;
-      }
-
       try {
-        const data = await contarPendientes({ dias: null, solo_mias: 1, estado: "ALL" });
+        const data = await contarPendientes({
+          dias: null,
+          solo_mias: rol === "INVITADO" ? 0 : 1,
+          estado: "ALL",
+        });
         if (!alive) return;
         setPendientesCount(Number(data?.total || 0));
       } catch {
@@ -142,7 +140,7 @@ export default function Sidebar({ onNavigate }) {
 
             {item.to === "/pendientes" && Number(item.badge) > 0 ? (
               <span
-                title="Mis acciones pendientes"
+                title={rol === "INVITADO" ? "Pendientes generales" : "Mis acciones pendientes"}
                 style={{
                   minWidth: 22,
                   height: 22,

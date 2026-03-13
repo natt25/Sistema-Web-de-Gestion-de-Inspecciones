@@ -66,13 +66,15 @@ function renderEstadoBadge(estadoRaw) {
 export default function Pendientes() {
   const navigate = useNavigate();
   const user = getUser();
+  const esInvitado = String(user?.rol || "").trim().toUpperCase() === "INVITADO";
   const estadoMenuRef = useRef(null);
+  const defaultSoloMias = esInvitado ? 0 : 1;
 
   const [filters, setFilters] = useState({
     range: "7d",
     desde: "",
     hasta: "",
-    soloMias: 1,
+    soloMias: defaultSoloMias,
     estado: "ALL",
     idPlantilla: "",
   });
@@ -381,7 +383,7 @@ export default function Pendientes() {
           )}
 
           <div className="ins-field" style={{ alignSelf: "end" }}>
-            <span>Solo mis acciones</span>
+            <span>{esInvitado ? "Vista general" : "Solo mis acciones"}</span>
 
             <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6, cursor: "pointer" }}>
               <input
@@ -389,6 +391,7 @@ export default function Pendientes() {
                 checked={filters.soloMias === 1}
                 onChange={(e) => setFilters((p) => ({ ...p, soloMias: e.target.checked ? 1 : 0 }))}
                 style={{ display: "none" }}
+                disabled={esInvitado}
               />
 
               <span
@@ -400,6 +403,7 @@ export default function Pendientes() {
                   position: "relative",
                   transition: "0.2s",
                   border: "1px solid var(--border)",
+                  opacity: esInvitado ? 0.65 : 1,
                 }}
               >
                 <span
@@ -418,7 +422,7 @@ export default function Pendientes() {
               </span>
 
               <span style={{ fontWeight: 900, color: filters.soloMias === 1 ? "#166534" : "#374151" }}>
-                {filters.soloMias === 1 ? "Activado" : "Desactivado"}
+                {esInvitado ? "General" : filters.soloMias === 1 ? "Activado" : "Desactivado"}
               </span>
             </label>
           </div>
@@ -429,7 +433,14 @@ export default function Pendientes() {
             variant="outline"
             type="button"
             onClick={() => {
-              setFilters({ range: "7d", desde: "", hasta: "", soloMias: 1, estado: "ALL", idPlantilla: "" });
+              setFilters({
+                range: "7d",
+                desde: "",
+                hasta: "",
+                soloMias: defaultSoloMias,
+                estado: "ALL",
+                idPlantilla: "",
+              });
               setMsg("");
             }}
             disabled={loading}
@@ -444,7 +455,7 @@ export default function Pendientes() {
         <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div style={{ fontSize: 12, color: "var(--muted)" }}>{hint}</div>
           <div style={{ fontSize: 12, color: "var(--muted)" }}>
-            Usuario: {user?.dni} ({user?.rol})
+            Usuario: {user?.dni} ({user?.rol}){esInvitado ? " · vista general" : ""}
           </div>
         </div>
       </Card>
