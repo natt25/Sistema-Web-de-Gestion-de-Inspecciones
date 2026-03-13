@@ -20,6 +20,7 @@ export default function Perfil() {
     user?.nombre ||
     user?.name ||
     "Usuario";
+  const cargo = user?.cargo || "—";
   const dni = user?.dni || "—";
   const rol = user?.rol || user?.role || "—";
   const email = user?.email || "";
@@ -94,12 +95,13 @@ export default function Perfil() {
     })();
   }, []);
 
-    return (
+  return (
     <DashboardLayout title="Mi perfil">
       <div style={{ display: "grid", gap: 16 }}>
         <Card title="Datos del usuario">
           <div style={{ display: "grid", gap: 10 }}>
             <div><b>Nombre:</b> {nombre}</div>
+            <div><b>Cargo:</b> {cargo}</div>
             <div><b>DNI:</b> {dni}</div>
             <div><b>Rol:</b> {rol}</div>
             {email ? <div><b>Email:</b> {email}</div> : null}
