@@ -91,6 +91,13 @@ async function resolveCargoNombre(pool, idCargo) {
 }
 
 async function list() {
+  const colsEmpleado = await getColumns("SSOMA", "V_EMPLEADO");
+  const cargoCol =
+    colsEmpleado.has("cargo") ? "cargo" :
+    colsEmpleado.has("desc_cargo") ? "desc_cargo" :
+    colsEmpleado.has("nombre_cargo") ? "nombre_cargo" :
+    null;
+  const idCargoCol = colsEmpleado.has("id_cargo") ? "id_cargo" : null;
   const query = `
     SELECT
       u.id_usuario, u.dni,
@@ -125,6 +132,8 @@ async function list() {
         ),
         '-'
       ) AS apellidos_nombres,
+      ${cargoCol ? `LTRIM(RTRIM(COALESCE(CAST(ve.${cargoCol} AS NVARCHAR(150)), ''))) AS cargo_raw,` : `CAST('' AS NVARCHAR(150)) AS cargo_raw,`}
+      ${idCargoCol ? `LTRIM(RTRIM(COALESCE(CAST(ve.${idCargoCol} AS NVARCHAR(50)), ''))) AS id_cargo_raw,` : `CAST('' AS NVARCHAR(50)) AS id_cargo_raw,`}
       u.debe_cambiar_password,
       u.last_login_at,
       u.locked_until,
@@ -138,7 +147,15 @@ async function list() {
   `;
   const pool = await getPool();
   const result = await pool.request().query(query);
-  return result.recordset;
+  return Promise.all((result.recordset || []).map(async (row) => {
+    const cargoRaw = String(row?.cargo_raw || "").trim();
+    const idCargoRaw = String(row?.id_cargo_raw || "").trim();
+    const cargo = cargoRaw || await resolveCargoNombre(pool, idCargoRaw);
+    return {
+      ...row,
+      cargo: cargo || "-",
+    };
+  }));
 }
 
 async function listRoles() {

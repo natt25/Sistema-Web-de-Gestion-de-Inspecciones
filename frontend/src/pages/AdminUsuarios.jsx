@@ -114,6 +114,8 @@ export default function AdminUsuarios() {
   const supremeAdmin = isSupremeAdmin(actor);
   const actorRole = normalizeRoleName(actor?.rol);
   const currentUser = rows.find((row) => String(row?.dni || "").trim() === normalizedDni) || null;
+  const currentUserDisplayName = currentUser?.apellidos_nombres || currentUser?.nombreCompleto || "—";
+  const currentUserCargo = currentUser?.cargo || "—";
   const currentUserRole = normalizeRoleName(currentUser?.rol);
   const currentUserEstado = normalizeEstadoName(currentUser?.estado);
   const canEditRol = !currentUser
@@ -280,9 +282,15 @@ export default function AdminUsuarios() {
           <form className="form" onSubmit={onSubmit}>
             <Input label="DNI" value={dni} onChange={(e) => setDni(e.target.value)} required />
             {currentUser ? (
-              <Badge variant="outline">
-                Actual: {currentUser.rol} / {currentUser.estado}
-              </Badge>
+              <>
+                <Badge variant="outline">
+                  Actual: {currentUser.rol} / {currentUser.estado}
+                </Badge>
+                <div className="help" style={{ display: "grid", gap: 4 }}>
+                  <div><strong>Nombre completo:</strong> {currentUserDisplayName}</div>
+                  <div><strong>Cargo:</strong> {currentUserCargo}</div>
+                </div>
+              </>
             ) : null}
             <label className="ins-field">
               <span>Rol</span>
