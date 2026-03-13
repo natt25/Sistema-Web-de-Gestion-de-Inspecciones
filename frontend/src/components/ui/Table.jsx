@@ -17,7 +17,7 @@ export default function Table({
                 {c.label}
               </th>
             ))}
-            {renderActions && <th style={actionsHeaderStyle}>AcciÃ³n</th>}
+            {renderActions && <th style={actionsHeaderStyle}>Acción</th>}
           </tr>
         </thead>
         <tbody>

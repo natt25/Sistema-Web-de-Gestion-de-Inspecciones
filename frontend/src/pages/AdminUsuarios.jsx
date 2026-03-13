@@ -120,7 +120,7 @@ export default function AdminUsuarios() {
     { key: "rol", label: "Rol" },
     { key: "estado", label: "Estado" },
     { key: "locked_until", label: "Locked", render: (u) => (u.locked_until ? "Si" : "No") },
-    { key: "last_login_at", label: "Ultimo login", render: (u) => (u.last_login_at ? String(u.last_login_at) : "-") },
+    { key: "last_login_at", label: "Último login", render: (u) => (u.last_login_at ? String(u.last_login_at) : "-") },
   ];
 
   return (
