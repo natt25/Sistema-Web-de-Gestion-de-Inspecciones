@@ -238,7 +238,7 @@ export default function Pendientes() {
     },
     {
       key: "acciones_mias",
-      label: "Mis acciones",
+      label: esInvitado ? "Acciones" : "Mis acciones",
       render: (a) => {
         const total = Number(a?.total_acciones_mias);
         const pendientes = Number(a?.acciones_mias_pendientes);
