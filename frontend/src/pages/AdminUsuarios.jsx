@@ -50,6 +50,10 @@ function isAdminAnyRole(value) {
   return role === "ADMIN_PRINCIPAL" || role === "ADMIN";
 }
 
+function isSupremeAdmin(actor) {
+  return String(actor?.dni || "").trim() === "00000000";
+}
+
 function isInspectorRole(value) {
   return normalizeRoleName(value) === "INSPECTOR";
 }
@@ -88,47 +92,69 @@ export default function AdminUsuarios() {
   const [dni, setDni] = useState("");
   const [idRol, setIdRol] = useState("");
   const [idEstado, setIdEstado] = useState("");
+  const [rolFilter, setRolFilter] = useState("TODOS");
   const normalizedDni = String(dni || "").trim();
+  const supremeAdmin = isSupremeAdmin(actor);
   const actorRole = normalizeRoleName(actor?.rol);
   const currentUser = rows.find((row) => String(row?.dni || "").trim() === normalizedDni) || null;
   const currentUserRole = normalizeRoleName(currentUser?.rol);
   const currentUserEstado = normalizeEstadoName(currentUser?.estado);
   const canEditRol = !currentUser
     ? true
-    : isInspectorRole(currentUserRole) ||
-      (isAdminPrincipalRole(actorRole) && isAdminRoleOnly(currentUserRole));
+    : supremeAdmin
+      ? true
+      : isAdminPrincipalRole(actorRole)
+        ? !isAdminPrincipalRole(currentUserRole)
+        : isAdminRoleOnly(actorRole)
+          ? isInspectorRole(currentUserRole)
+          : false;
   const filteredRoles = roles.filter((rol) => {
-    if (!currentUser) return true;
-    if (isAdminPrincipalRole(currentUserRole)) {
-      return isAdminPrincipalRole(rol?.nombre_rol);
+    if (!currentUser || supremeAdmin) return true;
+    if (isAdminPrincipalRole(actorRole)) {
+      if (isAdminPrincipalRole(currentUserRole)) {
+        return isAdminPrincipalRole(rol?.nombre_rol);
+      }
+      return true;
     }
-    if (isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUserRole)) {
-      return normalizeRoleName(rol?.nombre_rol) === currentUserRole;
-    }
-    if (isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentUserRole)) {
-      return normalizeRoleName(rol?.nombre_rol) === currentUserRole;
-    }
-    if (isAdminRoleOnly(currentUserRole)) {
-      return !isInspectorRole(rol?.nombre_rol);
+    if (isAdminRoleOnly(actorRole)) {
+      if (isAdminPrincipalRole(currentUserRole) || isAdminRoleOnly(currentUserRole)) {
+        return normalizeRoleName(rol?.nombre_rol) === currentUserRole;
+      }
+      return true;
     }
     return true;
   });
   const filteredEstados = estados.filter((estado) => {
-    if (!currentUser) return true;
-    if (isAdminPrincipalRole(currentUserRole)) {
-      return isEstadoActivo(estado?.nombre_estado);
+    if (!currentUser || supremeAdmin) return true;
+    if (isAdminPrincipalRole(actorRole)) {
+      if (isAdminPrincipalRole(currentUserRole)) {
+        return normalizeEstadoName(estado?.nombre_estado) === currentUserEstado;
+      }
+      return true;
     }
-    if (isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUserRole)) {
-      return normalizeEstadoName(estado?.nombre_estado) === currentUserEstado;
+    if (isAdminRoleOnly(actorRole)) {
+      if (isAdminPrincipalRole(currentUserRole) || isAdminRoleOnly(currentUserRole)) {
+        return normalizeEstadoName(estado?.nombre_estado) === currentUserEstado;
+      }
+      return true;
     }
     return true;
   });
   const canEditEstado = !currentUser
     ? true
-    : isInspectorRole(currentUserRole) ||
-      (isAdminPrincipalRole(actorRole) && isAdminRoleOnly(currentUserRole));
+    : supremeAdmin
+      ? true
+      : isAdminPrincipalRole(actorRole)
+        ? !isAdminPrincipalRole(currentUserRole)
+        : isAdminRoleOnly(actorRole)
+          ? isInspectorRole(currentUserRole)
+          : false;
   const roleSelectDisabled = Boolean(currentUser) && !canEditRol;
   const estadoSelectDisabled = Boolean(currentUser) && !canEditEstado;
+  const filteredRowsByRole = rows.filter((row) => {
+    if (rolFilter === "TODOS") return true;
+    return normalizeRoleName(row?.rol) === rolFilter;
+  });
 
   async function load() {
     setLoading(true);
@@ -275,44 +301,24 @@ export default function AdminUsuarios() {
                 ))}
               </select>
             </label>
-            {isAdminPrincipalRole(currentUser?.rol) ? (
+            {supremeAdmin ? (
               <div className="help">
-                Un ADMIN_PRINCIPAL no puede cambiar a ADMIN ni a INSPECTOR.
+                ADMIN PRINCIPAL SUPREMO: acceso total de modificación.
               </div>
             ) : null}
-            {isAdminPrincipalRole(currentUser?.rol) ? (
+            {!supremeAdmin && isAdminPrincipalRole(actorRole) && isAdminPrincipalRole(currentUser?.rol) ? (
               <div className="help">
-                Un ADMIN_PRINCIPAL solo puede permanecer ACTIVO.
-              </div>
-            ) : null}
-            {isAdminRoleOnly(currentUser?.rol) ? (
-              <div className="help">
-                Un ADMIN no puede regresar a INSPECTOR.
+                Un ADMIN_PRINCIPAL no puede modificar a otro ADMIN_PRINCIPAL.
               </div>
             ) : null}
             {isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUser?.rol) ? (
               <div className="help">
-                Un ADMIN no puede cambiar el rol de otro ADMIN.
+                Un ADMIN no puede cambiar el rol ni el estado de otro ADMIN.
               </div>
             ) : null}
             {isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentUser?.rol) ? (
               <div className="help">
                 Un ADMIN no puede modificar a un ADMIN_PRINCIPAL.
-              </div>
-            ) : null}
-            {isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentUser?.rol) ? (
-              <div className="help">
-                Un ADMIN no puede cambiar el estado de un ADMIN_PRINCIPAL.
-              </div>
-            ) : null}
-            {isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUser?.rol) ? (
-              <div className="help">
-                Un ADMIN no puede cambiar el estado de otro ADMIN.
-              </div>
-            ) : null}
-            {isAdminPrincipalRole(actorRole) && isAdminPrincipalRole(currentUser?.rol) ? (
-              <div className="help">
-                Un ADMIN_PRINCIPAL no puede cambiar el estado de otro ADMIN_PRINCIPAL.
               </div>
             ) : null}
             <Button variant="primary" type="submit">Actualizar</Button>
@@ -321,12 +327,30 @@ export default function AdminUsuarios() {
         </Card>
 
         <Card title="Usuarios">
+          <div className="actions" style={{ marginTop: 0, marginBottom: 12 }}>
+            <label className="ins-field" style={{ marginTop: 0, minWidth: 220 }}>
+              <span>Filtrar por rol</span>
+              <select
+                className="ins-input"
+                value={rolFilter}
+                onChange={(e) => setRolFilter(e.target.value)}
+              >
+                <option value="TODOS">Todos</option>
+                <option value="ADMIN_PRINCIPAL">ADMIN_PRINCIPAL</option>
+                <option value="ADMIN">ADMIN</option>
+                <option value="INSPECTOR">INSPECTOR</option>
+              </select>
+            </label>
+            <Badge variant="outline">
+              Cantidad: {filteredRowsByRole.length}
+            </Badge>
+          </div>
           <Table
             columns={columns}
-            data={rows}
+            data={filteredRowsByRole}
             emptyText={loading ? "Cargando..." : "Sin usuarios"}
             renderActions={(u) =>
-              isAdminAnyRole(actor?.rol) && isAdminAnyRole(u?.rol) ? null : (
+              !supremeAdmin && isAdminAnyRole(actor?.rol) && isAdminAnyRole(u?.rol) ? null : (
                 <Button variant="ghost" onClick={() => onResetPassword(u)}>
                   Restablecer clave
                 </Button>

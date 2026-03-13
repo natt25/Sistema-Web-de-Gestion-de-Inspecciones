@@ -143,6 +143,10 @@ function isAdminAnyRole(value) {
   return role === "ADMIN_PRINCIPAL" || role === "ADMIN";
 }
 
+function isSupremeAdmin(actor) {
+  return String(actor?.dni || "").trim() === "00000000";
+}
+
 function isInspectorRole(value) {
   return normalizeRoleName(value) === "INSPECTOR";
 }
@@ -161,6 +165,7 @@ function isEstadoBloqueado(value) {
 
 async function validateUpsertRules({ existingUser, nextRol, nextEstado, actor }) {
   if (!existingUser?.id_usuario) return null;
+  if (isSupremeAdmin(actor)) return null;
 
   const actorRole = normalizeRoleName(actor?.rol);
   const currentRole = normalizeRoleName(existingUser?.rol);
@@ -168,35 +173,30 @@ async function validateUpsertRules({ existingUser, nextRol, nextEstado, actor })
   const currentEstado = normalizeEstadoName(existingUser?.estado);
   const requestedEstado = normalizeEstadoName(nextEstado?.nombre_estado);
 
-  if (isAdminPrincipalRole(currentRole) && requestedRole !== "ADMIN_PRINCIPAL") {
-    return "No se permite cambiar el rol de un ADMIN_PRINCIPAL";
-  }
-
-  if (isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentRole) && requestedRole !== currentRole) {
-    return "Un ADMIN no puede cambiar el rol de otro ADMIN";
-  }
-
-  if (isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentRole)) {
-    return "Un ADMIN no puede modificar a un ADMIN_PRINCIPAL";
-  }
-
-  if (isAdminPrincipalRole(currentRole) && !isEstadoActivo(requestedEstado)) {
-    return "Un ADMIN_PRINCIPAL siempre debe permanecer ACTIVO";
+  if (isAdminPrincipalRole(actorRole)) {
+    if (isAdminPrincipalRole(currentRole)) {
+      if (requestedRole !== currentRole || requestedEstado !== currentEstado) {
+        return "Un ADMIN_PRINCIPAL no puede modificar a otro ADMIN_PRINCIPAL.";
+      }
+      return null;
+    }
+    return null;
   }
 
   if (isAdminRoleOnly(actorRole)) {
-    if (isAdminRoleOnly(currentRole) && requestedEstado !== currentEstado) {
-      return "Un ADMIN no puede cambiar el estado de otro ADMIN";
+    if (isAdminPrincipalRole(currentRole)) {
+      return "Un ADMIN no puede modificar a un ADMIN_PRINCIPAL.";
     }
-    if (isAdminPrincipalRole(currentRole) && requestedEstado !== currentEstado) {
-      return "Un ADMIN no puede cambiar el estado de un ADMIN_PRINCIPAL";
-    }
-  }
 
-  if (isAdminPrincipalRole(actorRole)) {
-    if (isAdminPrincipalRole(currentRole) && requestedEstado !== currentEstado) {
-      return "Un ADMIN_PRINCIPAL no puede cambiar el estado de otro ADMIN_PRINCIPAL";
+    if (isAdminRoleOnly(currentRole) && requestedRole !== currentRole) {
+      return "Un ADMIN no puede cambiar el rol de otro ADMIN.";
     }
+
+    if (isAdminRoleOnly(currentRole) && requestedEstado !== currentEstado) {
+      return "Un ADMIN no puede cambiar el estado de otro ADMIN.";
+    }
+
+    return null;
   }
 
   return null;
@@ -205,6 +205,15 @@ async function validateUpsertRules({ existingUser, nextRol, nextEstado, actor })
 async function adminResetPassword(id_usuario, newPassword, actor = {}) {
   const err = validatePassword(newPassword);
   if (err) return { ok: false, status: 400, message: err };
+  if (isSupremeAdmin(actor)) {
+    const password_hash = await hashPassword(newPassword);
+    await usuariosRepo.resetPassword(id_usuario, {
+      password_hash,
+      debe_cambiar_password: 1,
+      password_expires_at: buildExpiryDate(90),
+    });
+    return { ok: true, status: 200 };
+  }
 
   const actorRole = actor?.rol;
   const targetUser = await usuariosRepo.findById(id_usuario);
