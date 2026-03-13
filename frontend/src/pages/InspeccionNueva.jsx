@@ -85,6 +85,7 @@ export default function InspeccionNueva() {
   const navigate = useNavigate();
   const plantillaId = Number(q.get("plantilla"));
   const [user, setUserState] = useState(() => getUser());
+  const esInvitado = String(user?.rol || "").trim().toUpperCase() === "INVITADO";
   const online = useOnlineStatus();
 
   const [loadingDef, setLoadingDef] = useState(false);
@@ -115,10 +116,15 @@ export default function InspeccionNueva() {
   }, []);
 
   useEffect(() => {
+    if (esInvitado) {
+      navigate("/inspecciones/plantillas", { replace: true });
+      return;
+    }
+
     if (plantillaId === 1) {
       navigate("/inspecciones/plantillas", { replace: true });
     }
-  }, [plantillaId, navigate]);
+  }, [esInvitado, plantillaId, navigate]);
 
   useEffect(() => {
     cabeceraRef.current = CABECERA_EMPTY;

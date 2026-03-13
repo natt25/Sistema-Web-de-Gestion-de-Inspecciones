@@ -5,8 +5,10 @@ import Autocomplete from "../ui/Autocomplete.jsx";
 import { buscarEmpleados } from "../../api/busquedas.api.js";
 import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import TablaCamillaForm from "../forms/TablaCamillaForm.jsx";
+import { getUser } from "../../auth/auth.storage.js";
 
 export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit }) {
+  const esInvitado = String(getUser()?.rol || "").trim().toUpperCase() === "INVITADO";
   const sections = useMemo(() => {
     if (Array.isArray(definicion?.secciones) && definicion.secciones.length) {
       return definicion.secciones
@@ -145,6 +147,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (esInvitado) return;
     console.log("[DinamicaForm] handleSubmit triggered");
     if (!validate()) return;
 
@@ -188,7 +191,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
 
         <div className="ins-progress">
           <Badge>{filled}/{total} respondidas</Badge>
-          <Button type="submit">Guardar (prueba)</Button>
+          {!esInvitado ? <Button type="submit">Guardar (prueba)</Button> : null}
         </div>
       </div>
 
@@ -225,9 +228,9 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                   </div>
 
                   <div className="ins-options">
-                    <Option name={`opt_${key}`} label="BUENO" checked={value === "BUENO"} onChange={() => setAnswer(it, "BUENO")} />
-                    <Option name={`opt_${key}`} label="MALO" checked={value === "MALO"} onChange={() => setAnswer(it, "MALO")} />
-                    <Option name={`opt_${key}`} label="N/A" checked={value === "NA"} onChange={() => setAnswer(it, "NA")} />
+                    <Option name={`opt_${key}`} label="BUENO" checked={value === "BUENO"} onChange={() => setAnswer(it, "BUENO")} disabled={esInvitado} />
+                    <Option name={`opt_${key}`} label="MALO" checked={value === "MALO"} onChange={() => setAnswer(it, "MALO")} disabled={esInvitado} />
+                    <Option name={`opt_${key}`} label="N/A" checked={value === "NA"} onChange={() => setAnswer(it, "NA")} disabled={esInvitado} />
                   </div>
 
                   <div className="ins-note">
@@ -247,6 +250,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                       value={notes[key] || ""}
                       onChange={(e) => setNotes((p) => ({ ...p, [key]: e.target.value }))}
                       placeholder="Detalla observaciones y medidas correctivas."
+                      disabled={esInvitado}
                     />
                     {err.note ? <div className="ins-error">{err.note}</div> : null}
                   </div>
@@ -265,6 +269,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                             setActions((p) => ({ ...p, [key]: { ...act, que: e.target.value } }))
                           }
                           placeholder="Describe la accion correctiva inmediata..."
+                          disabled={esInvitado}
                         />
                         {err.que ? <div className="ins-error">{err.que}</div> : null}
                       </label>
@@ -276,7 +281,9 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                           displayValue={act.quien || ""}
                           options={respOptions[key] || []}
                           getOptionLabel={buildEmpleadoOptionLabel}
+                          disabled={esInvitado}
                           onFocus={async () => {
+                            if (esInvitado) return;
                             try {
                               const rows = await buscarEmpleados("");
                               setRespOptions((p) => ({ ...p, [key]: Array.isArray(rows) ? rows : [] }));
@@ -285,6 +292,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                             }
                           }}
                           onInputChange={async (txt) => {
+                            if (esInvitado) return;
                             setActions((p) => ({
                               ...p,
                               [key]: {
@@ -309,6 +317,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                             }
                           }}
                           onSelect={(e) => {
+                            if (esInvitado) return;
                             const nombreCompleto = buildEmpleadoDisplayName(e);
                             setActions((p) => ({
                               ...p,
@@ -327,6 +336,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                           }}
                           allowCustom
                           onCreateCustom={(text) => {
+                            if (esInvitado) return;
                             setActions((p) => ({
                               ...p,
                               [key]: {
@@ -350,6 +360,7 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
                           onChange={(e) =>
                             setActions((p) => ({ ...p, [key]: { ...act, cuando: e.target.value } }))
                           }
+                          disabled={esInvitado}
                         />
                         {err.cuando ? <div className="ins-error">{err.cuando}</div> : null}
                       </label>
@@ -365,12 +376,12 @@ export default function InspeccionDinamicaForm({ plantilla, definicion, onSubmit
   );
 }
 
-function Option({ name, label, checked, onChange }) {
+function Option({ name, label, checked, onChange, disabled = false }) {
   const cls = label === "BUENO" ? "good" : label === "MALO" ? "bad" : "na";
 
   return (
     <label className={`ins-opt ${cls} ${checked ? "is-checked" : ""}`}>
-      <input type="radio" name={name} checked={checked} onChange={onChange} />
+      <input type="radio" name={name} checked={checked} onChange={onChange} disabled={disabled} />
       <span>{label}</span>
     </label>
   );

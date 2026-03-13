@@ -1837,7 +1837,9 @@ export default function InspeccionDetail() {
   const puedeEditarInspeccionCerrada =
     String(currentUser?.rol || "").trim().toUpperCase() === "ADMIN_PRINCIPAL";
   const esInvitado = String(currentUser?.rol || "").trim().toUpperCase() === "INVITADO";
-  const inspeccionBloqueada = esInvitado || (inspeccionCerrada && !puedeEditarInspeccionCerrada);
+  const readonlyInvitado = esInvitado;
+  const disableEdition = inspeccionCerrada && !puedeEditarInspeccionCerrada;
+  const inspeccionBloqueada = readonlyInvitado || disableEdition;
   const visiblePageError = online ? pageError : "";
   const nombreTipoInspeccion = pickFirst(
     cab?.nombre_formato,
@@ -2457,7 +2459,7 @@ export default function InspeccionDetail() {
         )}
       </Card>
 
-      {!hideObsUI && (
+      {!hideObsUI && !readonlyInvitado && (
         <Card title="Crear observacion">
 
           <form onSubmit={onCrearObservacion} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
@@ -2581,53 +2583,60 @@ export default function InspeccionDetail() {
                                 <b>Evidencias (Acc)</b>
                                 <EvidenceGrid
                                   evidencias={evidAcc}
-                                  allowDelete={true}
+                                  allowDelete={!readonlyInvitado}
                                   onPreview={openPreview}
                                   onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: acc.id_accion })}
                                 />
                               </div>
-                              <UploadEvidence
-                                kind="ACC"
-                                idTarget={acc.id_accion}
-                                onUploaded={handleEvidenceUploaded}
-                                disabled={isAccionCerrada(acc)}
-                                inspeccionCerrada={inspeccionBloqueada}
-                                online={online}
-                              />
+                              {!readonlyInvitado ? (
+                                <UploadEvidence
+                                  kind="ACC"
+                                  idTarget={acc.id_accion}
+                                  onUploaded={handleEvidenceUploaded}
+                                  disabled={isAccionCerrada(acc)}
+                                  inspeccionCerrada={inspeccionBloqueada}
+                                  online={online}
+                                />
+                              ) : null}
 
                               <div style={{ marginTop: 12, display: "grid", gap: 6, maxWidth: 280 }}>
                                 <b>% Cumplimiento</b>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="1"
-                                  value={pctValue}
-                                  disabled={disabledPct}
-                                  placeholder={tieneEvidAcc ? "0 - 100" : "Sube evidencia para habilitar"}
-                                  onChange={async (e) => {
-                                    const nextPct = e.target.value;
+                                {readonlyInvitado ? (
+                                  <div className="ins-input" style={{ display: "flex", alignItems: "center" }}>
+                                    {pctValue === "" || pctValue == null ? "-" : `${pctValue}%`}
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="1"
+                                    value={pctValue}
+                                    disabled={disabledPct}
+                                    placeholder={tieneEvidAcc ? "0 - 100" : "Sube evidencia para habilitar"}
+                                    onChange={async (e) => {
+                                      const nextPct = e.target.value;
 
-                                    // Guardado local en state + cache (no backend aun)
-                                    const base = dataRef.current;
-                                    if (!base) return;
+                                      const base = dataRef.current;
+                                      if (!base) return;
 
-                                    const next = {
-                                      ...base,
-                                      observaciones: (base.observaciones || []).map((obs) => {
-                                        if (String(obs.id_observacion) !== String(o.id_observacion)) return obs;
-                                        const accs = Array.isArray(obs.acciones) ? obs.acciones : [];
-                                        if (!accs.length) return obs;
+                                      const next = {
+                                        ...base,
+                                        observaciones: (base.observaciones || []).map((obs) => {
+                                          if (String(obs.id_observacion) !== String(o.id_observacion)) return obs;
+                                          const accs = Array.isArray(obs.acciones) ? obs.acciones : [];
+                                          if (!accs.length) return obs;
 
-                                        const updatedAcc0 = { ...accs[0], porcentaje_cumplimiento: nextPct };
-                                        return { ...obs, acciones: [updatedAcc0, ...accs.slice(1)] };
-                                      }),
-                                    };
+                                          const updatedAcc0 = { ...accs[0], porcentaje_cumplimiento: nextPct };
+                                          return { ...obs, acciones: [updatedAcc0, ...accs.slice(1)] };
+                                        }),
+                                      };
 
-                                    await setDataAndCache(next);
-                                  }}
-                                />
-                                {!tieneEvidAcc && (
+                                      await setDataAndCache(next);
+                                    }}
+                                  />
+                                )}
+                                {!readonlyInvitado && !tieneEvidAcc && (
                                   <div style={{ fontSize: 12, opacity: 0.7 }}>
                                     * El % se habilita cuando exista evidencia de levantamiento.
                                   </div>
@@ -2641,7 +2650,7 @@ export default function InspeccionDetail() {
                   )}
                   
                   <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {o.id_estado_observacion !== 3 && (
+                    {!readonlyInvitado && o.id_estado_observacion !== 3 && (
                       <>
                         {!hayAcciones || !hayPendientes ? (
                           <Button
@@ -2694,18 +2703,20 @@ export default function InspeccionDetail() {
                         <EvidenceGrid evidencias={o.evidencias} onPreview={openPreview} />
                       </div>
 
-                      <UploadEvidence
-                        kind="OBS"
-                        idTarget={o.id_observacion}
-                        onUploaded={handleEvidenceUploaded}
-                        disabled={o.id_estado_observacion === 3}
-                        inspeccionCerrada={inspeccionBloqueada}
-                        online={online}
-                      />
+                      {!readonlyInvitado ? (
+                        <UploadEvidence
+                          kind="OBS"
+                          idTarget={o.id_observacion}
+                          onUploaded={handleEvidenceUploaded}
+                          disabled={o.id_estado_observacion === 3}
+                          inspeccionCerrada={inspeccionBloqueada}
+                          online={online}
+                        />
+                      ) : null}
                     </>
                   )}
 
-                  {!isFOR014 && (
+                  {!isFOR014 && !readonlyInvitado && (
                     <CrearAccionForm
                       idObservacion={o.id_observacion}
                       onCreated={handleAccionCreated}
@@ -2752,7 +2763,7 @@ export default function InspeccionDetail() {
                           </div>
 
                           <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {!isAccionCerrada(a) && (
+                            {!readonlyInvitado && !isAccionCerrada(a) && (
                               <Button
                                 variant="outline"
                                 disabled={!online || inspeccionBloqueada}
@@ -2777,14 +2788,16 @@ export default function InspeccionDetail() {
                             <EvidenceGrid evidencias={a.evidencias} onPreview={openPreview} />
                           </div>
 
-                          <UploadEvidence
-                            kind="ACC"
-                            idTarget={a.id_accion}
-                            onUploaded={handleEvidenceUploaded}
-                            disabled={isAccionCerrada(a)}
-                            inspeccionCerrada={inspeccionBloqueada}
-                            online={online}
-                          />
+                          {!readonlyInvitado ? (
+                            <UploadEvidence
+                              kind="ACC"
+                              idTarget={a.id_accion}
+                              onUploaded={handleEvidenceUploaded}
+                              disabled={isAccionCerrada(a)}
+                              inspeccionCerrada={inspeccionBloqueada}
+                              online={online}
+                            />
+                          ) : null}
                         </div>
                       ))
                     )}

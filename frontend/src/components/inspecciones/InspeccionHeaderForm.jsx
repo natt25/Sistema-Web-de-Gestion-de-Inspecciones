@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { getUser } from "../../auth/auth.storage.js";
+import Badge from "../ui/Badge";
 import Card from "../ui/Card";
 import Input from "../ui/Input";
 import Autocomplete from "../ui/Autocomplete";
@@ -59,6 +61,7 @@ export default function InspeccionHeaderForm({
   onAddParticipante,
   onRemoveParticipante,
 }) {
+  const esInvitado = String(getUser()?.rol || "").trim().toUpperCase() === "INVITADO";
   const [qCliente, setQCliente] = useState("");
   const [qServicio, setQServicio] = useState("");
   const [qArea, setQArea] = useState("");
@@ -324,8 +327,10 @@ export default function InspeccionHeaderForm({
           <Field label="Cliente / Unidad Minera">
             <Autocomplete
               placeholder="Escribe para buscar..."
+              disabled={esInvitado}
               displayValue={value?.cliente_text ?? ""}
               onInputChange={(txt) => {
+                if (esInvitado) return;
                 setQCliente(txt);
                 applyHeaderUpdate((prev) => ({
                   ...prev,
@@ -334,6 +339,7 @@ export default function InspeccionHeaderForm({
                 }));
               }}
               onFocus={() => {
+                if (esInvitado) return;
                 setTCliente(true);
                 if (!qCliente.trim()) loadDefaultsClientes();
               }}
@@ -341,6 +347,7 @@ export default function InspeccionHeaderForm({
               options={optClientes}
               getOptionLabel={getClienteLabel}
               onSelect={(c) => {
+                if (esInvitado) return;
                 const nextIdCliente = normalizeClienteId(c?.id_cliente);
                 const nextClienteText = getClienteLabel(c);
                 setQCliente(nextClienteText);
@@ -361,9 +368,10 @@ export default function InspeccionHeaderForm({
           <Field label="Servicio">
             <Autocomplete
               placeholder="Escribe para buscar..."
-              disabled={false}
+              disabled={esInvitado}
               displayValue={value?.servicio_text ?? ""}
               onInputChange={(txt) => {
+                if (esInvitado) return;
                 setQServicio(txt);
                 applyHeaderUpdate((prev) => ({
                   ...prev,
@@ -372,6 +380,7 @@ export default function InspeccionHeaderForm({
                 }));
               }}
               onFocus={() => {
+                if (esInvitado) return;
                 setTServicio(true);
                 if (!qServicio.trim()) loadDefaultsServicios();
               }}
@@ -379,6 +388,7 @@ export default function InspeccionHeaderForm({
               options={optServicios}
               getOptionLabel={getServicioLabel}
               onSelect={(s) => {
+                if (esInvitado) return;
                 const nextIdServicio = normalizeServicioId(s?.id_servicio);
                 const nextServicioText = getServicioLabel(s);
                 setQServicio(nextServicioText);
@@ -399,6 +409,7 @@ export default function InspeccionHeaderForm({
               <Input
                 placeholder="Detalle de servicio (opcional)"
                 value={value?.servicio_detalle ?? ""}
+                disabled={esInvitado}
                 onChange={(e) => setField("servicio_detalle", e.target.value)}
               />
             </div>
@@ -409,9 +420,10 @@ export default function InspeccionHeaderForm({
           <Field label="Area">
             <Autocomplete
               placeholder="Escribe para buscar..."
-              disabled={false}
+              disabled={esInvitado}
               displayValue={value?.area_text ?? ""}
               onInputChange={(txt) => {
+                if (esInvitado) return;
                 setQArea(txt);
                 onChange((prev) => ({
                   ...(prev || {}),
@@ -422,6 +434,7 @@ export default function InspeccionHeaderForm({
                 }));
               }}
               onFocus={() => {
+                if (esInvitado) return;
                 setTArea(true);
                 if (!qArea.trim()) loadDefaultsAreas();
               }}
@@ -430,6 +443,7 @@ export default function InspeccionHeaderForm({
               getOptionLabel={(a) => a.desc_area ?? String(a.id_area)}
               allowCustom
               onCreateCustom={async (text) => {
+                if (esInvitado) return;
                 try {
                   if (!value?.id_cliente) {
                     alert("Primero debes seleccionar un Cliente / Unidad Minera para crear un área.");
@@ -449,6 +463,7 @@ export default function InspeccionHeaderForm({
                 } catch {}
               }}
               onSelect={(a) => {
+                if (esInvitado) return;
                 applyHeaderUpdate((prev) => ({
                   ...prev,
                   id_area: Number(a.id_area),
@@ -463,9 +478,10 @@ export default function InspeccionHeaderForm({
           <Field label="Lugar">
             <Autocomplete
               placeholder={canLugar ? "Escribe para buscar..." : "Selecciona área primero"}
-              disabled={!canLugar}
+              disabled={esInvitado || !canLugar}
               displayValue={value?.lugar_text ?? ""}
               onInputChange={(txt) => {
+                if (esInvitado) return;
                 setQLugar(txt);
                 onChange((prev) => ({
                   ...(prev || {}),
@@ -474,6 +490,7 @@ export default function InspeccionHeaderForm({
                 }));
               }}
               onFocus={() => {
+                if (esInvitado) return;
                 setTLugar(true);
                 if (!qLugar.trim()) loadDefaultsLugares();
               }}
@@ -482,6 +499,7 @@ export default function InspeccionHeaderForm({
               getOptionLabel={(l) => l.desc_lugar ?? String(l.id_lugar)}
               allowCustom
               onCreateCustom={async (text) => {
+                if (esInvitado) return;
                 if (!value?.id_area) return;
                 try {
                   const created = await crearLugar({
@@ -496,6 +514,7 @@ export default function InspeccionHeaderForm({
                 } catch {}
               }}
               onSelect={(l) => {
+                if (esInvitado) return;
                 applyHeaderUpdate((prev) => ({
                   ...prev,
                   id_lugar: Number(l.id_lugar),
@@ -510,6 +529,7 @@ export default function InspeccionHeaderForm({
               type="date"
               className="ins-input"
               value={value?.fecha_inspeccion ?? ""}
+              disabled={esInvitado}
               onChange={(e) => setField("fecha_inspeccion", e.target.value)}
             />
           </Field>
@@ -529,7 +549,7 @@ export default function InspeccionHeaderForm({
                     <th>Nombres y Apellidos completos</th>
                     <th>Cargo</th>
                     <th>Firma</th>
-                    <th>Acción</th>
+                    {!esInvitado ? <th>Acción</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -556,7 +576,7 @@ export default function InspeccionHeaderForm({
                       )}
                     </td>
 
-                    <td>-</td>
+                    {!esInvitado ? <td>-</td> : null}
                   </tr>
 
                   {(value?.participantes || []).map((p, idx) => (
@@ -571,16 +591,18 @@ export default function InspeccionHeaderForm({
 
                       <td>{p?.firma_url ? <img src={buildFirmaUrl(p.firma_url)} alt="Firma inspector" className="firma-img" /> : "-"}</td>
 
-                      <td>
-                        <button
-                          type="button"
-                          className="menu-btn"
-                          onClick={() => onRemoveParticipante?.(idx)}
-                          style={{ width: 140 }}
-                        >
-                          Quitar inspector
-                        </button>
-                      </td>
+                      {!esInvitado ? (
+                        <td>
+                          <button
+                            type="button"
+                            className="menu-btn"
+                            onClick={() => onRemoveParticipante?.(idx)}
+                            style={{ width: 140 }}
+                          >
+                            Quitar inspector
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
@@ -593,7 +615,8 @@ export default function InspeccionHeaderForm({
             <span className="help">Creador + inspectores agregados.</span>
           </div>
 
-          <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
+          {!esInvitado ? (
+            <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14 }}>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>Agregar inspector</div>
 
             <div className="ins-grid">
@@ -649,7 +672,8 @@ export default function InspeccionHeaderForm({
                 />
               </Field>
             </div>
-          </div>
+            </div>
+          ) : null}
 
           {dupMsg ? (
             <div style={{ marginTop: 8, color: "#b91c1c", fontWeight: 700 }}>

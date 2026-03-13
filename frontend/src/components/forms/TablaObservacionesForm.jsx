@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import Button from "../ui/Button.jsx";
+import { getUser } from "../../auth/auth.storage.js";
 import { serializeObservacionesAccionesRows } from "../../utils/plantillaRenderer.js";
 
 function createEmptyRow() {
@@ -23,6 +24,7 @@ function mapInitialRows(rows) {
 }
 
 export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
+  const esInvitado = String(getUser()?.rol || "").trim().toUpperCase() === "INVITADO";
   const [rows, setRows] = useState(() => mapInitialRows(initialRows));
 
   const total = rows.length;
@@ -53,6 +55,7 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
 
   function handleSubmit(e) {
     e.preventDefault();
+    if (esInvitado) return;
     onSubmit?.({
       tipo: "observaciones_acciones",
       respuestas: serializeObservacionesAccionesRows(rows),
@@ -72,8 +75,8 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
         </div>
         <div className="ins-progress">
           <span>{filled}/{total} con observación</span>
-          <Button type="button" variant="outline" onClick={addRow}>Agregar fila</Button>
-          <Button type="submit">Guardar</Button>
+          {!esInvitado ? <Button type="button" variant="outline" onClick={addRow}>Agregar fila</Button> : null}
+          {!esInvitado ? <Button type="submit">Guardar</Button> : null}
         </div>
       </div>
 
@@ -82,7 +85,7 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
           <div key={`row-${idx}`} className="card ins-item" style={{ display: "grid", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <b>Fila {idx + 1}</b>
-              <Button type="button" variant="outline" onClick={() => removeRow(idx)}>X</Button>
+              {!esInvitado ? <Button type="button" variant="outline" onClick={() => removeRow(idx)}>X</Button> : null}
             </div>
 
             <label className="ins-field">
@@ -91,6 +94,7 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
                 className="ins-note-input"
                 rows={2}
                 value={row.observacion}
+                disabled={esInvitado}
                 onChange={(e) => updateRow(idx, "observacion", e.target.value)}
               />
             </label>
@@ -101,22 +105,24 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
                 className="ins-note-input"
                 rows={2}
                 value={row.accion_correctiva}
+                disabled={esInvitado}
                 onChange={(e) => updateRow(idx, "accion_correctiva", e.target.value)}
               />
             </label>
 
             <div className="ins-grid">
-              <label className="ins-field">
+              {!esInvitado ? <label className="ins-field">
                 <span>Fecha ejecucion</span>
                 <input
                   type="date"
                   className="ins-input"
                   value={row.fecha_ejecucion}
+                  disabled={esInvitado}
                   onChange={(e) => updateRow(idx, "fecha_ejecucion", e.target.value)}
                 />
-              </label>
+              </label> : null}
 
-              <label className="ins-field">
+              {!esInvitado ? <label className="ins-field">
                 <span>Porcentaje (0-100)</span>
                 <input
                   type="number"
@@ -124,23 +130,25 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
                   max="100"
                   className="ins-input"
                   value={row.porcentaje}
+                  disabled={esInvitado}
                   onChange={(e) => updateRow(idx, "porcentaje", e.target.value)}
                 />
-              </label>
+              </label> : null}
 
-              <label className="ins-field">
+              {!esInvitado ? <label className="ins-field">
                 <span>Responsable</span>
                 <input
                   type="text"
                   className="ins-input"
                   value={row.responsable}
+                  disabled={esInvitado}
                   onChange={(e) => updateRow(idx, "responsable", e.target.value)}
                 />
-              </label>
+              </label> : null}
             </div>
 
             <div className="ins-grid">
-              <label className="ins-field">
+              {!esInvitado ? <label className="ins-field">
                 <span>Evidencia Obs (opcional)</span>
                 <input
                   type="file"
@@ -149,9 +157,9 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
                   className="ins-input"
                   onChange={(e) => updateFileNames(idx, "evidencia_obs", e.target.files)}
                 />
-              </label>
+              </label> : null}
 
-              <label className="ins-field">
+              {!esInvitado ? <label className="ins-field">
                 <span>Evidencia Lev (opcional)</span>
                 <input
                   type="file"
@@ -160,7 +168,7 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
                   className="ins-input"
                   onChange={(e) => updateFileNames(idx, "evidencia_lev", e.target.files)}
                 />
-              </label>
+              </label> : null}
             </div>
           </div>
         ))}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import Autocomplete from "../ui/Autocomplete.jsx";
 import Button from "../ui/Button.jsx";
+import { getUser } from "../../auth/auth.storage.js";
 import { buildEmpleadoDisplayName, buildEmpleadoOptionLabel } from "../../utils/empleados.js";
 import { serializeObservacionesAccionesRows } from "../../utils/plantillaRenderer.js";
 
@@ -72,6 +73,7 @@ export default function TablaObservacionesSeguridadForm({
   buscarEmpleados,
   onSubmit,
 }) {
+  const esInvitado = String(getUser()?.rol || "").trim().toUpperCase() === "INVITADO";
   const [rows, setRows] = useState(() => normalizeInitialRows(initialRows));
   const [respOptions, setRespOptions] = useState({});
 
@@ -105,6 +107,7 @@ export default function TablaObservacionesSeguridadForm({
 
   function handleSubmit(e) {
     e.preventDefault();
+    if (esInvitado) return;
 
     const invalidIndex = rows.findIndex((row) => !isRequiredOk(row));
     if (invalidIndex >= 0) {
@@ -137,7 +140,7 @@ export default function TablaObservacionesSeguridadForm({
 
         <div className="ins-progress">
           <span>{filled}/{total} listas</span>
-          <Button type="submit">Guardar</Button>
+          {!esInvitado ? <Button type="submit">Guardar</Button> : null}
         </div>
       </div>
 
@@ -148,7 +151,9 @@ export default function TablaObservacionesSeguridadForm({
             <div key={`seg-${idx}`} className="card ins-item" style={{ display: "grid", gap: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                 <b>Observación {idx + 1}</b>
-                <Button type="button" variant="outline" onClick={() => removeRow(idx)}>X</Button>
+                {!esInvitado ? (
+                  <Button type="button" variant="outline" onClick={() => removeRow(idx)}>X</Button>
+                ) : null}
               </div>
 
               <label className="ins-field">
@@ -157,11 +162,12 @@ export default function TablaObservacionesSeguridadForm({
                   className="ins-note-input"
                   rows={3}
                   value={row.observacion}
+                  disabled={esInvitado}
                   onChange={(e) => updateRow(idx, { observacion: e.target.value })}
                 />
               </label>
 
-              <label className="ins-field">
+              {!esInvitado ? <label className="ins-field">
                 <span>Evidencia fotográfica de observación *</span>
                 <input
                   className="ins-input"
@@ -171,7 +177,7 @@ export default function TablaObservacionesSeguridadForm({
                   onChange={(e) => updateFiles(idx, "evidencia_obs_files", "evidencia_obs", e.target.files)}
                 />
                 <PreviewGrid files={row.evidencia_obs_files || []} />
-              </label>
+              </label> : null}
 
               <div className="ins-field">
                 <span>Nivel de riesgo *</span>
@@ -181,6 +187,7 @@ export default function TablaObservacionesSeguridadForm({
                       <input
                         type="radio"
                         name={`riesgo_${idx}`}
+                        disabled={esInvitado}
                         checked={String(row.riesgo || "").toUpperCase() === opt}
                         onChange={() => updateRow(idx, { riesgo: opt })}
                       />
@@ -196,6 +203,7 @@ export default function TablaObservacionesSeguridadForm({
                   className="ins-note-input"
                   rows={3}
                   value={row.accion_correctiva}
+                  disabled={esInvitado}
                   onChange={(e) => updateRow(idx, { accion_correctiva: e.target.value })}
                 />
               </label>
@@ -207,6 +215,7 @@ export default function TablaObservacionesSeguridadForm({
                     type="date"
                     className="ins-input"
                     value={row.fecha_ejecucion}
+                    disabled={esInvitado}
                     onChange={(e) => updateRow(idx, { fecha_ejecucion: e.target.value })}
                   />
                 </label>
@@ -215,19 +224,23 @@ export default function TablaObservacionesSeguridadForm({
                   <span>Responsable *</span>
                   <Autocomplete
                     placeholder="DNI / Apellido / Nombre"
+                    disabled={esInvitado}
                     displayValue={row.responsable || ""}
                     options={respOptions[idx] || []}
                     getOptionLabel={buildEmpleadoOptionLabel}
                     onFocus={async () => {
+                      if (esInvitado) return;
                       const items = await buscarEmpleados?.("");
                       setRespOptions((prev) => ({ ...prev, [idx]: Array.isArray(items) ? items : [] }));
                     }}
                     onInputChange={async (text) => {
+                      if (esInvitado) return;
                       updateRow(idx, { responsable: text, responsable_data: null });
                       const items = await buscarEmpleados?.(text);
                       setRespOptions((prev) => ({ ...prev, [idx]: Array.isArray(items) ? items : [] }));
                     }}
                     onSelect={(e) => {
+                      if (esInvitado) return;
                       const nombreCompleto = buildEmpleadoDisplayName(e);
                       updateRow(idx, {
                         responsable: nombreCompleto,
@@ -241,6 +254,7 @@ export default function TablaObservacionesSeguridadForm({
                     }}
                     allowCustom
                     onCreateCustom={(text) => {
+                      if (esInvitado) return;
                       updateRow(idx, {
                         responsable: text,
                         responsable_data: { nombre: text, cargo: "EXTERNO" },
@@ -252,7 +266,7 @@ export default function TablaObservacionesSeguridadForm({
               </div>
 
               <div className="ins-grid">
-                <label className="ins-field">
+                {!esInvitado ? <label className="ins-field">
                   <span>Evidencia de levantamiento (opcional)</span>
                   <input
                     className="ins-input"
@@ -262,7 +276,7 @@ export default function TablaObservacionesSeguridadForm({
                     onChange={(e) => updateFiles(idx, "evidencia_lev_files", "evidencia_lev", e.target.files)}
                   />
                   <PreviewGrid files={row.evidencia_lev_files || []} />
-                </label>
+                </label> : null}
 
                 <label className="ins-field">
                   <span>% cumplimiento (opcional)</span>
@@ -272,7 +286,7 @@ export default function TablaObservacionesSeguridadForm({
                     max="100"
                     className="ins-input"
                     value={row.porcentaje}
-                    disabled={!hasLev}
+                    disabled={esInvitado || !hasLev}
                     placeholder={hasLev ? "0 - 100" : "Sube evidencia para habilitar"}
                     onChange={(e) => updateRow(idx, { porcentaje: e.target.value })}
                   />
@@ -283,9 +297,9 @@ export default function TablaObservacionesSeguridadForm({
         })}
       </div>
 
-      <Button type="button" variant="outline" onClick={addRow} style={{ width: "100%" }}>
+      {!esInvitado ? <Button type="button" variant="outline" onClick={addRow} style={{ width: "100%" }}>
         AGREGAR OBSERVACIÓN
-      </Button>
+      </Button> : null}
     </form>
   );
 }
