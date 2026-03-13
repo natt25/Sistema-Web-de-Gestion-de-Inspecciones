@@ -7,7 +7,7 @@ export default function Table({ columns, data, emptyText = "Sin registros.", ren
             {columns.map((c) => (
               <th key={c.key}>{c.label}</th>
             ))}
-            {renderActions && <th>Accion</th>}
+            {renderActions && <th>Acción</th>}
           </tr>
         </thead>
         <tbody>

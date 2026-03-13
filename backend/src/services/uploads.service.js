@@ -86,11 +86,11 @@ async function subirEvidenciaObservacion({ id_observacion, file, user }) {
 async function subirEvidenciaAccion({ id_accion, file, user }) {
   const id = Number(id_accion);
   if (!id || Number.isNaN(id)) {
-    return { ok: false, status: 400, message: "id_accion invalido" };
+    return { ok: false, status: 400, message: "id_accion inválido" };
   }
 
   const id_inspeccion = await obsRepo.obtenerInspeccionIdPorAccion(id);
-  if (!id_inspeccion) return { ok: false, status: 404, message: "Accion no encontrada" };
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Acción no encontrada" };
 
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;

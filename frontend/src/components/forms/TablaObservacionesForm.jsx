@@ -65,13 +65,13 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
     <form onSubmit={handleSubmit} className="ins-form">
       <div className="ins-header">
         <div>
-          <div className="ins-title">Rellenar inspeccion</div>
+          <div className="ins-title">Rellenar inspección</div>
           <div className="ins-sub" style={{ marginTop: 6 }}>
             Registra observaciones y acciones correctivas por fila.
           </div>
         </div>
         <div className="ins-progress">
-          <span>{filled}/{total} con observacion</span>
+          <span>{filled}/{total} con observación</span>
           <Button type="button" variant="outline" onClick={addRow}>Agregar fila</Button>
           <Button type="submit">Guardar</Button>
         </div>
@@ -86,7 +86,7 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
             </div>
 
             <label className="ins-field">
-              <span>Observacion</span>
+              <span>OBSERVACIÓN</span>
               <textarea
                 className="ins-note-input"
                 rows={2}
@@ -96,7 +96,7 @@ export default function TablaObservacionesForm({ onSubmit, initialRows = [] }) {
             </label>
 
             <label className="ins-field">
-              <span>Accion correctiva</span>
+              <span>ACCIÓN CORRECTIVA</span>
               <textarea
                 className="ins-note-input"
                 rows={2}

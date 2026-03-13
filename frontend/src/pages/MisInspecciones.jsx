@@ -146,9 +146,9 @@ export default function MisInspecciones() {
     },
     {
       key: "inspeccion",
-      label: "Inspeccion",
+      label: "Inspección",
       render: (row) => {
-        const nombre = String(row?.nombre_formato || "Inspeccion").trim();
+        const nombre = String(row?.nombre_formato || "Inspección").trim();
         const codigo = String(row?.codigo_formato || "").trim();
         return (
           <div style={{ display: "grid", gap: 4, minWidth: 220 }}>
@@ -193,7 +193,7 @@ export default function MisInspecciones() {
     },
     {
       key: "accion",
-      label: "Accion",
+      label: "Acción",
       render: (row) => (
         <button
           type="button"

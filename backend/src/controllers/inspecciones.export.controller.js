@@ -111,13 +111,13 @@ function getStructuredRows(respuestas, tipo) {
 function addCabeceraRows(ws, cabecera, participantes) {
   const realizadoPor = findRealizadoPor(participantes);
 
-  ws.addRow(["Inspeccion"]);
+  ws.addRow(["Inspección"]);
   ws.addRow([]);
-  ws.addRow(["ID Inspeccion", cabecera?.id_inspeccion ?? ""]);
-  ws.addRow(["Codigo formato", cabecera?.codigo_formato ?? ""]);
+  ws.addRow(["ID Inspección", cabecera?.id_inspeccion ?? ""]);
+  ws.addRow(["Código formato", cabecera?.codigo_formato ?? ""]);
   ws.addRow(["Nombre formato", cabecera?.nombre_formato ?? ""]);
   ws.addRow(["Cliente", cabecera?.raz_social ?? cabecera?.id_cliente ?? ""]);
-  ws.addRow(["Area", cabecera?.desc_area ?? ""]);
+  ws.addRow(["Área", cabecera?.desc_area ?? ""]);
   ws.addRow(["Lugar", cabecera?.lugar ?? cabecera?.desc_otro ?? ""]);
   ws.addRow(["Fecha", cabecera?.fecha_inspeccion ?? ""]);
   ws.addRow(["Servicio", cabecera?.nombre_servicio ?? cabecera?.servicio_detalle ?? ""]);
@@ -129,7 +129,7 @@ function addCabeceraRows(ws, cabecera, participantes) {
 
 function addRespuestasTable(ws, respuestas) {
   ws.addRow(["Respuestas"]);
-  ws.addRow(["NÂ°", "Categoria/Seccion", "Descripcion", "Estado", "Observacion"]);
+  ws.addRow(["N", "Categoria/Sección", "Descripción", "Estado", "Observación"]);
   const list = Array.isArray(respuestas) ? respuestas : [];
   list.forEach((r, index) => {
     ws.addRow([
@@ -148,7 +148,7 @@ function addSeguridadRowsTable(ws, respuestas) {
   if (!rows.length) return false;
 
   ws.addRow(["Observaciones y Acciones (Seguridad)"]);
-  ws.addRow(["NÂ°", "Observacion", "Riesgo", "Accion", "Fecha", "Responsable", "%", "Evidencia Obs", "Evidencia Lev"]);
+  ws.addRow(["N", "Observación", "Riesgo", "Acción", "Fecha", "Responsable", "%", "Evidencia Obs", "Evidencia Lev"]);
 
   rows.forEach((row, idx) => {
     ws.addRow([
@@ -172,7 +172,7 @@ function addExtintoresRowsTable(ws, respuestas) {
   if (!rows.length) return false;
 
   ws.addRow(["Inspección de Extintores"]);
-  ws.addRow(["NÂ°", "Codigo", "Ubicacion", "Tipo", "Capacidad", "Fecha Prueba", "Presion", "Manometro", "Manguera", "Senializacion", "Observaciones", "Evidencias"]);
+  ws.addRow(["N", "Código", "Ubicación", "Tipo", "Capacidad", "Fecha Prueba", "Presión", "Manómetro", "Manguera", "Señalización", "Observaciones", "Evidencias"]);
 
   rows.forEach((row, idx) => {
     ws.addRow([
@@ -196,7 +196,7 @@ function addExtintoresRowsTable(ws, respuestas) {
 
 function addObservacionesTable(ws, observaciones) {
   ws.addRow(["Observaciones"]);
-  ws.addRow(["ID Observacion", "Descripcion", "Estado", "Evidencias"]);
+  ws.addRow(["ID Observación", "Descripción", "Estado", "Evidencias"]);
   const list = Array.isArray(observaciones) ? observaciones : [];
   list.forEach((obs) => {
     ws.addRow([
@@ -211,7 +211,7 @@ function addObservacionesTable(ws, observaciones) {
 
 function addAccionesTable(ws, observaciones) {
   ws.addRow(["Acciones"]);
-  ws.addRow(["ID Accion", "ID Observacion", "Descripcion", "Responsable", "Fecha compromiso", "Estado", "Evidencias"]);
+  ws.addRow(["ID Acción", "ID Observación", "Descripción", "Responsable", "Fecha compromiso", "Estado", "Evidencias"]);
 
   const obsList = Array.isArray(observaciones) ? observaciones : [];
   for (const obs of obsList) {
@@ -245,15 +245,15 @@ function applyBasicSheetStyle(ws) {
   ws.getColumn(1).font = { bold: false };
 }
 
-function sanitizeFileNameSegment(value, fallback = "Inspeccion") {
+function sanitizeFileNameSegment(value, fallback = "Inspección") {
   const text = String(value || "").trim();
   if (!text) return fallback;
   return text.replace(/[\\/:*?"<>|]/g, "_");
 }
 
 function buildDownloadFileName(cabecera, id) {
-  const code = sanitizeFileNameSegment(cabecera?.codigo_formato, "Inspeccion");
-  return `${code}_Inspeccion_${id}.xlsx`;
+  const code = sanitizeFileNameSegment(cabecera?.codigo_formato, "Inspección");
+  return `${code}_Inspección_${id}.xlsx`;
 }
 
 async function buildWorkbook(data) {

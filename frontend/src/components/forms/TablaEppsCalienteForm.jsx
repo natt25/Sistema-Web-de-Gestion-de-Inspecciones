@@ -94,10 +94,10 @@ function validateRows(rows, cols) {
       const cell = row?.epps?.[c.key] || emptyCell();
       if (!isMaloCell(cell)) continue;
 
-      if (!String(cell?.observacion || "").trim()) return `Fila ${i + 1}, ${c.label}: Observacion obligatoria.`;
-      if (!String(cell?.accion?.que || "").trim()) return `Fila ${i + 1}, ${c.label}: Accion (que) obligatoria.`;
-      if (!String(cell?.accion?.quien || "").trim()) return `Fila ${i + 1}, ${c.label}: Accion (quien) obligatoria.`;
-      if (!String(cell?.accion?.cuando || "").trim()) return `Fila ${i + 1}, ${c.label}: Accion (cuando) obligatoria.`;
+      if (!String(cell?.observacion || "").trim()) return `Fila ${i + 1}, ${c.label}: Observación obligatoria.`;
+      if (!String(cell?.accion?.que || "").trim()) return `Fila ${i + 1}, ${c.label}: Acción (que) obligatoria.`;
+      if (!String(cell?.accion?.quien || "").trim()) return `Fila ${i + 1}, ${c.label}: Acción (quien) obligatoria.`;
+      if (!String(cell?.accion?.cuando || "").trim()) return `Fila ${i + 1}, ${c.label}: Acción (cuando) obligatoria.`;
     }
   }
 

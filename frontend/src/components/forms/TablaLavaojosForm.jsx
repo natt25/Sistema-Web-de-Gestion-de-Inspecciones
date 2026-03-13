@@ -37,10 +37,10 @@ function hasMaloCell(cell) {
 
 function validateCell(cell) {
   if (!hasMaloCell(cell)) return null;
-  if (!String(cell?.observacion || "").trim()) return "Observacion obligatoria.";
-  if (!String(cell?.accion?.que || "").trim()) return "Accion (que) obligatoria.";
-  if (!String(cell?.accion?.quien || "").trim()) return "Accion (quien) obligatoria.";
-  if (!String(cell?.accion?.cuando || "").trim()) return "Accion (cuando) obligatoria.";
+  if (!String(cell?.observacion || "").trim()) return "Observación obligatoria.";
+  if (!String(cell?.accion?.que || "").trim()) return "Acción (que) obligatoria.";
+  if (!String(cell?.accion?.quien || "").trim()) return "Acción (quien) obligatoria.";
+  if (!String(cell?.accion?.cuando || "").trim()) return "Acción (cuando) obligatoria.";
   return null;
 }
 

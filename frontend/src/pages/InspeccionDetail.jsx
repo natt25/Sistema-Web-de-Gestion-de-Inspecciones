@@ -322,16 +322,16 @@ function RenderTablaExtintores({ respuestas }) {
 
             {/* Datos principales (TODO) */}
             <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-              <div><b>Codigo:</b> {r.codigo || "-"}</div>
-              <div><b>Ubicacion:</b> {r.ubicacion || "-"}</div>
-              <div><b>Tipo:</b> {r.tipo || "-"}</div>
+              <div><b> Código:</b> {r.codigo || "-"}</div>
+              <div><b> Ubicación:</b> {r.ubicacion || "-"}</div>
+              <div><b> Tipo:</b> {r.tipo || "-"}</div>
 
               {String(r.tipo || "").toUpperCase() === "PQS" ? (
                 <div><b>Clase PQS:</b> {r.pqs_clase || "-"}</div>
               ) : null}
 
               {String(r.tipo || "").toUpperCase() === "OTROS" ? (
-                <div><b>Descripcion (OTROS):</b> {r.tipo_otro_desc || "-"}</div>
+                <div><b>Descripción (OTROS):</b> {r.tipo_otro_desc || "-"}</div>
               ) : null}
 
               <div><b>Capacidad:</b> {r.capacidad || "-"}</div>
@@ -345,7 +345,7 @@ function RenderTablaExtintores({ respuestas }) {
 
             {/* REVISION ESTADO GENERAL (TODO + MALO => Obs + Plan) */}
             <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #eee" }}>
-              <b>REVISION ESTADO GENERAL</b>
+              <b>REVISIÓN ESTADO GENERAL</b>
 
               <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
                 {REVISION_SECTIONS.map((sec) => (
@@ -381,12 +381,12 @@ function RenderTablaExtintores({ respuestas }) {
                             {isMalo ? (
                               <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                                 <div style={{ padding: 10, borderRadius: 12, border: "1px solid #ffb3b3", background: "#ffecec" }}>
-                                  <b>Observacion (obligatoria):</b>
+                                  <b>Observación (obligatoria):</b>
                                   <div style={{ marginTop: 6 }}>{note || "-"}</div>
                                 </div>
 
                                 <div style={{ padding: 10, borderRadius: 12, border: "1px solid rgba(255,106,0,.25)", background: "#fff7ed" }}>
-                                  <b>Plan de accion (obligatorio)</b>
+                                  <b>Plan de acción (obligatorio)</b>
                                   <div style={{ marginTop: 6 }}><b>Que:</b> {act.que || "-"}</div>
                                   <div style={{ marginTop: 6 }}><b>Quien:</b> {quien || "-"}</div>
                                   <div style={{ marginTop: 6 }}><b>Cuando:</b> {act.cuando || "-"}</div>
@@ -470,7 +470,7 @@ function RenderTablaEpps({ respuestas }) {
                 <th key={label}>{label}</th>
               ))}
               <th>Observaciones</th>
-              <th>Accion</th>
+              <th>Acción</th>
             </tr>
           </thead>
           <tbody>
@@ -855,7 +855,7 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
           createdAt: new Date().toISOString(),
         });
 
-        onMsg?.(idObservacion, "Accion guardada offline ?", "ok");
+        onMsg?.(idObservacion, "Acción guardada offline ?", "ok");
         await onCreated?.({
           __offlineCreatedAction: true,
           obsRef: idObservacion,
@@ -884,7 +884,7 @@ function CrearAccionForm({ idObservacion, onCreated, onMsg, inspeccionCerrada, o
         responsable_externo_cargo: "",
       }));
 
-      onMsg?.(idObservacion, "Accion creada ?", "ok");
+      onMsg?.(idObservacion, "Acción creada ?", "ok");
       await onCreated?.();
     } catch (err) {
       const msg = getErrorMessage(err);
@@ -1845,7 +1845,7 @@ export default function InspeccionDetail() {
     definicion?.nombre_formato,
     definicion?.json?.nombre_formato,
     cab?.codigo_formato,
-    "Inspeccion"
+    "Inspección"
   );
 
   const fechaInspeccionSoloFecha = fmtDateOnly(cab?.fecha_inspeccion);
@@ -2561,11 +2561,11 @@ export default function InspeccionDetail() {
 
                       return (
                         <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #eee", background: "#fafafa" }}>
-                          <b>Levantamiento / Accion Correctiva</b>
+                          <b>Levantamiento / Acción Correctiva</b>
 
                           {!acc ? (
                             <div style={{ marginTop: 8, opacity: 0.75 }}>
-                              Sin accion asociada a esta observacion.
+                              Sin acción asociada a esta observación.
                             </div>
                           ) : (
                             <>
@@ -2658,7 +2658,7 @@ export default function InspeccionDetail() {
                               }
                             }}
                           >
-                            Cerrar observacion
+                            Cerrar observación
                           </Button>
                         ) : (
                           <div style={{ fontSize: 12, opacity: 0.75 }}>
@@ -2760,7 +2760,7 @@ export default function InspeccionDetail() {
                                   try {
                                     await actualizarPorcentajeAccion(a.id_accion, 100);
                                     await load();
-                                    alert("Accion cerrada ?");
+                                    alert("Acción cerrada ?");
                                   } catch (err) {
                                     console.error("inspeccion.detail.cerrarAccion:", err);
                                     alert(getErrorMessage(err));

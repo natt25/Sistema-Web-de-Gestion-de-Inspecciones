@@ -129,9 +129,9 @@ export default function TablaObservacionesSeguridadForm({
     <form onSubmit={handleSubmit} className="ins-form">
       <div className="ins-header">
         <div>
-          <div className="ins-title">Rellenar inspeccion</div>
+          <div className="ins-title">Rellenar inspección</div>
           <div className="ins-sub" style={{ marginTop: 6 }}>
-            Registra observaciones y acciones correctivas por observacion.
+            Registra observaciones y acciones correctivas por observación.
           </div>
         </div>
 
@@ -147,12 +147,12 @@ export default function TablaObservacionesSeguridadForm({
           return (
             <div key={`seg-${idx}`} className="card ins-item" style={{ display: "grid", gap: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <b>Observacion {idx + 1}</b>
+                <b>Observación {idx + 1}</b>
                 <Button type="button" variant="outline" onClick={() => removeRow(idx)}>X</Button>
               </div>
 
               <label className="ins-field">
-                <span>Observacion *</span>
+                <span>Observación *</span>
                 <textarea
                   className="ins-note-input"
                   rows={3}
@@ -162,7 +162,7 @@ export default function TablaObservacionesSeguridadForm({
               </label>
 
               <label className="ins-field">
-                <span>Evidencia fotografica de observacion *</span>
+                <span>Evidencia fotográfica de observación *</span>
                 <input
                   className="ins-input"
                   type="file"
@@ -191,7 +191,7 @@ export default function TablaObservacionesSeguridadForm({
               </div>
 
               <label className="ins-field">
-                <span>Accion correctiva *</span>
+                <span>Acción correctiva *</span>
                 <textarea
                   className="ins-note-input"
                   rows={3}
@@ -202,7 +202,7 @@ export default function TablaObservacionesSeguridadForm({
 
               <div className="ins-grid">
                 <label className="ins-field">
-                  <span>Fecha de ejecucion *</span>
+                  <span>Fecha de ejecución *</span>
                   <input
                     type="date"
                     className="ins-input"
@@ -284,7 +284,7 @@ export default function TablaObservacionesSeguridadForm({
       </div>
 
       <Button type="button" variant="outline" onClick={addRow} style={{ width: "100%" }}>
-        AGREGAR OBSERVACION
+        AGREGAR OBSERVACIÓN
       </Button>
     </form>
   );

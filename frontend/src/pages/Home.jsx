@@ -164,10 +164,10 @@ export default function Home() {
   const colsAcciones = useMemo(
     () => [
       {
-        key: "inspeccion",
-        label: "Inspeccion",
+        key: "inspección",
+        label: "Inspección",
         render: (a) => {
-          const nombre = a?.nombre_formato || "Inspeccion";
+          const nombre = a?.nombre_formato || "Inspección";
           return (
             <span
               style={{
@@ -244,7 +244,7 @@ export default function Home() {
       },
       {
         key: "dias_restantes",
-        label: "Dias",
+        label: "Días",
         render: (a) => {
           const val = Number(a?.dias_restantes);
           if (!Number.isFinite(val)) return <span style={shortCellStyle}>{a?.dias_restantes ?? "-"}</span>;

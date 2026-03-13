@@ -330,7 +330,7 @@ async function actualizarEstadoAccion({ id_accion, body, user }) {
   }
 
   const id_inspeccion = await observacionesRepo.obtenerInspeccionIdPorAccion(id);
-  if (!id_inspeccion) return { ok: false, status: 404, message: "Accion no existe." };
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Acción no existe." };
 
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
@@ -342,7 +342,7 @@ async function actualizarEstadoAccion({ id_accion, body, user }) {
   }
 
   const actual = await observacionesRepo.obtenerEstadoAccion(id);
-  if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
+  if (!actual) return { ok: false, status: 404, message: "Acción no existe." };
 
   if (id_estado_accion !== 3) {
     return {
@@ -367,7 +367,7 @@ async function actualizarPorcentajeAccion({ id_accion, body, user }) {
   }
 
   const id_inspeccion = await observacionesRepo.obtenerInspeccionIdPorAccion(id);
-  if (!id_inspeccion) return { ok: false, status: 404, message: "Accion no existe." };
+  if (!id_inspeccion) return { ok: false, status: 404, message: "Acción no existe." };
 
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
@@ -377,7 +377,7 @@ async function actualizarPorcentajeAccion({ id_accion, body, user }) {
   // permitir null para â€œvaciarâ€
   if (raw === "" || raw == null) {
     const actual = await observacionesRepo.obtenerEstadoAccion(id);
-    if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
+    if (!actual) return { ok: false, status: 404, message: "Acción no existe." };
 
     const updated = await observacionesRepo.actualizarPorcentajeAccion({
       id_accion: id,
@@ -392,7 +392,7 @@ async function actualizarPorcentajeAccion({ id_accion, body, user }) {
   }
 
   const actual = await observacionesRepo.obtenerEstadoAccion(id);
-  if (!actual) return { ok: false, status: 404, message: "Accion no existe." };
+  if (!actual) return { ok: false, status: 404, message: "Acción no existe." };
 
   const updated = await observacionesRepo.actualizarPorcentajeAccion({
     id_accion: id,

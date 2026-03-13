@@ -530,7 +530,7 @@ export default function InspeccionHeaderForm({
                     <th>Nombres y Apellidos completos</th>
                     <th>Cargo</th>
                     <th>Firma</th>
-                    <th>Accion</th>
+                    <th>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -539,7 +539,7 @@ export default function InspeccionHeaderForm({
                       <div style={{ display: "grid", gap: 6 }}>
                         <span>
                           <Badge className="badge-creator-header">
-                            INSPECCION CREADA POR:
+                            INSPECCIÓN CREADA POR:
                           </Badge>
                         </span>
                         <span style={{ fontWeight: 800 }}>

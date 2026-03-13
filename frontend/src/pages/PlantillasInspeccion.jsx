@@ -104,7 +104,7 @@ export default function PlantillasInspeccion() {
   };
 
   return (
-    <DashboardLayout title="Plantillas de inspeccion">
+    <DashboardLayout title="Plantillas de inspección">
       <div style={{ display: "grid", gap: 16 }}>
         <Card title="Selecciona una plantilla para iniciar una inspeccion">
           {loading ? <div>Cargando...</div> : null}
