@@ -205,6 +205,9 @@ async function validateUpsertRules({ existingUser, nextRol, nextEstado, actor })
 async function adminResetPassword(id_usuario, newPassword, actor = {}) {
   const err = validatePassword(newPassword);
   if (err) return { ok: false, status: 400, message: err };
+
+  const targetUser = await usuariosRepo.findById(id_usuario);
+  if (!targetUser) return { ok: false, status: 404, message: "Usuario no encontrado" };
   if (isSupremeAdmin(actor)) {
     const password_hash = await hashPassword(newPassword);
     await usuariosRepo.resetPassword(id_usuario, {
@@ -215,15 +218,37 @@ async function adminResetPassword(id_usuario, newPassword, actor = {}) {
     return { ok: true, status: 200 };
   }
 
-  const actorRole = actor?.rol;
-  const targetUser = await usuariosRepo.findById(id_usuario);
-  if (!targetUser) return { ok: false, status: 404, message: "Usuario no encontrado" };
+  const actorRole = normalizeRoleName(actor?.rol);
+  const targetRole = normalizeRoleName(targetUser?.rol);
 
-  if (isAdminAnyRole(actorRole) && isAdminAnyRole(targetUser?.rol)) {
+  if (isAdminPrincipalRole(actorRole)) {
+    if (isAdminPrincipalRole(targetRole)) {
+      return {
+        ok: false,
+        status: 403,
+        message: "Un ADMIN_PRINCIPAL no puede restablecer la clave de otro ADMIN_PRINCIPAL.",
+      };
+    }
+  } else if (isAdminRoleOnly(actorRole)) {
+    if (isAdminPrincipalRole(targetRole)) {
+      return {
+        ok: false,
+        status: 403,
+        message: "Un ADMIN no puede restablecer la clave de un ADMIN_PRINCIPAL.",
+      };
+    }
+    if (isAdminRoleOnly(targetRole)) {
+      return {
+        ok: false,
+        status: 403,
+        message: "Un ADMIN no puede restablecer la clave de otro ADMIN.",
+      };
+    }
+  } else {
     return {
       ok: false,
       status: 403,
-      message: "No se permite restablecer la clave entre usuarios administradores.",
+      message: "No autorizado para restablecer claves.",
     };
   }
 

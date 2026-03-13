@@ -74,6 +74,23 @@ function getErrorMessage(error, fallback) {
   return error?.response?.data?.message || error?.message || fallback;
 }
 
+function canResetPassword(actor, target) {
+  if (isSupremeAdmin(actor)) return true;
+
+  const actorRole = normalizeRoleName(actor?.rol);
+  const targetRole = normalizeRoleName(target?.rol);
+
+  if (isAdminPrincipalRole(actorRole)) {
+    return isAdminRoleOnly(targetRole) || isInspectorRole(targetRole);
+  }
+
+  if (isAdminRoleOnly(actorRole)) {
+    return isInspectorRole(targetRole);
+  }
+
+  return false;
+}
+
 export default function AdminUsuarios() {
   const actor = getUser();
   const [rows, setRows] = useState([]);
@@ -350,11 +367,11 @@ export default function AdminUsuarios() {
             data={filteredRowsByRole}
             emptyText={loading ? "Cargando..." : "Sin usuarios"}
             renderActions={(u) =>
-              !supremeAdmin && isAdminAnyRole(actor?.rol) && isAdminAnyRole(u?.rol) ? null : (
+              canResetPassword(actor, u) ? (
                 <Button variant="ghost" onClick={() => onResetPassword(u)}>
                   Restablecer clave
                 </Button>
-              )
+              ) : null
             }
           />
         </Card>
