@@ -35,6 +35,55 @@ async function create({ dni, id_rol, id_estado_usuario, password }) {
   return { ok: true, status: 201, data: { id_usuario } };
 }
 
+async function upsertPorDni({ dni, id_rol, id_estado_usuario, actor }) {
+  const cleanDni = String(dni || "").trim();
+  if (!cleanDni) return { ok: false, status: 400, message: "dni requerido" };
+  if (!id_rol || !id_estado_usuario) {
+    return { ok: false, status: 400, message: "id_rol e id_estado_usuario son requeridos" };
+  }
+
+  const [nextRol, nextEstado] = await Promise.all([
+    usuariosRepo.getRolById(id_rol),
+    usuariosRepo.getEstadoById(id_estado_usuario),
+  ]);
+  if (!nextRol) return { ok: false, status: 400, message: "Rol no válido" };
+  if (!nextEstado) return { ok: false, status: 400, message: "Estado no válido" };
+
+  const existing = await usuariosRepo.findByDni(cleanDni);
+  if (existing?.id_usuario) {
+    const ruleError = await validateUpsertRules({
+      existingUser: existing,
+      nextRol,
+      nextEstado,
+      actor,
+    });
+    if (ruleError) return { ok: false, status: 400, message: ruleError };
+
+    await usuariosRepo.update(existing.id_usuario, { id_rol, id_estado_usuario });
+    return {
+      ok: true,
+      status: 200,
+      data: { id_usuario: existing.id_usuario, created: false, updated: true },
+    };
+  }
+
+  const password_hash = await hashPassword(cleanDni);
+  const id_usuario = await usuariosRepo.create({
+    dni: cleanDni,
+    id_rol,
+    id_estado_usuario,
+    password_hash,
+    debe_cambiar_password: 1,
+    password_expires_at: buildExpiryDate(90),
+  });
+
+  return {
+    ok: true,
+    status: 201,
+    data: { id_usuario, created: true, updated: false },
+  };
+}
+
 async function ensureUserForInspectorByDni(dniRaw) {
   const dni = String(dniRaw ?? "").trim();
   if (!dni) return { ok: false, status: 400, message: "dni requerido" };
@@ -77,9 +126,80 @@ function normalizeRoleName(value) {
   return String(value || "").trim().toUpperCase();
 }
 
-function isAdminRole(value) {
+function normalizeEstadoName(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isAdminPrincipalRole(value) {
+  return normalizeRoleName(value) === "ADMIN_PRINCIPAL";
+}
+
+function isAdminRoleOnly(value) {
+  return normalizeRoleName(value) === "ADMIN";
+}
+
+function isAdminAnyRole(value) {
   const role = normalizeRoleName(value);
   return role === "ADMIN_PRINCIPAL" || role === "ADMIN";
+}
+
+function isInspectorRole(value) {
+  return normalizeRoleName(value) === "INSPECTOR";
+}
+
+function isEstadoInactivo(value) {
+  return normalizeEstadoName(value) === "INACTIVO";
+}
+
+function isEstadoActivo(value) {
+  return normalizeEstadoName(value) === "ACTIVO";
+}
+
+function isEstadoBloqueado(value) {
+  return normalizeEstadoName(value) === "BLOQUEADO";
+}
+
+async function validateUpsertRules({ existingUser, nextRol, nextEstado, actor }) {
+  if (!existingUser?.id_usuario) return null;
+
+  const actorRole = normalizeRoleName(actor?.rol);
+  const currentRole = normalizeRoleName(existingUser?.rol);
+  const requestedRole = normalizeRoleName(nextRol?.nombre_rol);
+  const currentEstado = normalizeEstadoName(existingUser?.estado);
+  const requestedEstado = normalizeEstadoName(nextEstado?.nombre_estado);
+
+  if (isAdminPrincipalRole(currentRole) && requestedRole !== "ADMIN_PRINCIPAL") {
+    return "No se permite cambiar el rol de un ADMIN_PRINCIPAL";
+  }
+
+  if (isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentRole) && requestedRole !== currentRole) {
+    return "Un ADMIN no puede cambiar el rol de otro ADMIN";
+  }
+
+  if (isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentRole)) {
+    return "Un ADMIN no puede modificar a un ADMIN_PRINCIPAL";
+  }
+
+  if (isAdminPrincipalRole(currentRole) && !isEstadoActivo(requestedEstado)) {
+    return "Un ADMIN_PRINCIPAL siempre debe permanecer ACTIVO";
+  }
+
+  if (isAdminRoleOnly(actorRole)) {
+    if (isAdminRoleOnly(currentRole) && requestedEstado !== currentEstado) {
+      return "Un ADMIN no puede cambiar el estado de otro ADMIN";
+    }
+    if (isAdminPrincipalRole(currentRole) && requestedEstado !== currentEstado) {
+      return "Un ADMIN no puede cambiar el estado de un ADMIN_PRINCIPAL";
+    }
+  }
+
+  if (isAdminPrincipalRole(actorRole)) {
+    if (isAdminPrincipalRole(currentRole) && requestedEstado !== currentEstado) {
+      return "Un ADMIN_PRINCIPAL no puede cambiar el estado de otro ADMIN_PRINCIPAL";
+    }
+  }
+
+  return null;
 }
 
 async function adminResetPassword(id_usuario, newPassword, actor = {}) {
@@ -90,7 +210,7 @@ async function adminResetPassword(id_usuario, newPassword, actor = {}) {
   const targetUser = await usuariosRepo.findById(id_usuario);
   if (!targetUser) return { ok: false, status: 404, message: "Usuario no encontrado" };
 
-  if (isAdminRole(actorRole) && isAdminRole(targetUser?.rol)) {
+  if (isAdminAnyRole(actorRole) && isAdminAnyRole(targetUser?.rol)) {
     return {
       ok: false,
       status: 403,
@@ -116,6 +236,7 @@ export default {
   list,
   listCatalogos,
   create,
+  upsertPorDni,
   ensureUserForInspectorByDni,
   update,
   changeStatus,

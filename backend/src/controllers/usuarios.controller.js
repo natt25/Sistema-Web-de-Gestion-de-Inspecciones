@@ -18,6 +18,13 @@ async function create(req, res) {
   res.status(r.status).json(r.data);
 }
 
+async function upsertPorDni(req, res) {
+  const { dni, id_rol, id_estado_usuario } = req.body;
+  const r = await usuariosService.upsertPorDni({ dni, id_rol, id_estado_usuario, actor: req.user });
+  if (!r.ok) return res.status(r.status).json({ message: r.message });
+  res.status(r.status).json(r.data);
+}
+
 async function update(req, res) {
   const id_usuario = Number(req.params.id);
   await usuariosService.update(id_usuario, req.body);
@@ -63,4 +70,15 @@ async function ensureInspector(req, res) {
   return res.status(r.status).json(r.data);
 }
 
-export default { list, listCatalogos, create, ensureInspector, update, changeStatus, resetPassword, me, buscar };
+export default {
+  list,
+  listCatalogos,
+  create,
+  upsertPorDni,
+  ensureInspector,
+  update,
+  changeStatus,
+  resetPassword,
+  me,
+  buscar
+};

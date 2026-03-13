@@ -20,6 +20,11 @@ export async function crearUsuario(payload) {
   return res?.data;
 }
 
+export async function asegurarOActualizarUsuario(payload) {
+  const res = await http.post("/api/usuarios/upsert-por-dni", payload);
+  return res?.data;
+}
+
 // PUT /api/usuarios/:id
 export function actualizarUsuario(id_usuario, payload) {
   // payload: { id_rol?, id_estado_usuario? }

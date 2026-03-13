@@ -29,6 +29,13 @@ router.post(
 );
 
 router.post(
+  "/upsert-por-dni",
+  roleMiddleware(["ADMIN_PRINCIPAL", "ADMIN"]),
+  audit("USUARIO_UPSERT_DNI", { entity: "INS_USUARIO", entityIdFrom: "body.dni" }),
+  usuariosController.upsertPorDni
+);
+
+router.post(
   "/ensure-inspector",
   roleMiddleware(["ADMIN_PRINCIPAL", "ADMIN"]),
   audit("USUARIO_ENSURE_INSPECTOR", { entity: "INS_USUARIO", entityIdFrom: "body.dni" }),

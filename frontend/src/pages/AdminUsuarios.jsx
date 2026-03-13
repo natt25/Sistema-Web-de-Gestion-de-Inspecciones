@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   listarUsuarios,
   listarCatalogosUsuarios,
-  crearUsuario,
+  asegurarOActualizarUsuario,
   resetPasswordUsuario,
 } from "../api/usuarios.api";
 import { getUser } from "../auth/auth.storage";
@@ -19,11 +19,13 @@ function formatDateTime(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString("es-PE", {
+    timeZone: "America/Lima",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
 }
 
@@ -31,9 +33,41 @@ function normalizeRoleName(value) {
   return String(value || "").trim().toUpperCase();
 }
 
-function isAdminRole(value) {
+function normalizeEstadoName(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isAdminPrincipalRole(value) {
+  return normalizeRoleName(value) === "ADMIN_PRINCIPAL";
+}
+
+function isAdminRoleOnly(value) {
+  return normalizeRoleName(value) === "ADMIN";
+}
+
+function isAdminAnyRole(value) {
   const role = normalizeRoleName(value);
   return role === "ADMIN_PRINCIPAL" || role === "ADMIN";
+}
+
+function isInspectorRole(value) {
+  return normalizeRoleName(value) === "INSPECTOR";
+}
+
+function isEstadoInactivo(value) {
+  return normalizeEstadoName(value) === "INACTIVO";
+}
+
+function isEstadoActivo(value) {
+  return normalizeEstadoName(value) === "ACTIVO";
+}
+
+function isEstadoBloqueado(value) {
+  return normalizeEstadoName(value) === "BLOQUEADO";
+}
+
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message || error?.message || fallback;
 }
 
 export default function AdminUsuarios() {
@@ -54,7 +88,47 @@ export default function AdminUsuarios() {
   const [dni, setDni] = useState("");
   const [idRol, setIdRol] = useState("");
   const [idEstado, setIdEstado] = useState("");
-  const [password, setPassword] = useState("Cambio123*");
+  const normalizedDni = String(dni || "").trim();
+  const actorRole = normalizeRoleName(actor?.rol);
+  const currentUser = rows.find((row) => String(row?.dni || "").trim() === normalizedDni) || null;
+  const currentUserRole = normalizeRoleName(currentUser?.rol);
+  const currentUserEstado = normalizeEstadoName(currentUser?.estado);
+  const canEditRol = !currentUser
+    ? true
+    : isInspectorRole(currentUserRole) ||
+      (isAdminPrincipalRole(actorRole) && isAdminRoleOnly(currentUserRole));
+  const filteredRoles = roles.filter((rol) => {
+    if (!currentUser) return true;
+    if (isAdminPrincipalRole(currentUserRole)) {
+      return isAdminPrincipalRole(rol?.nombre_rol);
+    }
+    if (isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUserRole)) {
+      return normalizeRoleName(rol?.nombre_rol) === currentUserRole;
+    }
+    if (isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentUserRole)) {
+      return normalizeRoleName(rol?.nombre_rol) === currentUserRole;
+    }
+    if (isAdminRoleOnly(currentUserRole)) {
+      return !isInspectorRole(rol?.nombre_rol);
+    }
+    return true;
+  });
+  const filteredEstados = estados.filter((estado) => {
+    if (!currentUser) return true;
+    if (isAdminPrincipalRole(currentUserRole)) {
+      return isEstadoActivo(estado?.nombre_estado);
+    }
+    if (isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUserRole)) {
+      return normalizeEstadoName(estado?.nombre_estado) === currentUserEstado;
+    }
+    return true;
+  });
+  const canEditEstado = !currentUser
+    ? true
+    : isInspectorRole(currentUserRole) ||
+      (isAdminPrincipalRole(actorRole) && isAdminRoleOnly(currentUserRole));
+  const roleSelectDisabled = Boolean(currentUser) && !canEditRol;
+  const estadoSelectDisabled = Boolean(currentUser) && !canEditEstado;
 
   async function load() {
     setLoading(true);
@@ -96,7 +170,23 @@ export default function AdminUsuarios() {
 
   useEffect(() => { load(); }, []);
 
-  async function onCreate(e) {
+  useEffect(() => {
+    if (!idRol) return;
+    const exists = filteredRoles.some((rol) => String(rol.id_rol) === String(idRol));
+    if (!exists) {
+      setIdRol(filteredRoles[0] ? String(filteredRoles[0].id_rol) : "");
+    }
+  }, [idRol, filteredRoles]);
+
+  useEffect(() => {
+    if (!idEstado) return;
+    const exists = filteredEstados.some((estado) => String(estado.id_estado_usuario) === String(idEstado));
+    if (!exists) {
+      setIdEstado(filteredEstados[0] ? String(filteredEstados[0].id_estado_usuario) : "");
+    }
+  }, [idEstado, filteredEstados]);
+
+  async function onSubmit(e) {
     e.preventDefault();
     setMsg("");
 
@@ -106,12 +196,16 @@ export default function AdminUsuarios() {
     }
 
     try {
-      await crearUsuario({ dni, id_rol: Number(idRol), id_estado_usuario: Number(idEstado), password });
-      setMsg("Usuario creado");
+      await asegurarOActualizarUsuario({
+        dni: normalizedDni,
+        id_rol: Number(idRol),
+        id_estado_usuario: Number(idEstado),
+      });
+      setMsg("Usuario actualizado correctamente");
       setDni("");
       await load();
     } catch (e) {
-      setMsg(e?.message || "Error creando usuario");
+      setMsg(getErrorMessage(e, "Error actualizando usuario"));
     }
   }
 
@@ -123,7 +217,7 @@ export default function AdminUsuarios() {
       setMsg("Clave restablecida");
       await load();
     } catch (e) {
-      setMsg(e?.message || "No se pudo restablecer la clave");
+      setMsg(getErrorMessage(e, "No se pudo restablecer la clave"));
     }
   }
 
@@ -133,29 +227,31 @@ export default function AdminUsuarios() {
     { key: "apellidos_nombres", label: "Apellidos y nombres", render: (u) => u.apellidos_nombres || "-" },
     { key: "rol", label: "Rol" },
     { key: "estado", label: "Estado" },
-    {
-      key: "locked_until",
-      label: "Locked",
-      render: (u) => (
-        <Badge variant={u.locked_until ? "yellow" : "green"}>
-          {u.locked_until ? "Sí" : "No"}
-        </Badge>
-      ),
-    },
     { key: "last_login_at", label: "Último login", render: (u) => formatDateTime(u.last_login_at) },
   ];
 
   return (
-    <DashboardLayout title="Administracion">
+    <DashboardLayout title="Administración">
       <div className="grid-cards" style={{ gridTemplateColumns: "1.1fr 1.6fr" }}>
-        <Card title="Crear usuario">
-          <form className="form" onSubmit={onCreate}>
+        <Card title="Actualizar usuario">
+          <form className="form" onSubmit={onSubmit}>
             <Input label="DNI" value={dni} onChange={(e) => setDni(e.target.value)} required />
+            {currentUser ? (
+              <Badge variant="outline">
+                Actual: {currentUser.rol} / {currentUser.estado}
+              </Badge>
+            ) : null}
             <label className="ins-field">
               <span>Rol</span>
-              <select className="ins-input" value={idRol} onChange={(e) => setIdRol(e.target.value)} required>
+              <select
+                className="ins-input"
+                value={idRol}
+                onChange={(e) => setIdRol(e.target.value)}
+                required
+                disabled={roleSelectDisabled}
+              >
                 <option value="">Selecciona un rol</option>
-                {roles.map((rol) => (
+                {filteredRoles.map((rol) => (
                   <option key={rol.id_rol} value={String(rol.id_rol)}>
                     {rol.nombre_rol}
                   </option>
@@ -164,17 +260,62 @@ export default function AdminUsuarios() {
             </label>
             <label className="ins-field">
               <span>Estado</span>
-              <select className="ins-input" value={idEstado} onChange={(e) => setIdEstado(e.target.value)} required>
+              <select
+                className="ins-input"
+                value={idEstado}
+                onChange={(e) => setIdEstado(e.target.value)}
+                required
+                disabled={estadoSelectDisabled}
+              >
                 <option value="">Selecciona un estado</option>
-                {estados.map((estado) => (
+                {filteredEstados.map((estado) => (
                   <option key={estado.id_estado_usuario} value={String(estado.id_estado_usuario)}>
                     {estado.nombre_estado}
                   </option>
                 ))}
               </select>
             </label>
-            <Input label="Password inicial" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <Button variant="primary" type="submit">Crear</Button>
+            {isAdminPrincipalRole(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN_PRINCIPAL no puede cambiar a ADMIN ni a INSPECTOR.
+              </div>
+            ) : null}
+            {isAdminPrincipalRole(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN_PRINCIPAL solo puede permanecer ACTIVO.
+              </div>
+            ) : null}
+            {isAdminRoleOnly(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN no puede regresar a INSPECTOR.
+              </div>
+            ) : null}
+            {isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN no puede cambiar el rol de otro ADMIN.
+              </div>
+            ) : null}
+            {isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN no puede modificar a un ADMIN_PRINCIPAL.
+              </div>
+            ) : null}
+            {isAdminRoleOnly(actorRole) && isAdminPrincipalRole(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN no puede cambiar el estado de un ADMIN_PRINCIPAL.
+              </div>
+            ) : null}
+            {isAdminRoleOnly(actorRole) && isAdminRoleOnly(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN no puede cambiar el estado de otro ADMIN.
+              </div>
+            ) : null}
+            {isAdminPrincipalRole(actorRole) && isAdminPrincipalRole(currentUser?.rol) ? (
+              <div className="help">
+                Un ADMIN_PRINCIPAL no puede cambiar el estado de otro ADMIN_PRINCIPAL.
+              </div>
+            ) : null}
+            <Button variant="primary" type="submit">Actualizar</Button>
             {msg && <Badge>{msg}</Badge>}
           </form>
         </Card>
@@ -185,7 +326,7 @@ export default function AdminUsuarios() {
             data={rows}
             emptyText={loading ? "Cargando..." : "Sin usuarios"}
             renderActions={(u) =>
-              isAdminRole(actor?.rol) && isAdminRole(u?.rol) ? null : (
+              isAdminAnyRole(actor?.rol) && isAdminAnyRole(u?.rol) ? null : (
                 <Button variant="ghost" onClick={() => onResetPassword(u)}>
                   Restablecer clave
                 </Button>

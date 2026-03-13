@@ -165,6 +165,30 @@ async function listEstados() {
   return result.recordset;
 }
 
+async function getRolById(id_rol) {
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("id_rol", sql.Int, id_rol);
+  const result = await req.query(`
+    SELECT TOP 1 id_rol, nombre_rol
+    FROM SSOMA.INS_CAT_ROL
+    WHERE id_rol = @id_rol;
+  `);
+  return result.recordset[0] || null;
+}
+
+async function getEstadoById(id_estado_usuario) {
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("id_estado_usuario", sql.Int, id_estado_usuario);
+  const result = await req.query(`
+    SELECT TOP 1 id_estado_usuario, nombre_estado
+    FROM SSOMA.INS_CAT_ESTADO_USUARIO
+    WHERE id_estado_usuario = @id_estado_usuario;
+  `);
+  return result.recordset[0] || null;
+}
+
 async function create({ dni, id_rol, id_estado_usuario, password_hash, debe_cambiar_password, password_expires_at }) {
   const query = `
     INSERT INTO SSOMA.INS_USUARIO
@@ -437,8 +461,17 @@ async function buscarEmpleados(q) {
 
 async function findByDni(dni) {
   const query = `
-    SELECT TOP 1 id_usuario, dni, id_rol, id_estado_usuario, debe_cambiar_password
-    FROM SSOMA.INS_USUARIO
+    SELECT TOP 1
+      u.id_usuario,
+      u.dni,
+      u.id_rol,
+      u.id_estado_usuario,
+      r.nombre_rol AS rol,
+      eu.nombre_estado AS estado,
+      u.debe_cambiar_password
+    FROM SSOMA.INS_USUARIO u
+    JOIN SSOMA.INS_CAT_ROL r ON r.id_rol = u.id_rol
+    JOIN SSOMA.INS_CAT_ESTADO_USUARIO eu ON eu.id_estado_usuario = u.id_estado_usuario
     WHERE LTRIM(RTRIM(dni)) = LTRIM(RTRIM(@dni));
   `;
 
@@ -554,6 +587,8 @@ export default {
   list,
   listRoles,
   listEstados,
+  getRolById,
+  getEstadoById,
   create,
   update,
   setEstado,
