@@ -22,6 +22,31 @@ function sha256File(filePath) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
+function normalizeDni(value) {
+  return String(value || "").trim();
+}
+
+function normalizeRole(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isGuest(user) {
+  return normalizeRole(user?.rol) === "INVITADO";
+}
+
+function canEditAccionByResponsable({ accionResponsable, user }) {
+  if (!user || isGuest(user)) return false;
+  if (!accionResponsable) return false;
+
+  const responsableDni = normalizeDni(accionResponsable?.responsable_dni);
+  const userDni = normalizeDni(user?.dni);
+  if (responsableDni) return responsableDni === userDni;
+  if (accionResponsable?.externo_responsable_nombre || accionResponsable?.externo_responsable_cargo) {
+    return false;
+  }
+  return false;
+}
+
 function crearStorageEvidencia(destDir, prefix) {
   return multer.diskStorage({
     destination: (req, file, cb) => cb(null, destDir),
@@ -94,6 +119,11 @@ async function subirEvidenciaAccion({ id_accion, file, user }) {
 
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
+
+  const accionResponsable = await obsRepo.obtenerResponsableAccion(id);
+  if (!canEditAccionByResponsable({ accionResponsable, user })) {
+    return { ok: false, status: 403, message: "Solo el responsable de la acción puede subir evidencias." };
+  }
 
   if (!file) {
     return { ok: false, status: 400, message: "Archivo no enviado" };
@@ -269,6 +299,11 @@ async function eliminarEvidenciaAccion({ id_acc_evidencia, user }) {
 
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
+
+  const accionResponsable = await obsRepo.obtenerResponsableAccionPorEvidencia(id);
+  if (!canEditAccionByResponsable({ accionResponsable, user })) {
+    return { ok: false, status: 403, message: "Solo el responsable de la acción puede eliminar evidencias." };
+  }
 
   const pool = await getPool();
 

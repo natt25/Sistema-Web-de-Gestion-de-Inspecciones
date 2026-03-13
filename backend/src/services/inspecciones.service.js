@@ -7,6 +7,27 @@ function normalizeRol(user) {
   return String(user?.rol || user?.role || user?.nombre_rol || "").trim().toUpperCase();
 }
 
+function normalizeDni(value) {
+  return String(value || "").trim();
+}
+
+function isGuest(user) {
+  return normalizeRol(user) === "INVITADO";
+}
+
+function canEditAccionByResponsable({ accionResponsable, user }) {
+  if (!user || isGuest(user)) return false;
+  if (!accionResponsable) return false;
+
+  const responsableDni = normalizeDni(accionResponsable?.responsable_dni);
+  const userDni = normalizeDni(user?.dni);
+  if (responsableDni) return responsableDni === userDni;
+  if (accionResponsable?.externo_responsable_nombre || accionResponsable?.externo_responsable_cargo) {
+    return false;
+  }
+  return false;
+}
+
 export async function validarInspeccionEditable({ id_inspeccion, user }) {
   const id = Number(id_inspeccion);
   if (!id || Number.isNaN(id)) {
@@ -335,6 +356,11 @@ async function actualizarEstadoAccion({ id_accion, body, user }) {
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
 
+  const accionResponsable = await observacionesRepo.obtenerResponsableAccion(id);
+  if (!canEditAccionByResponsable({ accionResponsable, user })) {
+    return { ok: false, status: 403, message: "Solo el responsable de la acción puede actualizar esta acción." };
+  }
+
   const id_estado_accion = Number(body?.id_estado_accion);
 
   if (!id_estado_accion) {
@@ -371,6 +397,11 @@ async function actualizarPorcentajeAccion({ id_accion, body, user }) {
 
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
+
+  const accionResponsable = await observacionesRepo.obtenerResponsableAccion(id);
+  if (!canEditAccionByResponsable({ accionResponsable, user })) {
+    return { ok: false, status: 403, message: "Solo el responsable de la acción puede actualizar esta acción." };
+  }
 
   const raw = body?.porcentaje_cumplimiento;
 

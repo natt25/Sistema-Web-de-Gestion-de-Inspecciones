@@ -1,6 +1,35 @@
 import repo from "../repositories/observaciones.repository.js";
 import inspeccionesRepo from "../repositories/inspecciones.repository.js";
 import { validarInspeccionEditable } from "./inspecciones.service.js";
+
+function normalizeDni(value) {
+  return String(value || "").trim();
+}
+
+function normalizeRole(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isGuest(user) {
+  return normalizeRole(user?.rol) === "INVITADO";
+}
+
+function isAdminPrincipal(user) {
+  return normalizeRole(user?.rol) === "ADMIN_PRINCIPAL";
+}
+
+function canEditAccionByResponsable({ accionResponsable, user }) {
+  if (!user || isGuest(user)) return false;
+  if (!accionResponsable) return false;
+
+  const responsableDni = normalizeDni(accionResponsable?.responsable_dni);
+  const userDni = normalizeDni(user?.dni);
+  if (responsableDni) return responsableDni === userDni;
+  if (accionResponsable?.externo_responsable_nombre || accionResponsable?.externo_responsable_cargo) {
+    return false;
+  }
+  return false;
+}
 async function crearObservacion({ id_inspeccion, body, user }) {
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
@@ -190,6 +219,11 @@ async function crearEvidenciaAccion({ id_accion, body, user }) {
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
 
+  const accionResponsable = await repo.obtenerResponsableAccion(id);
+  if (!canEditAccionByResponsable({ accionResponsable, user })) {
+    return { ok: false, status: 403, message: "Solo el responsable de la acción puede subir evidencias." };
+  }
+
   const {
     archivo_nombre,
     archivo_ruta,
@@ -301,6 +335,11 @@ async function actualizarEstadoAccion({ id_accion, body, user }) {
 
   const editable = await validarInspeccionEditable({ id_inspeccion, user });
   if (!editable.ok) return editable;
+
+  const accionResponsable = await repo.obtenerResponsableAccion(id);
+  if (!canEditAccionByResponsable({ accionResponsable, user })) {
+    return { ok: false, status: 403, message: "Solo el responsable de la acción puede actualizar esta acción." };
+  }
 
   const nuevo = Number(body?.id_estado_accion);
   if (!nuevo || Number.isNaN(nuevo)) {

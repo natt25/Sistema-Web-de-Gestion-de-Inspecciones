@@ -435,6 +435,30 @@ async function obtenerInspeccionIdPorAccion(id_accion) {
   return result.recordset[0]?.id_inspeccion ?? null;
 }
 
+async function obtenerResponsableAccion(id_accion) {
+  const query = `
+    SELECT TOP 1
+      a.id_accion,
+      a.id_observacion,
+      o.id_inspeccion,
+      LTRIM(RTRIM(CAST(r.dni AS NVARCHAR(30)))) AS responsable_dni,
+      r.externo_responsable_nombre,
+      r.externo_responsable_cargo
+    FROM SSOMA.INS_ACCION a
+    JOIN SSOMA.INS_ACCION_RESPONSABLE r
+      ON r.id_acc_responsable = a.id_acc_responsable
+    JOIN SSOMA.INS_OBSERVACION o
+      ON o.id_observacion = a.id_observacion
+    WHERE a.id_accion = @id_accion;
+  `;
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_accion", sql.Int, id_accion);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
 async function obtenerInspeccionIdPorObsEvidencia(id_obs_evidencia) {
   const query = `
     SELECT o.id_inspeccion
@@ -467,6 +491,33 @@ async function obtenerInspeccionIdPorAccEvidencia(id_acc_evidencia) {
 
   const result = await request.query(query);
   return result.recordset[0]?.id_inspeccion ?? null;
+}
+
+async function obtenerResponsableAccionPorEvidencia(id_acc_evidencia) {
+  const query = `
+    SELECT TOP 1
+      a.id_accion,
+      a.id_observacion,
+      o.id_inspeccion,
+      LTRIM(RTRIM(CAST(r.dni AS NVARCHAR(30)))) AS responsable_dni,
+      r.externo_responsable_nombre,
+      r.externo_responsable_cargo,
+      e.id_acc_evidencia
+    FROM SSOMA.INS_ACCION_EVIDENCIA e
+    JOIN SSOMA.INS_ACCION a
+      ON a.id_accion = e.id_accion
+    JOIN SSOMA.INS_ACCION_RESPONSABLE r
+      ON r.id_acc_responsable = a.id_acc_responsable
+    JOIN SSOMA.INS_OBSERVACION o
+      ON o.id_observacion = a.id_observacion
+    WHERE e.id_acc_evidencia = @id_acc_evidencia;
+  `;
+  const pool = await getPool();
+  const request = pool.request();
+  request.input("id_acc_evidencia", sql.Int, id_acc_evidencia);
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
 }
 
 // Acciones no finalizadas = cualquier acción cuyo estado calculado no sea CERRADA.
@@ -551,8 +602,10 @@ export default {
   actualizarEstadoAccion,
   obtenerInspeccionIdPorObservacion,
   obtenerInspeccionIdPorAccion,
+  obtenerResponsableAccion,
   obtenerInspeccionIdPorObsEvidencia,
   obtenerInspeccionIdPorAccEvidencia,
+  obtenerResponsableAccionPorEvidencia,
   contarAccionesNoFinalizadas,
   contarObservacionesNoCerradas,
   existeHashEvidenciaObservacion,

@@ -1213,6 +1213,25 @@ function isAccionCerrada(accion) {
   return String(accion?.estado_accion || "").trim().toUpperCase() === "CERRADA";
 }
 
+function normalizeDni(value) {
+  return String(value || "").trim();
+}
+
+function isInvitado(user) {
+  return String(user?.rol || "").trim().toUpperCase() === "INVITADO";
+}
+
+function isActionResponsible(accion, currentUser) {
+  if (!currentUser || isInvitado(currentUser)) return false;
+  const userDni = normalizeDni(currentUser?.dni);
+  if (!userDni) return false;
+
+  const responsableDni = normalizeDni(accion?.dni || accion?.responsable_interno_dni);
+  if (!responsableDni) return false;
+
+  return responsableDni === userDni;
+}
+
 function getMetaBadgeVariant() {
   return "meta-primary";
 }
@@ -1840,6 +1859,10 @@ export default function InspeccionDetail() {
   const readonlyInvitado = esInvitado;
   const disableEdition = inspeccionCerrada && !puedeEditarInspeccionCerrada;
   const inspeccionBloqueada = readonlyInvitado || disableEdition;
+  const canEditAccion = (accion) =>
+    !readonlyInvitado &&
+    !inspeccionBloqueada &&
+    isActionResponsible(accion, currentUser);
   const visiblePageError = online ? pageError : "";
   const nombreTipoInspeccion = pickFirst(
     cab?.nombre_formato,
@@ -2253,8 +2276,10 @@ export default function InspeccionDetail() {
                         const hasLev = evidLev.length > 0;
                         const todayDay = new Date().setHours(0, 0, 0, 0);
                         const deadlineDay = toLocalDayNumber(accionDb?.fecha_ejecucion || row?.fecha_ejecucion);
+                        const canEditThisAcc = accionDb ? canEditAccion(accionDb) : false;
 
                         const canEditCumplimiento =
+                          canEditThisAcc &&
                           hasLev &&
                           deadlineDay != null &&
                           todayDay <= deadlineDay &&
@@ -2316,22 +2341,24 @@ export default function InspeccionDetail() {
                                     <>
                                       <EvidenceGrid
                                         evidencias={evidLev}
-                                        allowDelete={true}
+                                        allowDelete={canEditThisAcc}
                                         onPreview={openPreview}
                                         onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: accionDb.id_accion })}
                                       />
 
-                                      <UploadEvidence
-                                        kind="ACC"
-                                        idTarget={accionDb.id_accion}
-                                        onUploaded={handleEvidenceUploaded}
-                                        disabled={false}
-                                        inspeccionCerrada={inspeccionBloqueada}
-                                        online={online}
-                                        maxFiles={2}
-                                        currentCount={evidLev.length}
-                                        className="for014-upload"
-                                      />
+                                      {canEditThisAcc ? (
+                                        <UploadEvidence
+                                          kind="ACC"
+                                          idTarget={accionDb.id_accion}
+                                          onUploaded={handleEvidenceUploaded}
+                                          disabled={false}
+                                          inspeccionCerrada={inspeccionBloqueada}
+                                          online={online}
+                                          maxFiles={2}
+                                          currentCount={evidLev.length}
+                                          className="for014-upload"
+                                        />
+                                      ) : null}
                                     </>
                                   ) : (
                                     <p className="for014-empty-msg">
@@ -2342,60 +2369,66 @@ export default function InspeccionDetail() {
 
                                 <div className="for014-cumplimiento">
                                   <label className="for014-cumplimiento-label">% cumplimiento</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    className="ins-input"
-                                    value={getPorcentajeDraftValue(accionDb, row)}
-                                    onChange={(e) => {
-                                      if (!accionDb?.id_accion) return;
+                                  {canEditThisAcc ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      className="ins-input"
+                                      value={getPorcentajeDraftValue(accionDb, row)}
+                                      onChange={(e) => {
+                                        if (!accionDb?.id_accion) return;
 
-                                      const raw = e.target.value;
+                                        const raw = e.target.value;
 
-                                      if (raw === "") {
+                                        if (raw === "") {
+                                          setPorcentajeDraft((prev) => ({
+                                            ...prev,
+                                            [accionDb.id_accion]: "",
+                                          }));
+                                          return;
+                                        }
+
+                                        const num = Number(raw);
+                                        if (Number.isNaN(num)) return;
+                                        if (num < 0 || num > 100) return;
+
                                         setPorcentajeDraft((prev) => ({
                                           ...prev,
-                                          [accionDb.id_accion]: "",
+                                          [accionDb.id_accion]: raw,
                                         }));
-                                        return;
-                                      }
+                                      }}
+                                      disabled={!canEditCumplimiento}
+                                      placeholder={cumplimientoPlaceholder}
+                                      onBlur={async () => {
+                                        if (!accionDb?.id_accion) return;
+                                        if (!online) return;
+                                        if (!canEditCumplimiento) return;
 
-                                      const num = Number(raw);
-                                      if (Number.isNaN(num)) return;
-                                      if (num < 0 || num > 100) return;
+                                        const draft = porcentajeDraft[accionDb.id_accion];
+                                        const sourceValue =
+                                          draft ?? String(accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? "");
 
-                                      setPorcentajeDraft((prev) => ({
-                                        ...prev,
-                                        [accionDb.id_accion]: raw,
-                                      }));
-                                    }}
-                                    disabled={!canEditCumplimiento}
-                                    placeholder={cumplimientoPlaceholder}
-                                    onBlur={async () => {
-                                      if (!accionDb?.id_accion) return;
-                                      if (!online) return;
-                                      if (!canEditCumplimiento) return;
+                                        const v = sourceValue === "" ? null : Number(sourceValue);
 
-                                      const draft = porcentajeDraft[accionDb.id_accion];
-                                      const sourceValue =
-                                        draft ?? String(accionDb?.porcentaje_cumplimiento ?? row?.porcentaje ?? "");
-
-                                      const v = sourceValue === "" ? null : Number(sourceValue);
-
-                                      try {
-                                        await actualizarPorcentajeAccion(accionDb.id_accion, v);
-                                        setPorcentajeDraft((prev) => {
-                                          const copy = { ...prev };
-                                          delete copy[accionDb.id_accion];
-                                          return copy;
-                                        });
-                                        await load();
-                                      } catch (err) {
-                                        alert(getErrorMessage(err));
-                                      }
-                                    }}
-                                  />
+                                        try {
+                                          await actualizarPorcentajeAccion(accionDb.id_accion, v);
+                                          setPorcentajeDraft((prev) => {
+                                            const copy = { ...prev };
+                                            delete copy[accionDb.id_accion];
+                                            return copy;
+                                          });
+                                          await load();
+                                        } catch (err) {
+                                          alert(getErrorMessage(err));
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="ins-input" style={{ display: "flex", alignItems: "center" }}>
+                                      {getPorcentajeDraftValue(accionDb, row) || "-"}
+                                    </div>
+                                  )}
                                 </div>
                               </section>
                             </div>
@@ -2552,11 +2585,12 @@ export default function InspeccionDetail() {
                       const acc = acciones[0] || null; // FOR-014 normalmente 1 accion por observacion
                       const evidAcc = Array.isArray(acc?.evidencias) ? acc.evidencias : [];
                       const tieneEvidAcc = evidAcc.length > 0;
+                      const canEditCurrentAcc = acc ? canEditAccion(acc) : false;
 
                       const pctValue = acc?.porcentaje_cumplimiento ?? "";
 
                       const disabledPct =
-                        inspeccionBloqueada ||
+                        !canEditCurrentAcc ||
                         !acc ||
                         !tieneEvidAcc ||
                         isAccionCerrada(acc);
@@ -2583,12 +2617,12 @@ export default function InspeccionDetail() {
                                 <b>Evidencias (Acc)</b>
                                 <EvidenceGrid
                                   evidencias={evidAcc}
-                                  allowDelete={!readonlyInvitado}
+                                  allowDelete={canEditCurrentAcc}
                                   onPreview={openPreview}
                                   onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: acc.id_accion })}
                                 />
                               </div>
-                              {!readonlyInvitado ? (
+                              {canEditCurrentAcc ? (
                                 <UploadEvidence
                                   kind="ACC"
                                   idTarget={acc.id_accion}
@@ -2601,7 +2635,7 @@ export default function InspeccionDetail() {
 
                               <div style={{ marginTop: 12, display: "grid", gap: 6, maxWidth: 280 }}>
                                 <b>% Cumplimiento</b>
-                                {readonlyInvitado ? (
+                                {!canEditCurrentAcc ? (
                                   <div className="ins-input" style={{ display: "flex", alignItems: "center" }}>
                                     {pctValue === "" || pctValue == null ? "-" : `${pctValue}%`}
                                   </div>
@@ -2636,7 +2670,7 @@ export default function InspeccionDetail() {
                                     }}
                                   />
                                 )}
-                                {!readonlyInvitado && !tieneEvidAcc && (
+                                {canEditCurrentAcc && !tieneEvidAcc && (
                                   <div style={{ fontSize: 12, opacity: 0.7 }}>
                                     * El % se habilita cuando exista evidencia de levantamiento.
                                   </div>
@@ -2755,6 +2789,10 @@ export default function InspeccionDetail() {
                           key={a.id_accion}
                           style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}
                         >
+                          {(() => {
+                            const canEditThisAcc = canEditAccion(a);
+                            return (
+                              <>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                             <b>Acc #{a.id_accion}</b>
                             <Badge>Estado: {a.estado_accion}</Badge>
@@ -2763,10 +2801,10 @@ export default function InspeccionDetail() {
                           </div>
 
                           <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {!readonlyInvitado && !isAccionCerrada(a) && (
+                            {canEditThisAcc && !isAccionCerrada(a) && (
                               <Button
                                 variant="outline"
-                                disabled={!online || inspeccionBloqueada}
+                                disabled={!online || !canEditThisAcc}
                                 onClick={async () => {
                                   try {
                                     await actualizarPorcentajeAccion(a.id_accion, 100);
@@ -2785,10 +2823,15 @@ export default function InspeccionDetail() {
 
                           <div style={{ marginTop: 10 }}>
                             <b>Evidencias (Acc)</b>
-                            <EvidenceGrid evidencias={a.evidencias} onPreview={openPreview} />
+                            <EvidenceGrid
+                              evidencias={a.evidencias}
+                              allowDelete={canEditThisAcc}
+                              onPreview={openPreview}
+                              onDelete={(evItem) => handleDeleteAccEvidence({ evItem, idAccion: a.id_accion })}
+                            />
                           </div>
 
-                          {!readonlyInvitado ? (
+                          {canEditThisAcc ? (
                             <UploadEvidence
                               kind="ACC"
                               idTarget={a.id_accion}
@@ -2798,6 +2841,9 @@ export default function InspeccionDetail() {
                               online={online}
                             />
                           ) : null}
+                              </>
+                            );
+                          })()}
                         </div>
                       ))
                     )}
