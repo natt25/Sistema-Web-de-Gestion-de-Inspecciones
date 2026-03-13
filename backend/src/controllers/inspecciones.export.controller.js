@@ -538,12 +538,11 @@ function appendStructuredDetailSection(ws, respuestas) {
 
 function appendObservacionesSection(ws, observaciones) {
   appendBlankRow(ws);
-  appendSectionTitle(ws, "Observaciones", 6);
+  appendSectionTitle(ws, "Observaciones", 5);
   appendTable(
     ws,
     [
       { header: "ID Observación", value: "id_observacion", wrap: false },
-      { header: "Ítem", value: "item_ref" },
       { header: "Descripción", value: "desc_observacion" },
       { header: "Riesgo", value: "nivel_riesgo" },
       { header: "Estado", value: "estado_observacion" },
