@@ -473,6 +473,38 @@
   color: #6b7280;
 }
 
+.password-rules{
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.password-rules-title{
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.password-rule{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.password-rule.success{
+  color: #166534;
+}
+
+.password-rule.pending{
+  color: #6b7280;
+}
+
 @media (max-width: 520px){
   .auth-first-login-note{
     font-size: 11px;
