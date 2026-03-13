@@ -34,7 +34,7 @@ async function changeStatus(req, res) {
 async function resetPassword(req, res) {
   const id_usuario = Number(req.params.id);
   const { password } = req.body;
-  const r = await usuariosService.adminResetPassword(id_usuario, password);
+  const r = await usuariosService.adminResetPassword(id_usuario, password, req.user);
   if (!r.ok) return res.status(r.status).json({ message: r.message });
   res.json({ ok: true });
 }

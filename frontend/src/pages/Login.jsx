@@ -134,7 +134,7 @@ export default function Login() {
             />
 
             <Input
-              label="Contrasena"
+              label="Contraseña"
               type="password"
               placeholder="Password"
               value={password}

@@ -98,6 +98,33 @@ async function list() {
       u.id_estado_usuario,
       r.nombre_rol AS rol,
       eu.nombre_estado AS estado,
+      LTRIM(RTRIM(COALESCE(ve.apellido_paterno, ''))) AS apellido_paterno,
+      LTRIM(RTRIM(COALESCE(ve.apellido_materno, ''))) AS apellido_materno,
+      LTRIM(RTRIM(COALESCE(ve.nombres, ''))) AS nombres,
+      COALESCE(
+        NULLIF(
+          LTRIM(RTRIM(CONCAT(
+            LTRIM(RTRIM(COALESCE(ve.apellido_paterno, ''))),
+            CASE WHEN NULLIF(LTRIM(RTRIM(COALESCE(ve.apellido_paterno, ''))), '') IS NOT NULL
+                   AND NULLIF(LTRIM(RTRIM(COALESCE(ve.apellido_materno, ''))), '') IS NOT NULL
+              THEN ' '
+              ELSE ''
+            END,
+            LTRIM(RTRIM(COALESCE(ve.apellido_materno, ''))),
+            CASE WHEN NULLIF(LTRIM(RTRIM(COALESCE(ve.nombres, ''))), '') IS NOT NULL
+                   AND (
+                     NULLIF(LTRIM(RTRIM(COALESCE(ve.apellido_paterno, ''))), '') IS NOT NULL
+                     OR NULLIF(LTRIM(RTRIM(COALESCE(ve.apellido_materno, ''))), '') IS NOT NULL
+                   )
+              THEN ', '
+              ELSE ''
+            END,
+            LTRIM(RTRIM(COALESCE(ve.nombres, '')))
+          ))),
+          ''
+        ),
+        '-'
+      ) AS apellidos_nombres,
       u.debe_cambiar_password,
       u.last_login_at,
       u.locked_until,
@@ -105,6 +132,8 @@ async function list() {
     FROM SSOMA.INS_USUARIO u
     JOIN SSOMA.INS_CAT_ROL r ON r.id_rol = u.id_rol
     JOIN SSOMA.INS_CAT_ESTADO_USUARIO eu ON eu.id_estado_usuario = u.id_estado_usuario
+    LEFT JOIN SSOMA.V_EMPLEADO ve
+      ON LTRIM(RTRIM(CAST(ve.dni AS NVARCHAR(20)))) = LTRIM(RTRIM(CAST(u.dni AS NVARCHAR(20))))
     ORDER BY u.id_usuario DESC;
   `;
   const pool = await getPool();
@@ -270,6 +299,27 @@ async function getById(id_usuario) {
     firma_path: normalizeFirmaRuta(firmaPathRaw),
     firma_ruta: normalizeFirmaRuta(firmaPathRaw),
   };
+}
+
+async function findById(id_usuario) {
+  const pool = await getPool();
+  const req = pool.request();
+  req.input("id_usuario", sql.Int, id_usuario);
+  const result = await req.query(`
+    SELECT TOP 1
+      u.id_usuario,
+      u.dni,
+      u.id_rol,
+      u.id_estado_usuario,
+      r.nombre_rol AS rol,
+      eu.nombre_estado AS estado
+    FROM SSOMA.INS_USUARIO u
+    JOIN SSOMA.INS_CAT_ROL r ON r.id_rol = u.id_rol
+    JOIN SSOMA.INS_CAT_ESTADO_USUARIO eu ON eu.id_estado_usuario = u.id_estado_usuario
+    WHERE u.id_usuario = @id_usuario;
+  `);
+
+  return result.recordset[0] || null;
 }
 
 async function buscar(q) {
@@ -512,6 +562,7 @@ export default {
   getById,
   buscar,
   buscarEmpleados,
+  findById,
   findByDni,
   getInspectorRoleId,
   ensureInspectorUserByDni

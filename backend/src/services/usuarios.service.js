@@ -73,9 +73,30 @@ async function changeStatus(id_usuario, id_estado_usuario) {
   return { ok: true, status: 200 };
 }
 
-async function adminResetPassword(id_usuario, newPassword) {
+function normalizeRoleName(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isAdminRole(value) {
+  const role = normalizeRoleName(value);
+  return role === "ADMIN_PRINCIPAL" || role === "ADMIN";
+}
+
+async function adminResetPassword(id_usuario, newPassword, actor = {}) {
   const err = validatePassword(newPassword);
   if (err) return { ok: false, status: 400, message: err };
+
+  const actorRole = actor?.rol;
+  const targetUser = await usuariosRepo.findById(id_usuario);
+  if (!targetUser) return { ok: false, status: 404, message: "Usuario no encontrado" };
+
+  if (isAdminRole(actorRole) && isAdminRole(targetUser?.rol)) {
+    return {
+      ok: false,
+      status: 403,
+      message: "No se permite restablecer la clave entre usuarios administradores.",
+    };
+  }
 
   const password_hash = await hashPassword(newPassword);
   await usuariosRepo.resetPassword(id_usuario, {

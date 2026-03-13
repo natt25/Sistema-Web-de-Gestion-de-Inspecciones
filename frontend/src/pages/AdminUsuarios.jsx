@@ -3,9 +3,9 @@ import {
   listarUsuarios,
   listarCatalogosUsuarios,
   crearUsuario,
-  cambiarEstadoUsuario,
   resetPasswordUsuario,
 } from "../api/usuarios.api";
+import { getUser } from "../auth/auth.storage";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -14,7 +14,30 @@ import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
 import useLoadingWatchdog from "../hooks/useLoadingWatchdog";
 
+function formatDateTime(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function normalizeRoleName(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isAdminRole(value) {
+  const role = normalizeRoleName(value);
+  return role === "ADMIN_PRINCIPAL" || role === "ADMIN";
+}
+
 export default function AdminUsuarios() {
+  const actor = getUser();
   const [rows, setRows] = useState([]);
   const [roles, setRoles] = useState([]);
   const [estados, setEstados] = useState([]);
@@ -92,35 +115,34 @@ export default function AdminUsuarios() {
     }
   }
 
-  async function toggleActivo(u) {
-    const next = String(u.estado).toUpperCase() === "ACTIVO" ? 2 : 1;
-    try {
-      await cambiarEstadoUsuario(u.id_usuario, next);
-      await load();
-    } catch {
-      setMsg("No se pudo cambiar estado");
-    }
-  }
-
   async function onResetPassword(u) {
     const nueva = prompt(`Nueva contraseña para DNI ${u.dni}:`);
     if (!nueva) return;
     try {
       await resetPasswordUsuario(u.id_usuario, nueva);
-      setMsg("Password reseteado");
+      setMsg("Clave restablecida");
       await load();
-    } catch {
-      setMsg("No se pudo resetear password");
+    } catch (e) {
+      setMsg(e?.message || "No se pudo restablecer la clave");
     }
   }
 
   const columns = [
     { key: "id_usuario", label: "ID" },
     { key: "dni", label: "DNI" },
+    { key: "apellidos_nombres", label: "Apellidos y nombres", render: (u) => u.apellidos_nombres || "-" },
     { key: "rol", label: "Rol" },
     { key: "estado", label: "Estado" },
-    { key: "locked_until", label: "Locked", render: (u) => (u.locked_until ? "Si" : "No") },
-    { key: "last_login_at", label: "Último login", render: (u) => (u.last_login_at ? String(u.last_login_at) : "-") },
+    {
+      key: "locked_until",
+      label: "Locked",
+      render: (u) => (
+        <Badge variant={u.locked_until ? "yellow" : "green"}>
+          {u.locked_until ? "Sí" : "No"}
+        </Badge>
+      ),
+    },
+    { key: "last_login_at", label: "Último login", render: (u) => formatDateTime(u.last_login_at) },
   ];
 
   return (
@@ -162,14 +184,13 @@ export default function AdminUsuarios() {
             columns={columns}
             data={rows}
             emptyText={loading ? "Cargando..." : "Sin usuarios"}
-            renderActions={(u) => (
-              <>
-                <Button variant="outline" onClick={() => toggleActivo(u)}>
-                  {String(u.estado).toUpperCase() === "ACTIVO" ? "Desactivar" : "Activar"}
+            renderActions={(u) =>
+              isAdminRole(actor?.rol) && isAdminRole(u?.rol) ? null : (
+                <Button variant="ghost" onClick={() => onResetPassword(u)}>
+                  Restablecer clave
                 </Button>
-                <Button variant="ghost" onClick={() => onResetPassword(u)}>Reset PW</Button>
-              </>
-            )}
+              )
+            }
           />
         </Card>
       </div>
