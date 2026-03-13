@@ -309,6 +309,21 @@
   display: inline-block;
 }
 
+.home-dashboard-table{
+  table-layout: fixed;
+  min-width: 800px;
+}
+
+.home-dashboard-table th,
+.home-dashboard-table td{
+  vertical-align: middle;
+}
+
+.home-dashboard-table td{
+  white-space: normal;
+  word-break: normal;
+}
+
 /* Drawer overlay */
 .sidebar-overlay{
   position: fixed;

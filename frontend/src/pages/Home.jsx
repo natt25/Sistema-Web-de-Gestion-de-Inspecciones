@@ -29,16 +29,16 @@ function normalizeEstado(estadoRaw) {
 
 const cellTextStyle = {
   display: "block",
-  maxWidth: 220,
   lineHeight: "20px",
-  wordBreak: "break-word",
+  whiteSpace: "normal",
+  wordBreak: "normal",
+  overflowWrap: "normal",
   margin: 0,
   padding: 0,
 };
 
 const actionCellStyle = {
   display: "block",
-  minWidth: 90,
   lineHeight: "20px",
   margin: 0,
   padding: 0,
@@ -46,10 +46,18 @@ const actionCellStyle = {
 
 const shortCellStyle = {
   display: "block",
-  minWidth: 70,
   lineHeight: "20px",
   margin: 0,
   padding: 0,
+};
+
+const homeTableWidths = {
+  id: { width: "60px" },
+  tipo: { width: "260px" },
+  area: { width: "100px" },
+  estado: { width: "130px" },
+  fecha: { width: "130px" },
+  accion: { width: "120px" },
 };
 
 export default function Home() {
@@ -265,16 +273,19 @@ export default function Home() {
       {
         key: "id_inspeccion",
         label: "ID",
+        headerStyle: homeTableWidths.id,
+        cellStyle: homeTableWidths.id,
         render: (it) => <span style={shortCellStyle}>{it?.id_inspeccion ?? "-"}</span>,
       },
       {
         key: "tipo",
         label: "Tipo",
+        headerStyle: homeTableWidths.tipo,
+        cellStyle: homeTableWidths.tipo,
         render: (it) => (
           <span
             style={{
               ...cellTextStyle,
-              maxWidth: 150,
             }}
           >
             {it?.nombre_formato || it?.codigo_formato || `Plantilla ${it?.id_plantilla_inspec ?? "-"}`}
@@ -284,11 +295,12 @@ export default function Home() {
       {
         key: "area",
         label: "Area",
+        headerStyle: homeTableWidths.area,
+        cellStyle: homeTableWidths.area,
         render: (it) => (
           <span
             style={{
               ...cellTextStyle,
-              maxWidth: 90,
             }}
           >
             {it?.desc_area || it?.area || it?.id_area || "-"}
@@ -298,6 +310,8 @@ export default function Home() {
       {
         key: "estado",
         label: "Estado",
+        headerStyle: homeTableWidths.estado,
+        cellStyle: homeTableWidths.estado,
         render: (it) => {
           const ui = estadoBadge(it?.estado_inspeccion_calculado || it?.estado || it?.estado_inspeccion);
           return (
@@ -322,6 +336,8 @@ export default function Home() {
       {
         key: "fecha",
         label: "Fecha",
+        headerStyle: homeTableWidths.fecha,
+        cellStyle: homeTableWidths.fecha,
         render: (it) => {
           const raw = it?.fecha_inspeccion || it?.created_at;
           return <span style={shortCellStyle}>{raw ? String(raw).slice(0, 10) : "-"}</span>;
@@ -360,13 +376,14 @@ export default function Home() {
               </Button>
             }
           >
-            <Table
-              columns={colsAcciones}
-              data={misAcciones}
-              emptyText={loading ? "Cargando..." : pendientesError || "No tienes acciones pendientes."}
-              renderActions={(a) => (
-                <div
-                  style={{
+          <Table
+            columns={colsAcciones}
+            data={misAcciones}
+            emptyText={loading ? "Cargando..." : pendientesError || "No tienes acciones pendientes."}
+            tableClassName="home-dashboard-table"
+            renderActions={(a) => (
+              <div
+                style={{
                     display: "block",
                     margin: 0,
                     padding: 0,
@@ -392,6 +409,8 @@ export default function Home() {
                   </button>
                 </div>
               )}
+              actionsHeaderStyle={homeTableWidths.accion}
+              actionsCellStyle={homeTableWidths.accion}
             />
           </Card>
         ) : (
@@ -412,6 +431,7 @@ export default function Home() {
             columns={colsInspecciones}
             data={inspeccionesRecientes}
             emptyText={loading ? "Cargando..." : inspeccionesError || "Sin inspecciones recientes."}
+            tableClassName="home-dashboard-table"
             renderActions={(it) => (
               <div
                 style={{
@@ -422,7 +442,7 @@ export default function Home() {
               >
                 <button
                   type="button"
-                  onClick={() => a?.id_inspeccion && navigate(`/inspecciones/${a.id_inspeccion}`)}
+                  onClick={() => it?.id_inspeccion && navigate(`/inspecciones/${it.id_inspeccion}`)}
                   style={{
                     padding: 0,
                     margin: 0,
@@ -440,6 +460,8 @@ export default function Home() {
                 </button>
               </div>
             )}
+            actionsHeaderStyle={homeTableWidths.accion}
+            actionsCellStyle={homeTableWidths.accion}
           />
         </Card>
       </div>
